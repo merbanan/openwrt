@@ -93,6 +93,15 @@ define Device/adslr_g7
 endef
 TARGET_DEVICES += adslr_g7
 
+define Build/build-fmimage
+	echo -ne '\xde\xad\xc0\xde' >emptycfg
+	mv $@ $@-tmp
+	$(STAGING_DIR_HOST)/bin/fmimage $@ \
+		$@-tmp@50000 \
+		emptycfg@f00000
+	$(RM) emptycfg
+endef
+
 define Device/afoundry_ew1200
   $(Device/dsa-migration)
   IMAGE_SIZE := 16064k
@@ -211,6 +220,17 @@ define Device/buffalo_wsr-2533dhpl
   DEVICE_PACKAGES := kmod-mt7615e kmod-mt7615-firmware
 endef
 TARGET_DEVICES += buffalo_wsr-2533dhpl
+
+define Device/fluidmesh_fmx-500
+  IMAGE/fmimage.bin := append-kernel | append-rootfs | pad-rootfs | \
+	check-size $$$$(IMAGE_SIZE) | build-fmimage fmx500
+  IMAGE_SIZE := 15936k
+  DEVICE_VENDOR := Fluidmesh
+  DEVICE_MODEL := FMx500
+  DEVICE_PACKAGES := kmod-mt7615e kmod-mt76x2 wpad
+  SUPPORTED_DEVICES += fmx-500
+endef
+TARGET_DEVICES += fluidmesh_fmx-500
 
 define Device/buffalo_wsr-600dhp
   $(Device/dsa-migration)
