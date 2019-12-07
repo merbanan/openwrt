@@ -6,11 +6,10 @@ PKG_RELEASE=1
 PKG_LICENSE:=GPLv2
 PKG_LICENSE_FILES:=
 
-PKG_SOURCE_URL:=https://github.com/openwrt/mt76
+PKG_SOURCE_URL:=https://github.com/LorenzoBianconi/mt76.git
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_DATE:=2019-10-10
-PKG_SOURCE_VERSION:=d3a589586d1b1d9e1422e31f642a500ff0195f20
-PKG_MIRROR_HASH:=46df12037db0d3438cb0ae97cded24a6562502d5cbd2d6d6d4e72ca807b0407e
+PKG_SOURCE_VERSION:=ff64638ebebd12d0dd0ab4c33f39b6f7a276e7d3
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_BUILD_PARALLEL:=1
@@ -23,7 +22,10 @@ PKG_CONFIG_DEPENDS += \
 	CONFIG_PACKAGE_kmod-mt76x2-common \
 	CONFIG_PACKAGE_kmod-mt76x2 \
 	CONFIG_PACKAGE_kmod-mt76x2u \
-	CONFIG_PACKAGE_kmod-mt7603
+	CONFIG_PACKAGE_kmod-mt7603 \
+	CONFIG_PACKAGE_kmod-connac-common \
+	CONFIG_PACKAGE_kmod-mt7663e \
+	CONFIG_PACKAGE_kmod-mt7663u
 
 STAMP_CONFIGURED_DEPENDS := $(STAGING_DIR)/usr/include/mac80211-backport/backport/autoconf.h
 
@@ -147,6 +149,28 @@ define KernelPackage/mt7615e
   AUTOLOAD:=$(call AutoProbe,mt7615e)
 endef
 
+define KernelPackage/connac-common
+  $(KernelPackage/mt76-default)
+  TITLE:=MediaTek connac driver common code
+  DEPENDS+=+kmod-mt76-core +kmod-mt76-usb
+  HIDDEN:=1
+  FILES:=$(PKG_BUILD_DIR)/connac/connac-common.ko
+endef
+
+define KernelPackage/mt7663e
+  $(KernelPackage/mt76-default)
+  TITLE:=MediaTek mt7663e driver code
+  DEPENDS+=+kmod-connac-common
+  FILES:=$(PKG_BUILD_DIR)/connac/mt7663e.ko
+endef
+
+define KernelPackage/mt7663u
+  $(KernelPackage/mt76-default)
+  TITLE:=MediaTek mt7663u driver code
+  DEPENDS+=+kmod-connac-common +kmod-mt76-usb
+  FILES:=$(PKG_BUILD_DIR)/connac/mt7663u.ko
+endef
+
 NOSTDINC_FLAGS = \
 	-I$(PKG_BUILD_DIR) \
 	-I$(STAGING_DIR)/usr/include/mac80211-backport/uapi \
@@ -192,6 +216,15 @@ ifdef CONFIG_PACKAGE_kmod-mt7603
 endif
 ifdef CONFIG_PACKAGE_kmod-mt7615e
   PKG_MAKE_FLAGS += CONFIG_MT7615E=m
+endif
+ifdef CONFIG_PACKAGE_kmod-connac-common
+  PKG_MAKE_FLAGS += CONFIG_CONNAC_COMMON=m
+endif
+ifdef CONFIG_PACKAGE_kmod-mt7663e
+  PKG_MAKE_FLAGS += CONFIG_MT7663E=m
+endif
+ifdef CONFIG_PACKAGE_kmod-mt7663u
+  PKG_MAKE_FLAGS += CONFIG_MT7663U=m
 endif
 
 define Build/Compile
@@ -254,6 +287,15 @@ define KernelPackage/mt7615e/install
 		$(1)/lib/firmware/mediatek
 endef
 
+define KernelPackage/connac-common/install
+endef
+
+define KernelPackage/mt7663e/install
+endef
+
+define KernelPackage/mt7663u/install
+endef
+
 $(eval $(call KernelPackage,mt76-core))
 $(eval $(call KernelPackage,mt76-usb))
 $(eval $(call KernelPackage,mt76x02-usb))
@@ -267,3 +309,6 @@ $(eval $(call KernelPackage,mt76x2))
 $(eval $(call KernelPackage,mt7603))
 $(eval $(call KernelPackage,mt7615e))
 $(eval $(call KernelPackage,mt76))
+$(eval $(call KernelPackage,connac-common))
+$(eval $(call KernelPackage,mt7663e))
+$(eval $(call KernelPackage,mt7663u))
