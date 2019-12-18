@@ -9,7 +9,7 @@ PKG_LICENSE_FILES:=
 PKG_SOURCE_URL:=https://github.com/LorenzoBianconi/mt76.git
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_DATE:=2019-10-10
-PKG_SOURCE_VERSION:=ff64638ebebd12d0dd0ab4c33f39b6f7a276e7d3
+PKG_SOURCE_VERSION:=3ef5f3444a94e450f16260a85c2ade3237e813bc
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_BUILD_PARALLEL:=1
@@ -152,7 +152,7 @@ endef
 define KernelPackage/connac-common
   $(KernelPackage/mt76-default)
   TITLE:=MediaTek connac driver common code
-  DEPENDS+=+kmod-mt76-core +kmod-mt76-usb
+  DEPENDS+=+kmod-mt76-core
   HIDDEN:=1
   FILES:=$(PKG_BUILD_DIR)/connac/connac-common.ko
 endef
@@ -162,6 +162,7 @@ define KernelPackage/mt7663e
   TITLE:=MediaTek mt7663e driver code
   DEPENDS+=+kmod-connac-common
   FILES:=$(PKG_BUILD_DIR)/connac/mt7663e.ko
+  AUTOLOAD:=$(call AutoProbe,mt7663e)
 endef
 
 define KernelPackage/mt7663u
@@ -169,6 +170,7 @@ define KernelPackage/mt7663u
   TITLE:=MediaTek mt7663u driver code
   DEPENDS+=+kmod-connac-common +kmod-mt76-usb
   FILES:=$(PKG_BUILD_DIR)/connac/mt7663u.ko
+  AUTOLOAD:=$(call AutoProbe,mt7663u)
 endef
 
 NOSTDINC_FLAGS = \
@@ -288,6 +290,8 @@ define KernelPackage/mt7615e/install
 endef
 
 define KernelPackage/connac-common/install
+	$(INSTALL_DIR) $(1)/lib/firmware/mediatek
+	cp ./files/mt7663_fw/* $(1)/lib/firmware/mediatek
 endef
 
 define KernelPackage/mt7663e/install
