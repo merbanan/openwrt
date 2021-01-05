@@ -10,7 +10,7 @@ PKG_LICENSE_FILES:=
 PKG_SOURCE_URL:=https://github.com/LorenzoBianconi/mt76.git
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_DATE:=2020-09-23
-PKG_SOURCE_VERSION:=c5e9a37d4a73591bfb0aa42160b1764a00f860e0
+PKG_SOURCE_VERSION:=86e57742ccbcfe99afe908e028aea2b34b2c339e
 #PKG_MIRROR_HASH:=4182823ec5a97d842e7404b3c8139de8af4f35948008890d50e4dad95add996b
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
@@ -25,6 +25,7 @@ PKG_CONFIG_DEPENDS += \
 	CONFIG_PACKAGE_kmod-mt76x2 \
 	CONFIG_PACKAGE_kmod-mt76x2u \
 	CONFIG_PACKAGE_kmod-mt7603 \
+	CONFIG_PACKAGE_kmod-mt76-connac \
 	CONFIG_PACKAGE_CFG80211_TESTMODE
 
 STAMP_CONFIGURED_DEPENDS := $(STAGING_DIR)/usr/include/mac80211-backport/backport/autoconf.h
@@ -144,11 +145,19 @@ define KernelPackage/mt7603
   AUTOLOAD:=$(call AutoProbe,mt7603e)
 endef
 
+define KernelPackage/mt76-connac
+  $(KernelPackage/mt76-default)
+  TITLE:=MediaTek MT7615/MT7921 wireless driver common code
+  DEPENDS+=+kmod-mt76-core
+  HIDDEN:=1
+  FILES:=$(PKG_BUILD_DIR)/mt76-connac-lib.ko
+endef
+
 define KernelPackage/mt7615-common
   $(KernelPackage/mt76-default)
   TITLE:=MediaTek MT7615 wireless driver common code
   HIDDEN:=1
-  DEPENDS+=@PCI_SUPPORT +kmod-mt76-core
+  DEPENDS+=@PCI_SUPPORT +kmod-mt76-connac
   FILES:= $(PKG_BUILD_DIR)/mt7615/mt7615-common.ko
 endef
 
@@ -214,7 +223,7 @@ endef
 define KernelPackage/mt7921e
   $(KernelPackage/mt76-default)
   TITLE:=MediaTek MT7921e wireless driver
-  DEPENDS+=@PCI_SUPPORT +kmod-mt7615-common +@DRIVER_11AX_SUPPORT
+  DEPENDS+=@PCI_SUPPORT +kmod-mt76-connac +@DRIVER_11AX_SUPPORT
   FILES:= $(PKG_BUILD_DIR)/mt7921/mt7921e.ko
   AUTOLOAD:=$(call AutoProbe,mt7921e)
 endef
@@ -275,6 +284,9 @@ ifdef CONFIG_PACKAGE_kmod-mt76x2u
 endif
 ifdef CONFIG_PACKAGE_kmod-mt7603
   PKG_MAKE_FLAGS += CONFIG_MT7603E=m
+endif
+ifdef CONFIG_PACKAGE_kmod-mt76-connac
+  PKG_MAKE_FLAGS += CONFIG_MT76_CONNAC_LIB=m
 endif
 ifdef CONFIG_PACKAGE_kmod-mt7615-common
   PKG_MAKE_FLAGS += CONFIG_MT7615_COMMON=m
@@ -420,6 +432,7 @@ $(eval $(call KernelPackage,mt76x2-common))
 $(eval $(call KernelPackage,mt76x2u))
 $(eval $(call KernelPackage,mt76x2))
 $(eval $(call KernelPackage,mt7603))
+$(eval $(call KernelPackage,mt76-connac))
 $(eval $(call KernelPackage,mt7615-common))
 $(eval $(call KernelPackage,mt7615-firmware))
 $(eval $(call KernelPackage,mt7615e))
