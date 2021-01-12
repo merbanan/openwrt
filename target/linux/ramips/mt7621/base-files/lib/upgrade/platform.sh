@@ -57,6 +57,7 @@ platform_do_upgrade() {
 	dlink,dir-2640-a1|\
 	dlink,dir-2660-a1|\
 	dlink,dir-853-a3|\
+	dlink,dir-x1860|\
 	hiwifi,hc5962|\
 	iptime,a3004t|\
 	iptime,t5004|\
