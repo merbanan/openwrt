@@ -1,0 +1,76 @@
+From d224ea896b07c31712280e18a063fc8a7b595814 Mon Sep 17 00:00:00 2001
+Message-Id: <d224ea896b07c31712280e18a063fc8a7b595814.1624636264.git.lorenzo@kernel.org>
+In-Reply-To: <14fe26fd21610e12705c9d8c997431d74effa2a6.1624636264.git.lorenzo@kernel.org>
+References: <14fe26fd21610e12705c9d8c997431d74effa2a6.1624636264.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Wed, 16 Sep 2020 12:32:48 +0200
+Subject: [PATCH 2/2] mt76: mt7915: add color_collision debugfs handler
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt7915/debugfs.c | 29 +++++++++++++++++++++++++++++
+ mt7915/mt7915.h  |  1 +
+ 2 files changed, 30 insertions(+)
+
+diff --git a/mt7915/debugfs.c b/mt7915/debugfs.c
+index 64048243..f3e79df7 100644
+--- a/mt7915/debugfs.c
++++ b/mt7915/debugfs.c
+@@ -335,6 +335,32 @@ mt7915_read_rate_txpower(struct seq_file *s, void *data)
+ 	return 0;
+ }
+ 
++static void mt7915_color_collision_iter(void *priv, u8 *mac,
++					struct ieee80211_vif *vif)
++{
++	u64 *color_bitmap = priv;
++
++	if (vif->color_change_active)
++		return;
++
++	ieeee80211_obss_color_collision_notify(vif, *color_bitmap);
++}
++
++static int mt7915_trigger_color_collision(void *data, u64 val)
++{
++	struct mt7915_dev *dev = data;
++
++	ieee80211_iterate_active_interfaces(dev->mt76.hw,
++					    IEEE80211_IFACE_ITER_RESUME_ALL,
++					    mt7915_color_collision_iter, &val);
++	dev->color_collision++;
++
++	return 0;
++}
++
++DEFINE_DEBUGFS_ATTRIBUTE(fops_color_collision_trigger, NULL,
++			 mt7915_trigger_color_collision, "%lld\n");
++
+ int mt7915_init_debugfs(struct mt7915_dev *dev)
+ {
+ 	struct dentry *dir;
+@@ -358,6 +384,9 @@ int mt7915_init_debugfs(struct mt7915_dev *dev)
+ 	debugfs_create_file("ser_trigger", 0200, dir, dev, &fops_ser_trigger);
+ 	debugfs_create_devm_seqfile(dev->mt76.dev, "txpower_sku", dir,
+ 				    mt7915_read_rate_txpower);
++	debugfs_create_u32("color_collision", 0400, dir, &dev->color_collision);
++	debugfs_create_file("trigger_color_collision", 0600, dir, dev,
++			    &fops_color_collision_trigger);
+ 
+ 	return 0;
+ }
+diff --git a/mt7915/mt7915.h b/mt7915/mt7915.h
+index e2b8c1a4..d2794382 100644
+--- a/mt7915/mt7915.h
++++ b/mt7915/mt7915.h
+@@ -195,6 +195,7 @@ struct mt7915_dev {
+ 	struct list_head sta_poll_list;
+ 	spinlock_t sta_poll_lock;
+ 
++	u32 color_collision;
+ 	u32 hw_pattern;
+ 
+ 	bool dbdc_support;
+-- 
+2.31.1
+
