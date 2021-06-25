@@ -1,0 +1,30 @@
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -9602,13 +9602,6 @@ static int nl80211_switch_color(void *pr
+ 			settings->cca_color))
+ 		goto error;
+ 
+-	if (nla_put_u16(msg, NL80211_ATTR_CNTDWN_OFFS_BEACON,
+-		    settings->counter_offset_beacon) ||
+-	    (settings->beacon_cca.probe_resp &&
+-	     nla_put_u16(msg, NL80211_ATTR_CNTDWN_OFFS_PRESP,
+-		     settings->counter_offset_presp)))
+-		goto fail;
+-
+ 	/* beacon_after params */
+ 	ret = set_beacon_data(msg, &settings->beacon_after);
+ 	if (ret)
+@@ -9623,6 +9616,13 @@ static int nl80211_switch_color(void *pr
+ 	if (ret)
+ 		goto error;
+ 
++	if (nla_put_u16(msg, NL80211_ATTR_CNTDWN_OFFS_BEACON,
++			settings->counter_offset_beacon) ||
++	    (settings->beacon_cca.probe_resp &&
++	     nla_put_u16(msg, NL80211_ATTR_CNTDWN_OFFS_PRESP,
++			 settings->counter_offset_presp)))
++		goto fail;
++
+ 	nla_nest_end(msg, beacon_cca);
+ 	ret = send_and_recv_msgs(drv, msg, NULL, NULL);
+ 	if (ret) {
