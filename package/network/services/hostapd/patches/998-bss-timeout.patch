@@ -1,0 +1,10 @@
+--- a/src/common/ieee802_11_defs.h
++++ b/src/common/ieee802_11_defs.h
+@@ -2336,6 +2336,6 @@ enum edmg_bw_config {
+ /* IEEE802.11/D6.0 - 26.17.3.5.1
+  * the minimum default timeout between color collision and color change is defined as 50s
+  */
+-#define DOT11BSS_COLOR_COLLISION_AP_PERIOD	50
++#define DOT11BSS_COLOR_COLLISION_AP_PERIOD	2
+ 
+ #endif /* IEEE802_11_DEFS_H */

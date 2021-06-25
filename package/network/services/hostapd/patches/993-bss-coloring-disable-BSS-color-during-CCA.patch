@@ -1,0 +1,11 @@
+--- a/src/ap/ieee802_11_he.c
++++ b/src/ap/ieee802_11_he.c
+@@ -192,7 +192,7 @@ u8 * hostapd_eid_he_operation(struct hos
+ 		params |= (hapd->iface->conf->he_op.he_rts_threshold <<
+ 			   HE_OPERATION_RTS_THRESHOLD_OFFSET);
+ 
+-	if (hapd->iface->conf->he_op.he_bss_color_disabled)
++	if (hapd->iface->conf->he_op.he_bss_color_disabled || hapd->cca_in_progress)
+ 		params |= HE_OPERATION_BSS_COLOR_DISABLED;
+ 	if (hapd->iface->conf->he_op.he_bss_color_partial)
+ 		params |= HE_OPERATION_BSS_COLOR_PARTIAL;

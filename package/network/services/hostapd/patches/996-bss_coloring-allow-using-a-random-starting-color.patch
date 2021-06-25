@@ -1,0 +1,30 @@
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -3545,8 +3545,11 @@ static int hostapd_config_fill(struct ho
+ 	} else if (os_strcmp(buf, "he_mu_beamformer") == 0) {
+ 		conf->he_phy_capab.he_mu_beamformer = atoi(pos);
+ 	} else if (os_strcmp(buf, "he_bss_color") == 0) {
+-		conf->he_op.he_bss_color = atoi(pos) & 0x3f;
+-		conf->he_op.he_bss_color_disabled = 0;
++		conf->he_op.he_bss_color = atoi(pos);
++		if (conf->he_op.he_bss_color > 63)
++			conf->he_op.he_bss_color = (os_random() % 63) + 1;
++		if (conf->he_op.he_bss_color)
++			conf->he_op.he_bss_color_disabled = 0;
+ 	} else if (os_strcmp(buf, "he_bss_color_partial") == 0) {
+ 		conf->he_op.he_bss_color_partial = atoi(pos);
+ 	} else if (os_strcmp(buf, "he_default_pe_duration") == 0) {
+--- a/hostapd/hostapd.conf
++++ b/hostapd/hostapd.conf
+@@ -805,7 +805,10 @@ wmm_ac_vo_acm=0
+ # 1 = supported
+ #he_mu_beamformer=1
+ 
+-# he_bss_color: BSS color (1-63)
++# he_bss_color:
++# 0 = disable
++# 1-63 = pre-defined color
++# 64+ =	random color
+ #he_bss_color=1
+ 
+ # he_bss_color_partial: BSS color AID equation

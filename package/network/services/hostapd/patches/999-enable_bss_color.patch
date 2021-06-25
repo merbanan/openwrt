@@ -1,0 +1,22 @@
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -4752,6 +4752,9 @@ struct hostapd_config * hostapd_config_r
+ 		*pos = '\0';
+ 		pos++;
+ 		errors += hostapd_config_fill(conf, bss, buf, pos, line);
++
++		conf->he_op.he_bss_color = (os_random() % 63) + 1;
++		conf->he_op.he_bss_color_disabled = 0;
+ 	}
+ 
+ 	fclose(f);
+@@ -4789,6 +4792,9 @@ int hostapd_set_iface(struct hostapd_con
+ 		return -1;
+ 	}
+ 
++	conf->he_op.he_bss_color = (os_random() % 63) + 1;
++	conf->he_op.he_bss_color_disabled = 0;
++
+ 	for (i = 0; i < conf->num_bss; i++)
+ 		hostapd_set_security_params(conf->bss[i], 0);
+ 

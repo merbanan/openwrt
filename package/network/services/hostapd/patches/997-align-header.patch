@@ -1,0 +1,157 @@
+--- a/src/drivers/nl80211_copy.h
++++ b/src/drivers/nl80211_copy.h
+@@ -1160,6 +1160,31 @@
+  *	dropped because it did not include a valid MME MIC while beacon
+  *	protection was enabled (BIGTK configured in station mode).
+  *
++ * @NL80211_CMD_CONTROL_PORT_FRAME_TX_STATUS: Report TX status of a control
++ *	port frame transmitted with %NL80211_CMD_CONTROL_PORT_FRAME.
++ *	%NL80211_ATTR_COOKIE identifies the TX command and %NL80211_ATTR_FRAME
++ *	includes the contents of the frame. %NL80211_ATTR_ACK flag is included
++ *	if the recipient acknowledged the frame.
++ *
++ * @NL80211_CMD_SET_SAR_SPECS: SAR power limitation configuration is
++ *	passed using %NL80211_ATTR_SAR_SPEC. %NL80211_ATTR_WIPHY is used to
++ *	specify the wiphy index to be applied to.
++ *
++ * @NL80211_CMD_OBSS_COLOR_COLLISION: This notification is sent out whenever
++ *	mac80211/drv detects a bss color collision.
++ *
++ * @NL80211_CMD_COLOR_CHANGE_REQUEST: This command is used to indicate that
++ *	userspace wants to change the BSS color.
++ *
++ * @NL80211_CMD_COLOR_CHANGE_STARTED: Notify userland, that a color change has
++ *	started
++ *
++ * @NL80211_CMD_COLOR_CHANGE_ABORTED: Notify userland, that the color change has
++ *	been aborted
++ *
++ * @NL80211_CMD_COLOR_CHANGE_COMPLETED: Notify userland that the color change
++ *	has completed
++ *
+  * @NL80211_CMD_MAX: highest used command number
+  * @__NL80211_CMD_AFTER_LAST: internal use
+  */
+@@ -1388,6 +1413,17 @@ enum nl80211_commands {
+ 
+ 	NL80211_CMD_UNPROT_BEACON,
+ 
++	NL80211_CMD_CONTROL_PORT_FRAME_TX_STATUS,
++
++	NL80211_CMD_SET_SAR_SPECS,
++
++	NL80211_CMD_OBSS_COLOR_COLLISION,
++
++	NL80211_CMD_COLOR_CHANGE_REQUEST,
++	NL80211_CMD_COLOR_CHANGE_STARTED,
++	NL80211_CMD_COLOR_CHANGE_ABORTED,
++	NL80211_CMD_COLOR_CHANGE_COMPLETED,
++
+ 	/* add new commands above here */
+ 
+ 	/* used to define NL80211_CMD_MAX below */
+@@ -2060,10 +2096,10 @@ enum nl80211_commands {
+  *	operation).
+  * @NL80211_ATTR_CSA_IES: Nested set of attributes containing the IE information
+  *	for the time while performing a channel switch.
+- * @NL80211_ATTR_CSA_C_OFF_BEACON: An array of offsets (u16) to the channel
+- *	switch counters in the beacons tail (%NL80211_ATTR_BEACON_TAIL).
+- * @NL80211_ATTR_CSA_C_OFF_PRESP: An array of offsets (u16) to the channel
+- *	switch counters in the probe response (%NL80211_ATTR_PROBE_RESP).
++ * @NL80211_ATTR_CNTDWN_OFFS_BEACON: An array of offsets (u16) to the channel
++ *	switch or color change counters in the beacons tail (%NL80211_ATTR_BEACON_TAIL).
++ * @NL80211_ATTR_CNTDWN_OFFS_PRESP: An array of offsets (u16) to the channel
++ *	switch or color change counters in the probe response (%NL80211_ATTR_PROBE_RESP).
+  *
+  * @NL80211_ATTR_RXMGMT_FLAGS: flags for nl80211_send_mgmt(), u32.
+  *	As specified in the &enum nl80211_rxmgmt_flags.
+@@ -2790,8 +2826,8 @@ enum nl80211_attrs {
+ 	NL80211_ATTR_CH_SWITCH_COUNT,
+ 	NL80211_ATTR_CH_SWITCH_BLOCK_TX,
+ 	NL80211_ATTR_CSA_IES,
+-	NL80211_ATTR_CSA_C_OFF_BEACON,
+-	NL80211_ATTR_CSA_C_OFF_PRESP,
++	NL80211_ATTR_CNTDWN_OFFS_BEACON,
++	NL80211_ATTR_CNTDWN_OFFS_PRESP,
+ 
+ 	NL80211_ATTR_RXMGMT_FLAGS,
+ 
+@@ -2960,6 +2996,34 @@ enum nl80211_attrs {
+ 	NL80211_ATTR_PMK_REAUTH_THRESHOLD,
+ 
+ 	NL80211_ATTR_RECEIVE_MULTICAST,
++	NL80211_ATTR_WIPHY_FREQ_OFFSET,
++	NL80211_ATTR_CENTER_FREQ1_OFFSET,
++	NL80211_ATTR_SCAN_FREQ_KHZ,
++
++	NL80211_ATTR_HE_6GHZ_CAPABILITY,
++
++	NL80211_ATTR_FILS_DISCOVERY,
++
++	NL80211_ATTR_UNSOL_BCAST_PROBE_RESP,
++
++	NL80211_ATTR_S1G_CAPABILITY,
++	NL80211_ATTR_S1G_CAPABILITY_MASK,
++
++	NL80211_ATTR_SAE_PWE,
++
++	NL80211_ATTR_RECONNECT_REQUESTED,
++
++	NL80211_ATTR_SAR_SPEC,
++
++	NL80211_ATTR_DISABLE_HE,
++
++	NL80211_ATTR_WIPHY_ANTENNA_GAIN,
++
++	NL80211_ATTR_OBSS_COLOR_BITMAP,
++
++	NL80211_ATTR_COLOR_CHANGE_COUNT,
++	NL80211_ATTR_COLOR_CHANGE_COLOR,
++	NL80211_ATTR_COLOR_CHANGE_ELEMS,
+ 
+ 	/* add attributes here, update the policy in nl80211.c */
+ 
+@@ -2973,6 +3037,8 @@ enum nl80211_attrs {
+ #define	NL80211_ATTR_MESH_PARAMS NL80211_ATTR_MESH_CONFIG
+ #define NL80211_ATTR_IFACE_SOCKET_OWNER NL80211_ATTR_SOCKET_OWNER
+ #define NL80211_ATTR_SAE_DATA NL80211_ATTR_AUTH_DATA
++#define NL80211_ATTR_CSA_C_OFF_BEACON NL80211_ATTR_CNTDWN_OFFS_BEACON
++#define NL80211_ATTR_CSA_C_OFF_PRESP NL80211_ATTR_CNTDWN_OFFS_PRESP
+ 
+ /*
+  * Allow user space programs to use #ifdef on new attributes by defining them
+@@ -5758,6 +5824,18 @@ enum nl80211_ext_feature_index {
+ 	NL80211_EXT_FEATURE_DEL_IBSS_STA,
+ 	NL80211_EXT_FEATURE_MULTICAST_REGISTRATIONS,
+ 	NL80211_EXT_FEATURE_BEACON_PROTECTION_CLIENT,
++	NL80211_EXT_FEATURE_SCAN_FREQ_KHZ,
++	NL80211_EXT_FEATURE_CONTROL_PORT_OVER_NL80211_TX_STATUS,
++	NL80211_EXT_FEATURE_OPERATING_CHANNEL_VALIDATION,
++	NL80211_EXT_FEATURE_4WAY_HANDSHAKE_AP_PSK,
++	NL80211_EXT_FEATURE_SAE_OFFLOAD_AP,
++	NL80211_EXT_FEATURE_FILS_DISCOVERY,
++	NL80211_EXT_FEATURE_UNSOL_BCAST_PROBE_RESP,
++	NL80211_EXT_FEATURE_BEACON_RATE_HE,
++	NL80211_EXT_FEATURE_SECURE_LTF,
++	NL80211_EXT_FEATURE_SECURE_RTT,
++	NL80211_EXT_FEATURE_PROT_RANGE_NEGO_AND_MEASURE,
++	NL80211_EXT_FEATURE_BSS_COLOR,
+ 
+ 	/* add new features before the definition below */
+ 	NUM_NL80211_EXT_FEATURES,
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -9539,11 +9539,11 @@ static int nl80211_switch_channel(void *
+ 	if (ret)
+ 		goto error;
+ 
+-	if (nla_put(msg, NL80211_ATTR_CSA_C_OFF_BEACON,
++	if (nla_put(msg, NL80211_ATTR_CNTDWN_OFFS_BEACON,
+ 		    csa_off_len * sizeof(u16),
+ 		    settings->counter_offset_beacon) ||
+ 	    (settings->beacon_csa.probe_resp &&
+-	     nla_put(msg, NL80211_ATTR_CSA_C_OFF_PRESP,
++	     nla_put(msg, NL80211_ATTR_CNTDWN_OFFS_PRESP,
+ 		     csa_off_len * sizeof(u16),
+ 		     settings->counter_offset_presp)))
+ 		goto fail;
