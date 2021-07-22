@@ -74,6 +74,7 @@ ramips_setup_interfaces()
 	ubnt,usw-flex)
 		ucidef_set_interface_lan "lan1 lan2 lan3 lan4 lan5"
 		;;
+	yuncore,ax820|\
 	zyxel,nr7101)
 		ucidef_set_interfaces_lan_wan "lan" "wan"
 		;;
@@ -188,6 +189,9 @@ ramips_setup_macs()
 			wan_mac=$(mtd_get_mac_binary factory 57350)
 		}
 		label_mac=$lan_mac
+		;;
+	yuncore,ax820)
+		label_mac=$(mtd_get_mac_binary Factory 0x4)
 		;;
 	esac
 
