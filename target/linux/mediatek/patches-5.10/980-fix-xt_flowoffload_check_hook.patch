@@ -1,0 +1,11 @@
+--- a/net/netfilter/xt_FLOWOFFLOAD.c
++++ b/net/netfilter/xt_FLOWOFFLOAD.c
+@@ -177,8 +177,6 @@ xt_flowoffload_check_hook(struct flow_of
+ 		hook->used = true;
+ 	}
+ 	spin_unlock_bh(&hooks_lock);
+-
+-	cond_resched();
+ }
+ 
+ static void
