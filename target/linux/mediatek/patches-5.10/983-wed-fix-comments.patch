@@ -1,0 +1,73 @@
+--- a/drivers/net/ethernet/mediatek/mtk_wed.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed.c
+@@ -27,56 +27,51 @@
+ static struct mtk_wed_hw *hw_list[2];
+ static DEFINE_MUTEX(hw_lock);
+ 
+-static inline void
++static void
+ wed_m32(struct mtk_wed_device *dev, u32 reg, u32 mask, u32 val)
+ {
+ 	regmap_update_bits(dev->hw->regs, reg, mask | val, val);
+ }
+ 
+-static inline void
++static void
+ wed_set(struct mtk_wed_device *dev, u32 reg, u32 mask)
+ {
+ 	return wed_m32(dev, reg, 0, mask);
+ }
+ 
+-static inline void
++static void
+ wed_clr(struct mtk_wed_device *dev, u32 reg, u32 mask)
+ {
+ 	return wed_m32(dev, reg, mask, 0);
+ }
+ 
+-static inline void
++static void
+ wdma_m32(struct mtk_wed_device *dev, u32 reg, u32 mask, u32 val)
+ {
+ 	wdma_w32(dev, reg, (wdma_r32(dev, reg) & ~mask) | val);
+ }
+ 
+-static inline void
+-wdma_clr(struct mtk_wed_device *dev, u32 reg, u32 mask)
++static void
++wdma_set(struct mtk_wed_device *dev, u32 reg, u32 mask)
+ {
+-	wdma_m32(dev, reg, mask, 0);
++	wdma_m32(dev, reg, 0, mask);
+ }
+ 
+-static inline void
+-wdma_set(struct mtk_wed_device *dev, u32 reg, u32 mask)
++static u32
++mtk_wed_read_reset(struct mtk_wed_device *dev)
+ {
+-	wdma_m32(dev, reg, 0, mask);
++	return wed_r32(dev, MTK_WED_RESET);
+ }
+ 
+ static void
+ mtk_wed_reset(struct mtk_wed_device *dev, u32 mask)
+ {
+-	int i;
++	u32 status;
+ 
+ 	wed_w32(dev, MTK_WED_RESET, mask);
+-	for (i = 0; i < 100; i++) {
+-		if (wed_r32(dev, MTK_WED_RESET) & mask)
+-			continue;
+-
+-		return;
+-	}
+-
+-	WARN_ON_ONCE(1);
++	if (readx_poll_timeout(mtk_wed_read_reset, dev, status,
++			       !(status & mask), 0, 1000))
++		WARN_ON_ONCE(1);
+ }
+ 
+ static struct mtk_wed_hw *
