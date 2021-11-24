@@ -1,0 +1,66 @@
+--- a/drivers/net/ethernet/mediatek/mtk_wed.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed.c
+@@ -80,14 +80,14 @@ mtk_wed_reset(struct mtk_wed_device *dev
+ }
+ 
+ static struct mtk_wed_hw *
+-mtk_wed_assign(struct mtk_wed_device *dev)
++mtk_wed_assign(struct mtk_wed_device *dev, int index)
+ {
+ 	int i;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(hw_list); i++) {
+ 		struct mtk_wed_hw *hw = hw_list[i];
+ 
+-		if (!hw || hw->wed_dev)
++		if (!hw || hw->wed_dev || hw->index != index)
+ 			continue;
+ 
+ 		hw->wed_dev = dev;
+@@ -577,7 +577,7 @@ mtk_wed_start(struct mtk_wed_device *dev
+ }
+ 
+ static int
+-mtk_wed_attach(struct mtk_wed_device *dev)
++mtk_wed_attach(struct mtk_wed_device *dev, int index)
+ 	__releases(RCU)
+ {
+ 	struct mtk_wed_hw *hw;
+@@ -597,7 +597,7 @@ mtk_wed_attach(struct mtk_wed_device *de
+ 
+ 	mutex_lock(&hw_lock);
+ 
+-	hw = mtk_wed_assign(dev);
++	hw = mtk_wed_assign(dev, index);
+ 	if (!hw) {
+ 		module_put(THIS_MODULE);
+ 		ret = -ENODEV;
+--- a/include/linux/soc/mediatek/mtk_wed.h
++++ b/include/linux/soc/mediatek/mtk_wed.h
+@@ -56,7 +56,7 @@ struct mtk_wed_device {
+ };
+ 
+ struct mtk_wed_ops {
+-	int (*attach)(struct mtk_wed_device *dev);
++	int (*attach)(struct mtk_wed_device *dev, int index);
+ 	int (*tx_ring_setup)(struct mtk_wed_device *dev, int ring,
+ 			     void __iomem *regs);
+ 	int (*txfree_ring_setup)(struct mtk_wed_device *dev,
+@@ -77,7 +77,7 @@ struct mtk_wed_ops {
+ extern const struct mtk_wed_ops __rcu *mtk_soc_wed_ops;
+ 
+ static inline int
+-mtk_wed_device_attach(struct mtk_wed_device *dev)
++mtk_wed_device_attach(struct mtk_wed_device *dev, int index)
+ {
+ 	int ret = -ENODEV;
+ 
+@@ -85,7 +85,7 @@ mtk_wed_device_attach(struct mtk_wed_dev
+ 	rcu_read_lock();
+ 	dev->ops = rcu_dereference(mtk_soc_wed_ops);
+ 	if (dev->ops)
+-		ret = dev->ops->attach(dev);
++		ret = dev->ops->attach(dev, index);
+ 	else
+ 		rcu_read_unlock();
+ 
