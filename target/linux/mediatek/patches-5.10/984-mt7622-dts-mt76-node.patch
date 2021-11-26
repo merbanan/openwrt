@@ -1,0 +1,26 @@
+--- a/arch/arm64/boot/dts/mediatek/mt7622.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7622.dtsi
+@@ -849,6 +849,11 @@
+ 				#address-cells = <0>;
+ 				#interrupt-cells = <1>;
+ 			};
++
++			wifi@0,0 {
++				reg = <0x0000 0 0 0 0>;
++				mediatek,wed-index = <0>;
++			};
+ 		};
+ 	};
+ 
+@@ -895,6 +900,11 @@
+ 				#address-cells = <0>;
+ 				#interrupt-cells = <1>;
+ 			};
++
++			wifi@0,0 {
++				reg = <0x0000 0 0 0 0>;
++				mediatek,wed-index = <1>;
++			};
+ 		};
+ 	};
+ 
