@@ -37,21 +37,27 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #include <linux/mfd/syscon.h>
  #include <linux/regmap.h>
  #include <linux/clk.h>
-@@ -2494,6 +2495,13 @@ static int mtk_hw_init(struct mtk_eth *e
+@@ -2482,6 +2483,8 @@ static void mtk_dim_tx(struct work_struc
+ 
+ static int mtk_hw_init(struct mtk_eth *eth)
+ {
++	u32 dma_mask = ETHSYS_DMA_AG_MAP_PDMA | ETHSYS_DMA_AG_MAP_QDMA |
++		       ETHSYS_DMA_AG_MAP_PPE;
+ 	int i, val, ret;
+ 
+ 	if (test_and_set_bit(MTK_HW_INIT, &eth->state))
+@@ -2494,6 +2497,10 @@ static int mtk_hw_init(struct mtk_eth *e
  	if (ret)
  		goto err_disable_pm;
  
-+	if (of_dma_is_coherent(eth->dev->of_node)) {
-+		u32 mask = ETHSYS_DMA_AG_MAP_PDMA | ETHSYS_DMA_AG_MAP_QDMA |
-+			   ETHSYS_DMA_AG_MAP_PPE;
-+
-+		regmap_update_bits(eth->ethsys, ETHSYS_DMA_AG_MAP, mask, mask);
-+	}
++	if (eth->ethsys)
++		regmap_update_bits(eth->ethsys, ETHSYS_DMA_AG_MAP, dma_mask,
++				   of_dma_is_coherent(eth->dma_dev->of_node) * dma_mask);
 +
  	if (MTK_HAS_CAPS(eth->soc->caps, MTK_SOC_MT7628)) {
  		ret = device_reset(eth->dev);
  		if (ret) {
-@@ -3071,6 +3079,16 @@ static int mtk_probe(struct platform_dev
+@@ -3071,6 +3078,16 @@ static int mtk_probe(struct platform_dev
  		}
  	}
  
