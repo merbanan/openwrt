@@ -814,7 +814,7 @@
 +	wed_w32(dev, MTK_WED_EXT_INT_STATUS, val);
 +	val &= MTK_WED_EXT_INT_STATUS_ERROR_MASK;
 +	if (val && net_ratelimit())
-+		dev_err("mtk_wed%d: error status=%08x\n", dev->hw->index, val);
++		pr_err("mtk_wed%d: error status=%08x\n", dev->hw->index, val);
 +
 +	val = wed_r32(dev, MTK_WED_INT_STATUS);
 +	val &= mask;
