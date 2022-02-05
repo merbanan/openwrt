@@ -53,7 +53,7 @@
  
  enum {
  	MTK_FOE_STATE_INVALID,
-@@ -281,6 +281,8 @@ int mtk_foe_entry_set_ipv6_tuple(struct 
+@@ -281,6 +281,8 @@ int mtk_foe_entry_set_ipv6_tuple(struct
  int mtk_foe_entry_set_dsa(struct mtk_foe_entry *entry, int port);
  int mtk_foe_entry_set_vlan(struct mtk_foe_entry *entry, int vid);
  int mtk_foe_entry_set_pppoe(struct mtk_foe_entry *entry, int sid);
@@ -80,72 +80,31 @@
  };
  
  static const struct rhashtable_params mtk_flow_ht_params = {
-@@ -128,35 +130,38 @@ mtk_flow_mangle_ipv4(const struct flow_a
- }
- 
+@@ -130,7 +132,7 @@ mtk_flow_mangle_ipv4(const struct flow_a
  static int
--mtk_flow_get_dsa_port(struct net_device **dev)
--{
--#if IS_ENABLED(CONFIG_NET_DSA)
--	struct dsa_port *dp;
--
--	dp = dsa_port_from_netdev(*dev);
--	if (IS_ERR(dp))
--		return -ENODEV;
--
--	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_MTK)
--		return -ENODEV;
--
--	*dev = dp->cpu_dp->master;
--
--	return dp->index;
--#else
--	return -ENODEV;
--#endif
--}
--
--static int
  mtk_flow_set_output_device(struct mtk_eth *eth, struct mtk_foe_entry *foe,
+ 			   struct flow_offload_hw_action *offload_act,
 -			   struct net_device *dev)
-+			   struct net_device *dev, const u8 *dest_mac,
-+			   int *wed_index)
++			   struct net_device *dev, int *wed_index)
  {
--	int pse_port, dsa_port;
-+	struct net_device_path_ctx ctx = {
-+		.dev    = dev,
-+		.daddr  = dest_mac,
-+	};
-+	struct net_device_path path = {};
-+	int pse_port;
+ 	int pse_port;
  
--	dsa_port = mtk_flow_get_dsa_port(&dev);
--	if (dsa_port >= 0)
--		mtk_foe_entry_set_dsa(foe, dsa_port);
-+	if (!dev->netdev_ops->ndo_fill_forward_path ||
-+	    dev->netdev_ops->ndo_fill_forward_path(&ctx, &path) < 0)
-+		path.type = DEV_PATH_ETHERNET;
-+
-+	switch (path.type) {
-+	case DEV_PATH_DSA:
-+		if (path.dsa.proto != DSA_TAG_PROTO_MTK)
-+			break;
-+
-+		mtk_foe_entry_set_dsa(foe, path.dsa.port);
-+		break;
-+	case DEV_PATH_MTK_WDMA:
-+		mtk_foe_entry_set_wdma(foe, path.mtk_wdma.wdma_idx,
-+				       path.mtk_wdma.queue, path.mtk_wdma.bss,
-+				       path.mtk_wdma.wcid);
+@@ -141,6 +143,14 @@ mtk_flow_set_output_device(struct mtk_et
+ 
+ 		mtk_foe_entry_set_dsa(foe, offload_act->act.dsa.port);
+ 		break;
++	case FLOW_OFFLOAD_HW_ACTION_WDMA:
++		mtk_foe_entry_set_wdma(foe, offload_act->act.wdma.wdma_idx,
++				       offload_act->act.wdma.queue,
++				       offload_act->act.wdma.bss,
++				       offload_act->act.wdma.wcid);
++		*wed_index = offload_act->act.wdma.wdma_idx;
 +		mtk_foe_entry_set_pse_port(foe, 3);
-+		*wed_index = path.mtk_wdma.wdma_idx;
 +		return 0;
-+	default:
-+		break;
-+	}
- 
- 	if (dev == eth->netdev[0])
- 		pse_port = 1;
-@@ -180,6 +185,7 @@ mtk_flow_offload_replace(struct mtk_eth 
+ 	default:
+ 		break;
+ 	}
+@@ -167,6 +177,7 @@ mtk_flow_offload_replace(struct mtk_eth
  	struct net_device *odev = NULL;
  	struct mtk_flow_entry *entry;
  	int offload_type = 0;
@@ -153,13 +112,12 @@
  	u16 addr_type = 0;
  	u32 timestamp;
  	u8 l4proto = 0;
-@@ -327,10 +333,14 @@ mtk_flow_offload_replace(struct mtk_eth 
+@@ -314,10 +325,13 @@ mtk_flow_offload_replace(struct mtk_eth
  	if (data.pppoe.num == 1)
  		mtk_foe_entry_set_pppoe(&foe, data.pppoe.sid);
  
--	err = mtk_flow_set_output_device(eth, &foe, odev);
-+	err = mtk_flow_set_output_device(eth, &foe, odev, data.eth.h_dest,
-+					 &wed_index);
+-	err = mtk_flow_set_output_device(eth, &foe, f->act, odev);
++	err = mtk_flow_set_output_device(eth, &foe, f->act, odev, &wed_index);
  	if (err)
  		return err;
  
@@ -169,7 +127,7 @@
  	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
  	if (!entry)
  		return -ENOMEM;
-@@ -344,6 +354,7 @@ mtk_flow_offload_replace(struct mtk_eth 
+@@ -331,6 +345,7 @@ mtk_flow_offload_replace(struct mtk_eth
  	}
  
  	entry->hash = hash;
@@ -177,16 +135,17 @@
  	err = rhashtable_insert_fast(&eth->flow_table, &entry->node,
  				     mtk_flow_ht_params);
  	if (err < 0)
-@@ -354,6 +365,8 @@ clear_flow:
+@@ -341,6 +356,9 @@ clear_flow:
  	mtk_foe_entry_clear(&eth->ppe, hash);
  free:
  	kfree(entry);
 +	if (wed_index >= 0)
 +	    mtk_wed_flow_remove(wed_index);
++
  	return err;
  }
  
-@@ -370,6 +383,8 @@ mtk_flow_offload_destroy(struct mtk_eth 
+@@ -357,6 +375,8 @@ mtk_flow_offload_destroy(struct mtk_eth
  	mtk_foe_entry_clear(&eth->ppe, entry->hash);
  	rhashtable_remove_fast(&eth->flow_table, &entry->node,
  			       mtk_flow_ht_params);
@@ -197,25 +156,47 @@
  	return 0;
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
-@@ -833,6 +833,7 @@ enum net_device_path_type {
+@@ -834,6 +834,7 @@ enum net_device_path_type {
  	DEV_PATH_BRIDGE,
  	DEV_PATH_PPPOE,
  	DEV_PATH_DSA,
-+	DEV_PATH_MTK_WDMA,
++	DEV_PATH_WDMA,
  };
  
  struct net_device_path {
-@@ -858,6 +859,12 @@ struct net_device_path {
- 			int port;
- 			u16 proto;
- 		} dsa;
-+		struct {
-+			u8 wdma_idx;
-+			u8 queue;
-+			u8 bss;
-+			u8 wcid;
-+		} mtk_wdma;
+@@ -856,6 +857,7 @@ struct net_device_path {
+ 			__be16		vlan_proto;
+ 		} bridge;
+ 		struct flow_offload_action_dsa dsa;
++		struct flow_offload_action_wdma wdma;
  	};
+ };
+ 
+--- a/include/net/flow_offload.h
++++ b/include/net/flow_offload.h
+@@ -555,15 +555,24 @@ struct flow_offload_action_dsa {
+ 	u16 proto;
+ };
+ 
++struct flow_offload_action_wdma {
++	u8 wdma_idx;
++	u8 queue;
++	u8 bss;
++	u8 wcid;
++};
++
+ enum flow_offload_hw_action_type {
+ 	FLOW_OFFLOAD_HW_ACTION_UNSPEC = 0,
+ 	FLOW_OFFLOAD_HW_ACTION_DSA,
++	FLOW_OFFLOAD_HW_ACTION_WDMA,
+ };
+ 
+ struct flow_offload_hw_action {
+ 	enum flow_offload_hw_action_type type;
+ 	union {
+ 		struct flow_offload_action_dsa dsa;
++		struct flow_offload_action_wdma wdma;
+ 	} act;
  };
  
 --- a/net/core/dev.c
@@ -231,3 +212,54 @@
  	path = dev_fwd_path(stack);
  	if (!path)
  		return -1;
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -134,6 +134,7 @@ static int flow_offload_fill_route(struc
+ 
+ 	switch (route->tuple[dir].out.offload_act.type) {
+ 	case FLOW_OFFLOAD_HW_ACTION_DSA:
++	case FLOW_OFFLOAD_HW_ACTION_WDMA:
+ 		memcpy(&flow_tuple->out.offload_act,
+ 		       &route->tuple[dir].out.offload_act,
+ 		       sizeof(struct flow_offload_hw_action));
+--- a/net/netfilter/nft_flow_offload.c
++++ b/net/netfilter/nft_flow_offload.c
+@@ -68,6 +68,7 @@ struct nft_forward_info {
+ 	const struct net_device *outdev;
+ 	const struct net_device *hw_outdev;
+ 	const struct flow_offload_action_dsa *act_dsa;
++	const struct flow_offload_action_wdma *act_wdma;
+ 	struct id {
+ 		__u16	id;
+ 		__be16	proto;
+@@ -150,6 +151,9 @@ static void nft_dev_path_info(const stru
+ 			}
+ 			info->xmit_type = FLOW_OFFLOAD_XMIT_DIRECT;
+ 			break;
++		case DEV_PATH_WDMA:
++			info->act_wdma = &path->wdma;
++			break;
+ 		default:
+ 			info->indev = NULL;
+ 			break;
+@@ -186,13 +190,17 @@ static void nft_dev_fill_hw_offload_act(
+ 					enum ip_conntrack_dir dir,
+ 					struct nft_forward_info *info)
+ {
+-	if (info->act_dsa) {
+-		struct flow_offload_hw_action *offload_act;
++	struct flow_offload_hw_action *offload_act;
+ 
+-		offload_act = &route->tuple[dir].out.offload_act;
++	offload_act = &route->tuple[dir].out.offload_act;
++	if (info->act_dsa) {
+ 		offload_act->type = FLOW_OFFLOAD_HW_ACTION_DSA;
+ 		memcpy(&offload_act->act.dsa, info->act_dsa,
+ 		       sizeof(struct flow_offload_action_dsa));
++	} else if (info->act_wdma) {
++		offload_act->type = FLOW_OFFLOAD_HW_ACTION_WDMA;
++		memcpy(&offload_act->act.wdma, info->act_wdma,
++		       sizeof(struct flow_offload_action_wdma));
+ 	}
+ }
+ 

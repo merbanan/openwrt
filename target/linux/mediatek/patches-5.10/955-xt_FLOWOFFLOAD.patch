@@ -1,0 +1,29 @@
+--- a/net/netfilter/xt_FLOWOFFLOAD.c
++++ b/net/netfilter/xt_FLOWOFFLOAD.c
+@@ -331,6 +331,26 @@ xt_flowoffload_route_check_path(struct n
+ 				break;
+ 			}
+ 			break;
++		case DEV_PATH_DSA: {
++			struct flow_offload_hw_action *offload_act;
++
++			offload_act = &route->tuple[dir].out.offload_act;
++			offload_act->type = FLOW_OFFLOAD_HW_ACTION_DSA;
++			memcpy(&offload_act->act.dsa, &path->dsa,
++			       sizeof(struct flow_offload_action_dsa));
++			last = true;
++			break;
++		}
++		case DEV_PATH_WDMA: {
++			struct flow_offload_hw_action *offload_act;
++
++			offload_act = &route->tuple[dir].out.offload_act;
++			offload_act->type = FLOW_OFFLOAD_HW_ACTION_WDMA;
++			memcpy(&offload_act->act.wdma, &path->wdma,
++			       sizeof(struct flow_offload_action_wdma));
++			last = true;
++			break;
++		}
+ 		default:
+ 			last = true;
+ 			break;

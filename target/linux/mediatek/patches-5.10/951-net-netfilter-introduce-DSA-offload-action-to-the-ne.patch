@@ -1,0 +1,211 @@
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+@@ -128,35 +128,22 @@ mtk_flow_mangle_ipv4(const struct flow_a
+ }
+ 
+ static int
+-mtk_flow_get_dsa_port(struct net_device **dev)
+-{
+-#if IS_ENABLED(CONFIG_NET_DSA)
+-	struct dsa_port *dp;
+-
+-	dp = dsa_port_from_netdev(*dev);
+-	if (IS_ERR(dp))
+-		return -ENODEV;
+-
+-	if (dp->cpu_dp->tag_ops->proto != DSA_TAG_PROTO_MTK)
+-		return -ENODEV;
+-
+-	*dev = dp->cpu_dp->master;
+-
+-	return dp->index;
+-#else
+-	return -ENODEV;
+-#endif
+-}
+-
+-static int
+ mtk_flow_set_output_device(struct mtk_eth *eth, struct mtk_foe_entry *foe,
++			   struct flow_offload_hw_action *offload_act,
+ 			   struct net_device *dev)
+ {
+-	int pse_port, dsa_port;
++	int pse_port;
+ 
+-	dsa_port = mtk_flow_get_dsa_port(&dev);
+-	if (dsa_port >= 0)
+-		mtk_foe_entry_set_dsa(foe, dsa_port);
++	switch (offload_act->type) {
++	case FLOW_OFFLOAD_HW_ACTION_DSA:
++		if (offload_act->act.dsa.proto != DSA_TAG_PROTO_MTK)
++			break;
++
++		mtk_foe_entry_set_dsa(foe, offload_act->act.dsa.port);
++		break;
++	default:
++		break;
++	}
+ 
+ 	if (dev == eth->netdev[0])
+ 		pse_port = 1;
+@@ -327,7 +314,7 @@ mtk_flow_offload_replace(struct mtk_eth
+ 	if (data.pppoe.num == 1)
+ 		mtk_foe_entry_set_pppoe(&foe, data.pppoe.sid);
+ 
+-	err = mtk_flow_set_output_device(eth, &foe, odev);
++	err = mtk_flow_set_output_device(eth, &foe, f->act, odev);
+ 	if (err)
+ 		return err;
+ 
+--- a/include/linux/netdevice.h
++++ b/include/linux/netdevice.h
+@@ -48,6 +48,7 @@
+ #include <uapi/linux/if_bonding.h>
+ #include <uapi/linux/pkt_cls.h>
+ #include <linux/hashtable.h>
++#include <net/flow_offload.h>
+ 
+ struct netpoll_info;
+ struct device;
+@@ -854,10 +855,7 @@ struct net_device_path {
+ 			u16		vlan_id;
+ 			__be16		vlan_proto;
+ 		} bridge;
+-		struct {
+-			int port;
+-			u16 proto;
+-		} dsa;
++		struct flow_offload_action_dsa dsa;
+ 	};
+ };
+ 
+--- a/include/net/flow_offload.h
++++ b/include/net/flow_offload.h
+@@ -545,10 +545,28 @@ struct flow_cls_offload {
+ 	enum flow_cls_command command;
+ 	unsigned long cookie;
+ 	struct flow_rule *rule;
++	struct flow_offload_hw_action *act;
+ 	struct flow_stats stats;
+ 	u32 classid;
+ };
+ 
++struct flow_offload_action_dsa {
++	int port;
++	u16 proto;
++};
++
++enum flow_offload_hw_action_type {
++	FLOW_OFFLOAD_HW_ACTION_UNSPEC = 0,
++	FLOW_OFFLOAD_HW_ACTION_DSA,
++};
++
++struct flow_offload_hw_action {
++	enum flow_offload_hw_action_type type;
++	union {
++		struct flow_offload_action_dsa dsa;
++	} act;
++};
++
+ static inline struct flow_rule *
+ flow_cls_offload_flow_rule(struct flow_cls_offload *flow_cmd)
+ {
+--- a/include/net/netfilter/nf_flow_table.h
++++ b/include/net/netfilter/nf_flow_table.h
+@@ -138,6 +138,7 @@ struct flow_offload_tuple {
+ 			u32		hw_ifidx;
+ 			u8		h_source[ETH_ALEN];
+ 			u8		h_dest[ETH_ALEN];
++			struct flow_offload_hw_action offload_act;
+ 		} out;
+ 	};
+ };
+@@ -198,6 +199,7 @@ struct nf_flow_route {
+ 			u32			hw_ifindex;
+ 			u8			h_source[ETH_ALEN];
+ 			u8			h_dest[ETH_ALEN];
++			struct flow_offload_hw_action offload_act;
+ 		} out;
+ 		enum flow_offload_xmit_type	xmit_type;
+ 	} tuple[FLOW_OFFLOAD_DIR_MAX];
+--- a/net/netfilter/nf_flow_table_core.c
++++ b/net/netfilter/nf_flow_table_core.c
+@@ -132,6 +132,16 @@ static int flow_offload_fill_route(struc
+ 	}
+ 	flow_tuple->xmit_type = route->tuple[dir].xmit_type;
+ 
++	switch (route->tuple[dir].out.offload_act.type) {
++	case FLOW_OFFLOAD_HW_ACTION_DSA:
++		memcpy(&flow_tuple->out.offload_act,
++		       &route->tuple[dir].out.offload_act,
++		       sizeof(struct flow_offload_hw_action));
++		break;
++	default:
++		break;
++	}
++
+ 	return 0;
+ }
+ 
+--- a/net/netfilter/nf_flow_table_offload.c
++++ b/net/netfilter/nf_flow_table_offload.c
+@@ -786,8 +786,10 @@ static int nf_flow_offload_tuple(struct
+ 
+ 	nf_flow_offload_init(&cls_flow, proto, priority, cmd,
+ 			     &flow->tuplehash[dir].tuple, &extack);
+-	if (cmd == FLOW_CLS_REPLACE)
++	if (cmd == FLOW_CLS_REPLACE) {
+ 		cls_flow.rule = flow_rule->rule;
++		cls_flow.act = &flow->tuplehash[dir].tuple.out.offload_act;
++	}
+ 
+ 	down_read(&flowtable->flow_block_lock);
+ 	list_for_each_entry(block_cb, block_cb_list, list) {
+--- a/net/netfilter/nft_flow_offload.c
++++ b/net/netfilter/nft_flow_offload.c
+@@ -67,6 +67,7 @@ struct nft_forward_info {
+ 	const struct net_device *indev;
+ 	const struct net_device *outdev;
+ 	const struct net_device *hw_outdev;
++	const struct flow_offload_action_dsa *act_dsa;
+ 	struct id {
+ 		__u16	id;
+ 		__be16	proto;
+@@ -101,6 +102,8 @@ static void nft_dev_path_info(const stru
+ 		switch (path->type) {
+ 		case DEV_PATH_ETHERNET:
+ 		case DEV_PATH_DSA:
++			info->act_dsa = &path->dsa;
++			fallthrough;
+ 		case DEV_PATH_VLAN:
+ 		case DEV_PATH_PPPOE:
+ 			info->indev = path->dev;
+@@ -179,6 +182,20 @@ static bool nft_flowtable_find_dev(const
+ 	return found;
+ }
+ 
++static void nft_dev_fill_hw_offload_act(struct nf_flow_route *route,
++					enum ip_conntrack_dir dir,
++					struct nft_forward_info *info)
++{
++	if (info->act_dsa) {
++		struct flow_offload_hw_action *offload_act;
++
++		offload_act = &route->tuple[dir].out.offload_act;
++		offload_act->type = FLOW_OFFLOAD_HW_ACTION_DSA;
++		memcpy(&offload_act->act.dsa, info->act_dsa,
++		       sizeof(struct flow_offload_action_dsa));
++	}
++}
++
+ static void nft_dev_forward_path(struct nf_flow_route *route,
+ 				 const struct nf_conn *ct,
+ 				 enum ip_conntrack_dir dir,
+@@ -211,6 +228,7 @@ static void nft_dev_forward_path(struct
+ 		route->tuple[dir].out.hw_ifindex = info.hw_outdev->ifindex;
+ 		route->tuple[dir].xmit_type = info.xmit_type;
+ 	}
++	nft_dev_fill_hw_offload_act(route, dir, &info);
+ }
+ 
+ static int nft_flow_route(const struct nft_pktinfo *pkt,
