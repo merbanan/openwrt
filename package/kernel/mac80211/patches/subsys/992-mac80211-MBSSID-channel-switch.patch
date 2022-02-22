@@ -1,0 +1,53 @@
+From 399fc6404074775cc6775b90f2c91f564c78d538 Mon Sep 17 00:00:00 2001
+Message-Id: <399fc6404074775cc6775b90f2c91f564c78d538.1645488928.git.lorenzo@kernel.org>
+In-Reply-To: <ed7bb3256b02db7ef7ceb495bb3dbdd70131f1fe.1645488928.git.lorenzo@kernel.org>
+References: <ed7bb3256b02db7ef7ceb495bb3dbdd70131f1fe.1645488928.git.lorenzo@kernel.org>
+From: John Crispin <john@phrozen.org>
+Date: Tue, 5 Oct 2021 21:09:38 -0700
+Subject: [PATCH mac80211-next 2/3] mac80211: MBSSID channel switch
+
+Trigger ieee80211_csa_finish() on the non-transmitting interfaces
+when channel switch concludes on the transmitting interface.
+
+Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Co-developed-by: Aloka Dixit <alokad@codeaurora.org>
+Signed-off-by: Aloka Dixit <alokad@codeaurora.org>
+Signed-off-by: John Crispin <john@phrozen.org>
+---
+ net/mac80211/cfg.c | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/net/mac80211/cfg.c b/net/mac80211/cfg.c
+index 40d5c949e32d..b5f30a09b5e4 100644
+--- a/net/mac80211/cfg.c
++++ b/net/mac80211/cfg.c
+@@ -3262,9 +3262,23 @@ cfg80211_beacon_dup(struct cfg80211_beacon_data *beacon)
+ void ieee80211_csa_finish(struct ieee80211_vif *vif)
+ {
+ 	struct ieee80211_sub_if_data *sdata = vif_to_sdata(vif);
++	struct ieee80211_local *local = sdata->local;
+ 
+-	ieee80211_queue_work(&sdata->local->hw,
+-			     &sdata->csa_finalize_work);
++	rcu_read_lock();
++
++	if (vif->mbssid_tx_vif == vif) {
++		struct ieee80211_sub_if_data *iter;
++
++		list_for_each_entry_rcu(iter, &local->interfaces, list) {
++			if (iter != sdata && iter->vif.mbssid_tx_vif == vif &&
++			    ieee80211_sdata_running(iter))
++				ieee80211_queue_work(&iter->local->hw,
++						     &iter->csa_finalize_work);
++		}
++	}
++	ieee80211_queue_work(&local->hw, &sdata->csa_finalize_work);
++
++	rcu_read_unlock();
+ }
+ EXPORT_SYMBOL(ieee80211_csa_finish);
+ 
+-- 
+2.35.1
+
