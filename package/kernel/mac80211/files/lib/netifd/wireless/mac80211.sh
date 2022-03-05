@@ -139,10 +139,7 @@ mac80211_hostapd_setup_base() {
 
 	json_get_vars noscan ht_coex
 	json_get_values ht_capab_list ht_capab tx_burst
-	json_get_values channel_list channels
-
-	[ "$auto_channel" = 0 ] && [ -z "$channel_list" ] && \
-		channel_list="$channel"
+	json_get_values channels
 
 	set_default noscan 0
 
@@ -465,7 +462,6 @@ mac80211_hostapd_setup_base() {
 	hostapd_prepare_device_config "$hostapd_conf_file" nl80211
 	cat >> "$hostapd_conf_file" <<EOF
 ${channel:+channel=$channel}
-${channel_list:+chanlist=$channel_list}
 ${hostapd_noscan:+noscan=1}
 ${tx_burst:+tx_queue_data2_burst=$tx_burst}
 $base_cfg
