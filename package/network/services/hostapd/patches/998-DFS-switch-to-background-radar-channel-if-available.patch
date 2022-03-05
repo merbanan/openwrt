@@ -1,0 +1,97 @@
+From 99fff2d2b0b01b1e4dcf38d84b8089903af3ea8e Mon Sep 17 00:00:00 2001
+Message-Id: <99fff2d2b0b01b1e4dcf38d84b8089903af3ea8e.1646404612.git.lorenzo@kernel.org>
+In-Reply-To: <f39765369a03ef8f03c32cba4b2459e13eaf321a.1646404612.git.lorenzo@kernel.org>
+References: <f39765369a03ef8f03c32cba4b2459e13eaf321a.1646404612.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Fri, 29 Oct 2021 13:57:07 +0200
+Subject: [PATCH 8/8] DFS: switch to background radar channel if available
+
+On radar detection on the main chain switch to the channel monitored
+by the background chain if we have already performed the CAC there.
+If a radar pattern is reported on the background chain, just select a
+new random channel according to the regulations for monitoring.
+
+Tested-by: Owen Peng <owen.peng@mediatek.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/dfs.c | 60 ++++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 53 insertions(+), 7 deletions(-)
+
+--- a/src/ap/dfs.c
++++ b/src/ap/dfs.c
+@@ -1277,6 +1277,48 @@ static int hostapd_dfs_start_channel_swi
+ 	return err;
+ }
+ 
++static int
++hostapd_dfs_background_start_channel_switch(struct hostapd_iface *iface,
++					    int freq)
++{
++	if (!(iface->drv_flags2 & WPA_DRIVER_RADAR_BACKGROUND))
++		return -1; /* Background radar chain not supported */
++
++	wpa_printf(MSG_DEBUG,
++		   "%s called (background CAC active: %s, CSA active: %s)",
++		   __func__, iface->radar_background.cac_started ? "yes" : "no",
++		   hostapd_csa_in_progress(iface) ? "yes" : "no");
++
++	/* Check if CSA in progress */
++	if (hostapd_csa_in_progress(iface))
++		return 0;
++
++	if (hostapd_dfs_is_background_event(iface, freq)) {
++		/*
++		 * Radar pattern is reported on the background chain.
++		 * Just select a new random channel according to the
++		 * regulations for monitoring.
++		 */
++		hostpad_dfs_update_background_chain(iface);
++		return 0;
++	}
++
++	/*
++	 * If background radar detection is supported and radar channel
++	 * monitored by background chain is available switch to it without
++	 * waiting for the CAC.
++	 */
++	if (iface->radar_background.cac_started) {
++		/* Background channel not available yet. Perform CAC on the
++		 * main chain.
++		 */
++		iface->radar_background.temp_ch = 1;
++		return -1;
++	}
++
++	return hostapd_dfs_start_channel_switch_background(iface);
++}
++
+ static int hostapd_dfs_start_channel_switch(struct hostapd_iface *iface)
+ {
+ 	u8 current_vht_oper_chwidth = hostapd_get_oper_chwidth(iface->conf);
+@@ -1381,15 +1423,19 @@ int hostapd_dfs_radar_detected(struct ho
+ 	if (!res)
+ 		return 0;
+ 
+-	/* Skip if reported radar event not overlapped our channels */
+-	res = dfs_are_channels_overlapped(iface, freq, chan_width, cf1, cf2);
+-	if (!res)
+-		return 0;
++	if (!hostapd_dfs_is_background_event(iface, freq)) {
++		/* Skip if reported radar event not overlapped our channels */
++		res = dfs_are_channels_overlapped(iface, freq, chan_width,
++						  cf1, cf2);
++		if (!res)
++			return 0;
++	}
+ 
+-	/* radar detected while operating, switch the channel. */
+-	res = hostapd_dfs_start_channel_switch(iface);
++	if (hostapd_dfs_background_start_channel_switch(iface, freq))
++		/* radar detected while operating, switch the channel. */
++		return hostapd_dfs_start_channel_switch(iface);
+ 
+-	return res;
++	return 0;
+ }
+ 
+ 

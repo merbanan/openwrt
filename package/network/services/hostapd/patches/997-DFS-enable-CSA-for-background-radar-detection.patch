@@ -1,0 +1,44 @@
+From 82c2b668bd26039d046fb643eafb555b5ef8355d Mon Sep 17 00:00:00 2001
+Message-Id: <82c2b668bd26039d046fb643eafb555b5ef8355d.1646404612.git.lorenzo@kernel.org>
+In-Reply-To: <f39765369a03ef8f03c32cba4b2459e13eaf321a.1646404612.git.lorenzo@kernel.org>
+References: <f39765369a03ef8f03c32cba4b2459e13eaf321a.1646404612.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 11 Oct 2021 07:55:27 +0200
+Subject: [PATCH 7/8] DFS: enable CSA for background radar detection
+
+Rely on hostapd_dfs_request_channel_switch in order to enable CSA for
+background radar detection switching back to selected channel.
+
+Tested-by: Owen Peng <owen.peng@mediatek.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/dfs.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+--- a/src/ap/dfs.c
++++ b/src/ap/dfs.c
+@@ -1091,6 +1091,8 @@ hostapd_dfs_is_background_event(struct h
+ static int
+ hostapd_dfs_start_channel_switch_background(struct hostapd_iface *iface)
+ {
++	u8 current_vht_oper_chwidth = hostapd_get_oper_chwidth(iface->conf);
++
+ 	iface->conf->channel = iface->radar_background.channel;
+ 	iface->freq = iface->radar_background.freq;
+ 	iface->conf->secondary_channel =
+@@ -1101,10 +1103,12 @@ hostapd_dfs_start_channel_switch_backgro
+ 			iface->radar_background.centr_freq_seg1_idx);
+ 
+ 	hostpad_dfs_update_background_chain(iface);
+-	hostapd_disable_iface(iface);
+-	hostapd_enable_iface(iface);
+ 
+-	return 0;
++	return hostapd_dfs_request_channel_switch(iface, iface->conf->channel,
++						  iface->freq, iface->conf->secondary_channel,
++						  current_vht_oper_chwidth,
++						  hostapd_get_oper_centr_freq_seg0_idx(iface->conf),
++						  hostapd_get_oper_centr_freq_seg1_idx(iface->conf));
+ }
+ 
+ int hostapd_dfs_complete_cac(struct hostapd_iface *iface, int success, int freq,
