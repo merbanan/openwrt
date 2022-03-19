@@ -1,0 +1,130 @@
+From 23a193c6a1a99a52b85b098a053657de6e4a5403 Mon Sep 17 00:00:00 2001
+Message-Id: <23a193c6a1a99a52b85b098a053657de6e4a5403.1647854113.git.lorenzo@kernel.org>
+From: John Crispin <john@phrozen.org>
+Date: Mon, 8 Nov 2021 11:04:23 +0800
+Subject: [PATCH] bss_coloring: add the code required to generate the CCA IE
+
+This IE is similar to the CSA one. It contains a counter and the target
+color. Once the counter expired, the change to the new color happens.
+
+Just note the current implementation is based on CCA counter attributes
+that only takes beacon and prob_resp into account. (Re)Assoc response
+does not currently provide kernel APIs to decrement CCA counter since
+mediatek mcu firmware does not support it yet and it will be added in
+future fw release.
+
+Tested-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: John Crispin <john@phrozen.org>
+Signed-off-by: Ryder Lee <ryder.lee@mediatek.com>
+---
+ src/ap/beacon.c              | 18 ++++++++++++++++++
+ src/ap/ieee802_11.c          |  1 +
+ src/ap/ieee802_11.h          |  1 +
+ src/ap/ieee802_11_he.c       | 14 ++++++++++++++
+ src/common/ieee802_11_defs.h |  1 +
+ 5 files changed, 35 insertions(+)
+
+diff --git a/src/ap/beacon.c b/src/ap/beacon.c
+index 8cd1c4170..9f7a9725a 100644
+--- a/src/ap/beacon.c
++++ b/src/ap/beacon.c
+@@ -578,8 +578,17 @@ static u8 * hostapd_gen_probe_resp(struct hostapd_data *hapd,
+ 
+ #ifdef CONFIG_IEEE80211AX
+ 	if (hapd->iconf->ieee80211ax && !hapd->conf->disable_11ax) {
++		u8 *cca_pos;
++
+ 		pos = hostapd_eid_he_capab(hapd, pos, IEEE80211_MODE_AP);
+ 		pos = hostapd_eid_he_operation(hapd, pos);
++
++		/* CCA IE */
++		cca_pos = hostapd_eid_cca(hapd, pos);
++		if (cca_pos != pos)
++			hapd->cca_c_off_proberesp = cca_pos - (u8 *) resp - 2;
++		pos = cca_pos;
++
+ 		pos = hostapd_eid_spatial_reuse(hapd, pos);
+ 		pos = hostapd_eid_he_mu_edca_parameter_set(hapd, pos);
+ 		pos = hostapd_eid_he_6ghz_band_cap(hapd, pos);
+@@ -1600,9 +1609,18 @@ int ieee802_11_build_ap_params(struct hostapd_data *hapd,
+ 
+ #ifdef CONFIG_IEEE80211AX
+ 	if (hapd->iconf->ieee80211ax && !hapd->conf->disable_11ax) {
++		u8 *cca_pos;
++
+ 		tailpos = hostapd_eid_he_capab(hapd, tailpos,
+ 					       IEEE80211_MODE_AP);
+ 		tailpos = hostapd_eid_he_operation(hapd, tailpos);
++
++		/* CCA IE */
++		cca_pos = hostapd_eid_cca(hapd, tailpos);
++		if (cca_pos != tailpos)
++			hapd->cca_c_off_beacon = cca_pos - tail - 2;
++		tailpos = cca_pos;
++
+ 		tailpos = hostapd_eid_spatial_reuse(hapd, tailpos);
+ 		tailpos = hostapd_eid_he_mu_edca_parameter_set(hapd, tailpos);
+ 		tailpos = hostapd_eid_he_6ghz_band_cap(hapd, tailpos);
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index bcefe57ed..3abd0893b 100644
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -5161,6 +5161,7 @@ static u16 send_assoc_resp(struct hostapd_data *hapd, struct sta_info *sta,
+ 	if (hapd->iconf->ieee80211ax && !hapd->conf->disable_11ax) {
+ 		p = hostapd_eid_he_capab(hapd, p, IEEE80211_MODE_AP);
+ 		p = hostapd_eid_he_operation(hapd, p);
++		p = hostapd_eid_cca(hapd, p);
+ 		p = hostapd_eid_spatial_reuse(hapd, p);
+ 		p = hostapd_eid_he_mu_edca_parameter_set(hapd, p);
+ 		p = hostapd_eid_he_6ghz_band_cap(hapd, p);
+diff --git a/src/ap/ieee802_11.h b/src/ap/ieee802_11.h
+index c59ad5e38..020069603 100644
+--- a/src/ap/ieee802_11.h
++++ b/src/ap/ieee802_11.h
+@@ -100,6 +100,7 @@ u16 copy_sta_he_6ghz_capab(struct hostapd_data *hapd, struct sta_info *sta,
+ 			   const u8 *he_6ghz_capab);
+ int hostapd_get_he_twt_responder(struct hostapd_data *hapd,
+ 				 enum ieee80211_op_mode mode);
++u8 * hostapd_eid_cca(struct hostapd_data *hapd, u8 *eid);
+ void hostapd_tx_status(struct hostapd_data *hapd, const u8 *addr,
+ 		       const u8 *buf, size_t len, int ack);
+ void hostapd_eapol_tx_status(struct hostapd_data *hapd, const u8 *dst,
+diff --git a/src/ap/ieee802_11_he.c b/src/ap/ieee802_11_he.c
+index 5042286c2..d2fb90164 100644
+--- a/src/ap/ieee802_11_he.c
++++ b/src/ap/ieee802_11_he.c
+@@ -525,3 +525,17 @@ int hostapd_get_he_twt_responder(struct hostapd_data *hapd,
+ 	return !!(mac_cap[HE_MAC_CAPAB_0] & HE_MACCAP_TWT_RESPONDER) &&
+ 		hapd->iface->conf->he_op.he_twt_responder;
+ }
++
++u8 * hostapd_eid_cca(struct hostapd_data *hapd, u8 *eid)
++{
++	if (!hapd->cca_in_progress)
++		return eid;
++
++	*eid++ = WLAN_EID_EXTENSION;
++	*eid++ = 3;
++	*eid++ = WLAN_EID_EXT_COLOR_CHANGE_ANNOUNCEMENT;
++	*eid++ = hapd->cca_count;
++	*eid++ = hapd->cca_color;
++
++	return eid;
++}
+diff --git a/src/common/ieee802_11_defs.h b/src/common/ieee802_11_defs.h
+index 38b66d414..4d15bc361 100644
+--- a/src/common/ieee802_11_defs.h
++++ b/src/common/ieee802_11_defs.h
+@@ -479,6 +479,7 @@
+ #define WLAN_EID_EXT_HE_OPERATION 36
+ #define WLAN_EID_EXT_HE_MU_EDCA_PARAMS 38
+ #define WLAN_EID_EXT_SPATIAL_REUSE 39
++#define WLAN_EID_EXT_COLOR_CHANGE_ANNOUNCEMENT 42
+ #define WLAN_EID_EXT_OCV_OCI 54
+ #define WLAN_EID_EXT_SHORT_SSID_LIST 58
+ #define WLAN_EID_EXT_HE_6GHZ_BAND_CAP 59
+-- 
+2.35.1
+

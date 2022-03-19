@@ -1,0 +1,36 @@
+From 8bb14cca5a943084548009ebaefc2b6ee243298c Mon Sep 17 00:00:00 2001
+Message-Id: <8bb14cca5a943084548009ebaefc2b6ee243298c.1647708315.git.lorenzo@kernel.org>
+In-Reply-To: <9c59e1241bce63113acfe5dcf306dbe6e6a04bb5.1647708315.git.lorenzo@kernel.org>
+References: <9c59e1241bce63113acfe5dcf306dbe6e6a04bb5.1647708315.git.lorenzo@kernel.org>
+From: John Crispin <john@phrozen.org>
+Date: Mon, 8 Nov 2021 11:04:24 +0800
+Subject: [PATCH 3/5] bss coloring: disable BSS color during CCA
+
+While we are doing CCA the bss color disable bit inside the he oper field
+needs to be set.
+
+Tested-by: Peter Chiu <chui-hao.chiu@mediatek.com>
+Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: John Crispin <john@phrozen.org>
+Signed-off-by: Ryder Lee <ryder.lee@mediatek.com>
+---
+ src/ap/ieee802_11_he.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/ap/ieee802_11_he.c b/src/ap/ieee802_11_he.c
+index d2fb90164..db5fec9f3 100644
+--- a/src/ap/ieee802_11_he.c
++++ b/src/ap/ieee802_11_he.c
+@@ -200,7 +200,7 @@ u8 * hostapd_eid_he_operation(struct hostapd_data *hapd, u8 *eid)
+ 	if (hapd->iface->conf->he_op.he_er_su_disable)
+ 		params |= HE_OPERATION_ER_SU_DISABLE;
+ 
+-	if (hapd->iface->conf->he_op.he_bss_color_disabled)
++	if (hapd->iface->conf->he_op.he_bss_color_disabled || hapd->cca_in_progress)
+ 		params |= HE_OPERATION_BSS_COLOR_DISABLED;
+ 	if (hapd->iface->conf->he_op.he_bss_color_partial)
+ 		params |= HE_OPERATION_BSS_COLOR_PARTIAL;
+-- 
+2.35.1
+

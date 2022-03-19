@@ -1,0 +1,27 @@
+From 267f21e13503a0750ea2dc51d166f5420d16625b Mon Sep 17 00:00:00 2001
+Message-Id: <267f21e13503a0750ea2dc51d166f5420d16625b.1647777584.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 20 Mar 2022 12:58:26 +0100
+Subject: [PATCH] HACK: enable bss coloring by default
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/ap_config.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/ap/ap_config.c b/src/ap/ap_config.c
+index 86b6e097c..50d1bdc47 100644
+--- a/src/ap/ap_config.c
++++ b/src/ap/ap_config.c
+@@ -271,7 +271,7 @@ struct hostapd_config * hostapd_config_defaults(void)
+ 		HE_OPERATION_RTS_THRESHOLD_OFFSET;
+ 	/* Set default basic MCS/NSS set to single stream MCS 0-7 */
+ 	conf->he_op.he_basic_mcs_nss_set = 0xfffc;
+-	conf->he_op.he_bss_color_disabled = 1;
++	conf->he_op.he_bss_color_disabled = 0;
+ 	conf->he_op.he_bss_color_partial = 0;
+ 	conf->he_op.he_bss_color = os_random() % 63 + 1;
+ 	conf->he_op.he_twt_responder = 1;
+-- 
+2.35.1
+

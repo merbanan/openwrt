@@ -1,0 +1,191 @@
+--- a/src/ap/drv_callbacks.c
++++ b/src/ap/drv_callbacks.c
+@@ -1783,6 +1783,39 @@ static void hostapd_event_wds_sta_interf
+ }
+ 
+ 
++#ifdef CONFIG_IEEE80211AX
++static void hostapd_event_bss_color_collision(struct hostapd_data *hapd,
++					      u64 bitmap)
++{
++	/* the bss color is shared amongst all BBSs on a specific phy.
++	 * therefore we always start the color change on the primary BSS
++	 */
++	wpa_printf(MSG_DEBUG, "BSS color collision on %s", hapd->conf->iface);
++	hostapd_switch_color(hapd->iface->bss[0], bitmap);
++}
++
++static void hostapd_event_cca(struct hostapd_data *hapd, enum wpa_event_type event)
++{
++	switch (event) {
++	case EVENT_CCA_STARTED_NOTIFY:
++		wpa_printf(MSG_DEBUG, "CCA started on on %s", hapd->conf->iface);
++		break;
++	case EVENT_CCA_NOTIFY:
++		wpa_printf(MSG_DEBUG, "CCA finished on on %s", hapd->conf->iface);
++		hapd->iface->conf->he_op.he_bss_color = hapd->cca_color;
++		hostapd_cleanup_cca_params(hapd);
++		break;
++	case EVENT_CCA_ABORTED_NOTIFY:
++		wpa_printf(MSG_DEBUG, "CCA aborted on on %s", hapd->conf->iface);
++		hostapd_cleanup_cca_params(hapd);
++		break;
++	default:
++		break;
++	}
++}
++#endif
++
++
+ #ifdef CONFIG_OWE
+ static int hostapd_notif_update_dh_ie(struct hostapd_data *hapd,
+ 				      const u8 *peer, const u8 *ie,
+@@ -2089,6 +2122,17 @@ void hostapd_wpa_event(void *ctx, enum w
+ 			data->wds_sta_interface.ifname,
+ 			data->wds_sta_interface.sta_addr);
+ 		break;
++#ifdef CONFIG_IEEE80211AX
++	case EVENT_BSS_COLOR_COLLISION:
++		hostapd_event_bss_color_collision(hapd,
++						  data->bss_color_collision.bitmap);
++		break;
++	case EVENT_CCA_STARTED_NOTIFY:
++	case EVENT_CCA_ABORTED_NOTIFY:
++	case EVENT_CCA_NOTIFY:
++		hostapd_event_cca(hapd, event);
++		break;
++#endif
+ 	default:
+ 		wpa_printf(MSG_DEBUG, "Unknown event %d", event);
+ 		break;
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -5165,6 +5165,26 @@ enum wpa_event_type {
+ 	 * is required to provide more details of the frame.
+ 	 */
+ 	EVENT_UNPROT_BEACON,
++
++	/**
++	  * EVENT_BSS_COLOR_COLLISION - Notification of a BSS color collision
++	  */
++	EVENT_BSS_COLOR_COLLISION,
++
++	/**
++	 * EVENT_CCA_STARTED_NOTIFY - Notification that CCA has started
++	 */
++	EVENT_CCA_STARTED_NOTIFY,
++
++	/**
++	 * EVENT_CCA_ABORTED_NOTIFY - Notification that CCA has aborted
++	 */
++	EVENT_CCA_ABORTED_NOTIFY,
++
++	/**
++	 * EVENT_CCA_NOTIFY - Notification that CCA has completed
++	 */
++	EVENT_CCA_NOTIFY,
+ };
+ 
+ 
+@@ -6059,6 +6079,13 @@ union wpa_event_data {
+ 	struct unprot_beacon {
+ 		const u8 *sa;
+ 	} unprot_beacon;
++
++	/**
++	 * struct bss_color_collision - Data for EVENT_BSS_COLOR_COLLISION
++	 */
++	struct bss_color_collision {
++		u64 bitmap;
++	} bss_color_collision;
+ };
+ 
+ /**
+--- a/src/drivers/driver_nl80211_event.c
++++ b/src/drivers/driver_nl80211_event.c
+@@ -2856,6 +2856,51 @@ nl80211_control_port_frame_tx_status(str
+ 	wpa_supplicant_event(drv->ctx, EVENT_EAPOL_TX_STATUS, &event);
+ }
+ 
++#ifdef CONFIG_IEEE80211AX
++static void mlme_event_obss_color_collision(struct wpa_driver_nl80211_data *drv,
++					    struct nlattr *tb[])
++{
++	union wpa_event_data data;
++
++	if (!tb[NL80211_ATTR_OBSS_COLOR_BITMAP])
++		return;
++
++	os_memset(&data, 0, sizeof(data));
++	data.bss_color_collision.bitmap = nla_get_u64(tb[NL80211_ATTR_OBSS_COLOR_BITMAP]);
++
++	wpa_printf(MSG_DEBUG, "nl80211: BSS color collision - bitmap %08lx",
++		   data.bss_color_collision.bitmap);
++
++	wpa_supplicant_event(drv->ctx, EVENT_BSS_COLOR_COLLISION, &data);
++}
++
++static void mlme_event_color_change_announcement_started(struct wpa_driver_nl80211_data *drv)
++{
++	union wpa_event_data data = {};
++
++	wpa_printf(MSG_DEBUG, "nl80211: CCA started");
++
++	wpa_supplicant_event(drv->ctx, EVENT_CCA_STARTED_NOTIFY, &data);
++}
++
++static void mlme_event_color_change_announcement_aborted(struct wpa_driver_nl80211_data *drv)
++{
++	union wpa_event_data data = {};
++
++	wpa_printf(MSG_DEBUG, "nl80211: CCA aborted");
++
++	wpa_supplicant_event(drv->ctx, EVENT_CCA_ABORTED_NOTIFY, &data);
++}
++
++static void mlme_event_color_change_announcement_completed(struct wpa_driver_nl80211_data *drv)
++{
++	union wpa_event_data data = {};
++
++	wpa_printf(MSG_DEBUG, "nl80211: CCA completed");
++
++	wpa_supplicant_event(drv->ctx, EVENT_CCA_NOTIFY, &data);
++}
++#endif /* CONFIG_IEEE80211AX */
+ 
+ static void do_process_drv_event(struct i802_bss *bss, int cmd,
+ 				 struct nlattr **tb)
+@@ -3105,6 +3150,20 @@ static void do_process_drv_event(struct
+ 						     tb[NL80211_ATTR_ACK],
+ 						     tb[NL80211_ATTR_COOKIE]);
+ 		break;
++#ifdef CONFIG_IEEE80211AX
++	case NL80211_CMD_OBSS_COLOR_COLLISION:
++		mlme_event_obss_color_collision(drv, tb);
++		break;
++	case NL80211_CMD_COLOR_CHANGE_STARTED:
++		mlme_event_color_change_announcement_started(drv);
++		break;
++	case NL80211_CMD_COLOR_CHANGE_ABORTED:
++		mlme_event_color_change_announcement_aborted(drv);
++		break;
++	case NL80211_CMD_COLOR_CHANGE_COMPLETED:
++		mlme_event_color_change_announcement_completed(drv);
++		break;
++#endif /* CONFIG_IEEE80211AX */
+ 	default:
+ 		wpa_dbg(drv->ctx, MSG_DEBUG, "nl80211: Ignored unknown event "
+ 			"(cmd=%d)", cmd);
+--- a/src/drivers/driver_common.c
++++ b/src/drivers/driver_common.c
+@@ -90,6 +90,10 @@ const char * event_to_string(enum wpa_ev
+ 	E2S(WDS_STA_INTERFACE_STATUS);
+ 	E2S(UPDATE_DH);
+ 	E2S(UNPROT_BEACON);
++	E2S(BSS_COLOR_COLLISION);
++	E2S(CCA_STARTED_NOTIFY);
++	E2S(CCA_ABORTED_NOTIFY);
++	E2S(CCA_NOTIFY);
+ 	}
+ 
+ 	return "UNKNOWN";
