@@ -1,0 +1,64 @@
+From 443ff288afa584d6103cbc2460b9c142519f00e9 Mon Sep 17 00:00:00 2001
+Message-Id: <443ff288afa584d6103cbc2460b9c142519f00e9.1661688231.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 28 Aug 2022 14:03:42 +0200
+Subject: [PATCH] mt7915 wed on mt7986 chipset
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt7915/pci.c  | 11 +++++++++++
+ mt7915/regs.h |  8 ++++++++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/mt7915/pci.c b/mt7915/pci.c
+index d74f6097..e3485a8f 100644
+--- a/mt7915/pci.c
++++ b/mt7915/pci.c
+@@ -140,7 +140,18 @@ mt7915_pci_wed_init(struct mt7915_dev *dev, struct pci_dev *pdev, int *irq)
+ 	wed->wlan.pci_dev = pdev;
+ 	wed->wlan.wpdma_phys = pci_resource_start(pdev, 0) +
+ 			       MT_WFDMA_EXT_CSR_BASE;
++	wed->wlan.wpdma_int = pci_resource_start(pdev, 0) +
++			      MT_INT_WED_SOURCE_CSR;
++	wed->wlan.wpdma_mask = pci_resource_start(pdev, 0) +
++			       MT_INT_WED_MASK_CSR;
++	wed->wlan.wpdma_tx = pci_resource_start(pdev, 0) +
++			     MT_TXQ_WED_RING_BASE;
++	wed->wlan.wpdma_txfree = pci_resource_start(pdev, 0) +
++				 MT_RXQ_WED_RING_BASE;
+ 	wed->wlan.nbuf = 4096;
++	wed->wlan.tx_tbit[0] = MT_WED_TX_DONE_BAND0;
++	wed->wlan.tx_tbit[1] = MT_WED_TX_DONE_BAND1;
++	wed->wlan.txfree_tbit = MT_WED_TX_FREE_DONE;
+ 	wed->wlan.token_start = MT7915_TOKEN_SIZE - wed->wlan.nbuf;
+ 	wed->wlan.init_buf = mt7915_wed_init_buf;
+ 	wed->wlan.offload_enable = mt7915_wed_offload_enable;
+diff --git a/mt7915/regs.h b/mt7915/regs.h
+index 53061aa7..58dc4097 100644
+--- a/mt7915/regs.h
++++ b/mt7915/regs.h
+@@ -592,6 +592,7 @@ enum offs_rev {
+ #define MT_PCIE_RECOG_ID_MASK		GENMASK(30, 0)
+ #define MT_PCIE_RECOG_ID_SEM		BIT(31)
+ 
++#define MT_INT_WED_SOURCE_CSR		MT_WFDMA_EXT_CSR(0x200)
+ #define MT_INT_WED_MASK_CSR		MT_WFDMA_EXT_CSR(0x204)
+ 
+ #define MT_WED_TX_RING_BASE		MT_WFDMA_EXT_CSR(0x300)
+@@ -638,6 +639,13 @@ enum offs_rev {
+ #define MT_TXQ_EXT_CTRL(q)		(MT_Q_BASE(__TXQ(q)) + 0x600 +	\
+ 					 MT_TXQ_ID(q)* 0x4)
+ 
++#define MT_TXQ_WED_RING_BASE		0xd7300
++#define MT_RXQ_WED_RING_BASE		0xd7410
++
++#define MT_WED_TX_DONE_BAND0		4
++#define MT_WED_TX_DONE_BAND1		5
++#define MT_WED_TX_FREE_DONE		1
++
+ #define MT_INT_SOURCE_CSR		__REG(INT_SOURCE_CSR)
+ #define MT_INT_MASK_CSR			__REG(INT_MASK_CSR)
+ 
+-- 
+2.37.2
+
