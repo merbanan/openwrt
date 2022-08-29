@@ -1,0 +1,41 @@
+--- a/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
+@@ -390,6 +390,29 @@
+ 			 #reset-cells = <1>;
+ 		};
+ 
++		wed_pcie: wed_pcie@10003000 {
++			compatible = "mediatek,wed_pcie";
++			reg = <0 0x10003000 0 0x10>;
++		};
++
++		wed0: wed@15010000 {
++			compatible = "mediatek,mt7986-wed",
++				     "syscon";
++			reg = <0 0x15010000 0 0x1000>;
++			interrupt-parent = <&gic>;
++			interrupts = <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>;
++			mediatek,wed_pcie = <&wed_pcie>;
++		};
++
++		wed1: wed@15011000 {
++			compatible = "mediatek,mt7986-wed",
++				     "syscon";
++			reg = <0 0x15011000 0 0x1000>;
++			interrupt-parent = <&gic>;
++			interrupts = <GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>;
++			mediatek,wed_pcie = <&wed_pcie>;
++		};
++
+ 		eth: ethernet@15100000 {
+ 			compatible = "mediatek,mt7986-eth";
+ 			reg = <0 0x15100000 0 0x80000>;
+@@ -424,6 +447,8 @@
+ 						 <&apmixedsys CLK_APMIXED_SGMPLL>;
+ 			mediatek,ethsys = <&ethsys>;
+ 			mediatek,sgmiisys = <&sgmiisys0>, <&sgmiisys1>;
++			mediatek,wed = <&wed0>, <&wed1>;
++			mediatek,num_ppe = <2>;
+ 			#reset-cells = <1>;
+ 			#address-cells = <1>;
+ 			#size-cells = <0>;

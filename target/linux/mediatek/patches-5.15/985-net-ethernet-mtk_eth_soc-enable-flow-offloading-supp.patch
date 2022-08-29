@@ -1,0 +1,314 @@
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -1965,12 +1965,14 @@ static int mtk_poll_rx(struct napi_struc
+ 		bytes += skb->len;
+ 
+ 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
++			reason = FIELD_GET(MTK_RXD5_PPE_CPU_REASON, trxd.rxd5);
+ 			hash = trxd.rxd5 & MTK_RXD5_FOE_ENTRY;
+ 			if (hash != MTK_RXD5_FOE_ENTRY)
+ 				skb_set_hash(skb, jhash_1word(hash, 0),
+ 					     PKT_HASH_TYPE_L4);
+ 			rxdcsum = &trxd.rxd3;
+ 		} else {
++			reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
+ 			hash = trxd.rxd4 & MTK_RXD4_FOE_ENTRY;
+ 			if (hash != MTK_RXD4_FOE_ENTRY)
+ 				skb_set_hash(skb, jhash_1word(hash, 0),
+@@ -1984,7 +1986,6 @@ static int mtk_poll_rx(struct napi_struc
+ 			skb_checksum_none_assert(skb);
+ 		skb->protocol = eth_type_trans(skb, netdev);
+ 
+-		reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
+ 		if (reason == MTK_PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
+ 			mtk_ppe_check_skb(eth->ppe[0], skb, hash);
+ 
+@@ -4262,7 +4263,7 @@ static const struct mtk_soc_data mt7621_
+ 	.required_pctl = false,
+ 	.offload_version = 2,
+ 	.hash_offset = 2,
+-	.foe_entry_size = sizeof(struct mtk_foe_entry),
++	.foe_entry_size = sizeof(struct mtk_foe_entry) - 16,
+ 	.txrx = {
+ 		.txd_size = sizeof(struct mtk_tx_dma),
+ 		.rxd_size = sizeof(struct mtk_rx_dma),
+@@ -4282,7 +4283,7 @@ static const struct mtk_soc_data mt7622_
+ 	.required_pctl = false,
+ 	.offload_version = 2,
+ 	.hash_offset = 2,
+-	.foe_entry_size = sizeof(struct mtk_foe_entry),
++	.foe_entry_size = sizeof(struct mtk_foe_entry) - 16,
+ 	.txrx = {
+ 		.txd_size = sizeof(struct mtk_tx_dma),
+ 		.rxd_size = sizeof(struct mtk_rx_dma),
+@@ -4301,7 +4302,7 @@ static const struct mtk_soc_data mt7623_
+ 	.required_pctl = true,
+ 	.offload_version = 2,
+ 	.hash_offset = 2,
+-	.foe_entry_size = sizeof(struct mtk_foe_entry),
++	.foe_entry_size = sizeof(struct mtk_foe_entry) - 16,
+ 	.txrx = {
+ 		.txd_size = sizeof(struct mtk_tx_dma),
+ 		.rxd_size = sizeof(struct mtk_rx_dma),
+@@ -4333,9 +4334,12 @@ static const struct mtk_soc_data mt7986_
+ 	.reg_map = &mt7986_reg_map,
+ 	.ana_rgc3 = 0x128,
+ 	.caps = MT7986_CAPS,
++	.hw_features = MTK_HW_FEATURES,
+ 	.required_clks = MT7986_CLKS_BITMAP,
+ 	.required_pctl = false,
++	.offload_version = 2,
+ 	.hash_offset = 4,
++	.foe_entry_size = sizeof(struct mtk_foe_entry),
+ 	.txrx = {
+ 		.txd_size = sizeof(struct mtk_tx_dma_v2),
+ 		.rxd_size = sizeof(struct mtk_rx_dma_v2),
+--- a/drivers/net/ethernet/mediatek/mtk_ppe.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
+@@ -156,8 +156,9 @@ mtk_foe_entry_ib2(struct mtk_foe_entry *
+ 	return &entry->ipv4.ib2;
+ }
+ 
+-int mtk_foe_entry_prepare(struct mtk_foe_entry *entry, int type, int l4proto,
+-			  u8 pse_port, u8 *src_mac, u8 *dest_mac)
++int mtk_foe_entry_prepare(struct mtk_eth *eth, struct mtk_foe_entry *entry,
++			  int type, int l4proto, u8 pse_port,
++			  u8 *src_mac, u8 *dest_mac)
+ {
+ 	struct mtk_foe_mac_info *l2;
+ 	u32 ports_pad, val;
+@@ -171,9 +172,12 @@ int mtk_foe_entry_prepare(struct mtk_foe
+ 	      MTK_FOE_IB1_BIND_CACHE;
+ 	entry->ib1 = val;
+ 
+-	val = FIELD_PREP(MTK_FOE_IB2_PORT_MG, 0x3f) |
+-	      FIELD_PREP(MTK_FOE_IB2_PORT_AG, 0x1f) |
+-	      FIELD_PREP(MTK_FOE_IB2_DEST_PORT, pse_port);
++	val = FIELD_PREP(MTK_FOE_IB2_DEST_PORT, pse_port);
++	if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2))
++		val |= FIELD_PREP(MTK_FOE_IB2_PORT_AG_V3, 0xf);
++	else
++		val |= FIELD_PREP(MTK_FOE_IB2_PORT_MG, 0x3f) |
++		       FIELD_PREP(MTK_FOE_IB2_PORT_AG, 0x1f);
+ 
+ 	if (is_multicast_ether_addr(dest_mac))
+ 		val |= MTK_FOE_IB2_MULTICAST;
+@@ -351,20 +355,25 @@ int mtk_foe_entry_set_pppoe(struct mtk_f
+ 	return 0;
+ }
+ 
+-int mtk_foe_entry_set_wdma(struct mtk_foe_entry *entry, int wdma_idx, int txq,
+-			   int bss, int wcid)
++int mtk_foe_entry_set_wdma(struct mtk_eth *eth, struct mtk_foe_entry *entry,
++			   int wdma_idx, int txq, int bss, int wcid)
+ {
+ 	struct mtk_foe_mac_info *l2 = mtk_foe_entry_l2(entry);
+ 	u32 *ib2 = mtk_foe_entry_ib2(entry);
+ 
+ 	*ib2 &= ~MTK_FOE_IB2_PORT_MG;
+ 	*ib2 |= MTK_FOE_IB2_WDMA_WINFO;
+-	if (wdma_idx)
+-		*ib2 |= MTK_FOE_IB2_WDMA_DEVIDX;
+-
+-	l2->vlan2 = FIELD_PREP(MTK_FOE_VLAN2_WINFO_BSS, bss) |
+-		    FIELD_PREP(MTK_FOE_VLAN2_WINFO_WCID, wcid) |
+-		    FIELD_PREP(MTK_FOE_VLAN2_WINFO_RING, txq);
++	if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
++		 *ib2 |=  FIELD_PREP(MTK_FOE_IB2_RX_IDX, txq);
++		 l2->winfo = FIELD_PREP(MTK_FOE_WINFO_WCID, wcid) |
++		             FIELD_PREP(MTK_FOE_WINFO_BSS, bss);
++	} else {
++		if (wdma_idx)
++			*ib2 |= MTK_FOE_IB2_WDMA_DEVIDX;
++		l2->vlan2 = FIELD_PREP(MTK_FOE_VLAN2_WINFO_BSS, bss) |
++			    FIELD_PREP(MTK_FOE_VLAN2_WINFO_WCID, wcid) |
++			    FIELD_PREP(MTK_FOE_VLAN2_WINFO_RING, txq);
++	}
+ 
+ 	return 0;
+ }
+@@ -771,6 +780,8 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+ 			 MTK_PPE_SCAN_MODE_KEEPALIVE_AGE) |
+ 	      FIELD_PREP(MTK_PPE_TB_CFG_ENTRY_NUM,
+ 			 MTK_PPE_ENTRIES_SHIFT);
++	if (MTK_HAS_CAPS(ppe->eth->soc->caps, MTK_NETSYS_V2))
++		val |= MTK_PPE_TB_CFG_INFO_SEL;
+ 	ppe_w32(ppe, MTK_PPE_TB_CFG, val);
+ 
+ 	ppe_w32(ppe, MTK_PPE_IP_PROTO_CHK,
+@@ -778,8 +789,7 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+ 
+ 	mtk_ppe_cache_enable(ppe, true);
+ 
+-	val = MTK_PPE_FLOW_CFG_IP4_TCP_FRAG |
+-	      MTK_PPE_FLOW_CFG_IP4_UDP_FRAG |
++	val = MTK_PPE_FLOW_CFG_IP4_UDP_FRAG |
+ 	      MTK_PPE_FLOW_CFG_IP6_3T_ROUTE |
+ 	      MTK_PPE_FLOW_CFG_IP6_5T_ROUTE |
+ 	      MTK_PPE_FLOW_CFG_IP6_6RD |
+@@ -787,6 +797,13 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+ 	      MTK_PPE_FLOW_CFG_IP4_NAPT |
+ 	      MTK_PPE_FLOW_CFG_IP4_DSLITE |
+ 	      MTK_PPE_FLOW_CFG_IP4_NAT_FRAG;
++	if (MTK_HAS_CAPS(ppe->eth->soc->caps, MTK_NETSYS_V2))
++		val |= MTK_PPE_MD_TOAP_BYP_CRSN0 |
++		       MTK_PPE_MD_TOAP_BYP_CRSN1 |
++		       MTK_PPE_MD_TOAP_BYP_CRSN2 |
++		       MTK_PPE_FLOW_CFG_IP4_HASH_GRE_KEY;
++	else
++		val |= MTK_PPE_FLOW_CFG_IP4_TCP_FRAG;
+ 	ppe_w32(ppe, MTK_PPE_FLOW_CFG, val);
+ 
+ 	val = FIELD_PREP(MTK_PPE_UNBIND_AGE_MIN_PACKETS, 1000) |
+@@ -820,6 +837,11 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+ 	ppe_w32(ppe, MTK_PPE_GLO_CFG, val);
+ 
+ 	ppe_w32(ppe, MTK_PPE_DEFAULT_CPU_PORT, 0);
++
++	if (MTK_HAS_CAPS(ppe->eth->soc->caps, MTK_NETSYS_V2)) {
++		ppe_w32(ppe, MTK_PPE_DEFAULT_CPU_PORT1, 0xcb777);
++		ppe_w32(ppe, MTK_PPE_SBW_CTRL, 0x7f);
++	}
+ }
+ 
+ int mtk_ppe_stop(struct mtk_ppe *ppe)
+--- a/drivers/net/ethernet/mediatek/mtk_ppe.h
++++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
+@@ -53,7 +53,9 @@ enum {
+ 
+ #define MTK_FOE_IB2_PORT_MG		GENMASK(17, 12)
+ 
++#define MTK_FOE_IB2_RX_IDX		GENMASK(18, 17)
+ #define MTK_FOE_IB2_PORT_AG		GENMASK(23, 18)
++#define MTK_FOE_IB2_PORT_AG_V3		GENMASK(23, 20)
+ 
+ #define MTK_FOE_IB2_DSCP		GENMASK(31, 24)
+ 
+@@ -61,6 +63,9 @@ enum {
+ #define MTK_FOE_VLAN2_WINFO_WCID	GENMASK(13, 6)
+ #define MTK_FOE_VLAN2_WINFO_RING	GENMASK(15, 14)
+ 
++#define MTK_FOE_WINFO_BSS		GENMASK(5, 0)
++#define MTK_FOE_WINFO_WCID		GENMASK(15, 6)
++
+ enum {
+ 	MTK_FOE_STATE_INVALID,
+ 	MTK_FOE_STATE_UNBIND,
+@@ -81,6 +86,9 @@ struct mtk_foe_mac_info {
+ 
+ 	u16 pppoe_id;
+ 	u16 src_mac_lo;
++
++	u16 minfo;
++	u16 winfo;
+ };
+ 
+ /* software-only entry type */
+@@ -198,7 +206,7 @@ struct mtk_foe_entry {
+ 		struct mtk_foe_ipv4_dslite dslite;
+ 		struct mtk_foe_ipv6 ipv6;
+ 		struct mtk_foe_ipv6_6rd ipv6_6rd;
+-		u32 data[19];
++		u32 data[23];
+ 	};
+ };
+ 
+@@ -303,8 +311,9 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, s
+ 	__mtk_ppe_check_skb(ppe, skb, hash);
+ }
+ 
+-int mtk_foe_entry_prepare(struct mtk_foe_entry *entry, int type, int l4proto,
+-			  u8 pse_port, u8 *src_mac, u8 *dest_mac);
++int mtk_foe_entry_prepare(struct mtk_eth *eth, struct mtk_foe_entry *entry,
++			  int type, int l4proto, u8 pse_port,
++			  u8 *src_mac, u8 *dest_mac);
+ int mtk_foe_entry_set_pse_port(struct mtk_foe_entry *entry, u8 port);
+ int mtk_foe_entry_set_ipv4_tuple(struct mtk_foe_entry *entry, bool orig,
+ 				 __be32 src_addr, __be16 src_port,
+@@ -315,8 +324,8 @@ int mtk_foe_entry_set_ipv6_tuple(struct
+ int mtk_foe_entry_set_dsa(struct mtk_foe_entry *entry, int port);
+ int mtk_foe_entry_set_vlan(struct mtk_foe_entry *entry, int vid);
+ int mtk_foe_entry_set_pppoe(struct mtk_foe_entry *entry, int sid);
+-int mtk_foe_entry_set_wdma(struct mtk_foe_entry *entry, int wdma_idx, int txq,
+-			   int bss, int wcid);
++int mtk_foe_entry_set_wdma(struct mtk_eth *eth, struct mtk_foe_entry *entry,
++			   int wdma_idx, int txq, int bss, int wcid);
+ int mtk_foe_entry_commit(struct mtk_ppe *ppe, struct mtk_flow_entry *entry);
+ void mtk_foe_entry_clear(struct mtk_ppe *ppe, struct mtk_flow_entry *entry);
+ int mtk_foe_entry_idle_time(struct mtk_ppe *ppe, struct mtk_flow_entry *entry);
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+@@ -190,9 +190,22 @@ mtk_flow_set_output_device(struct mtk_et
+ 	int pse_port, dsa_port;
+ 
+ 	if (mtk_flow_get_wdma_info(dev, dest_mac, &info) == 0) {
+-		mtk_foe_entry_set_wdma(foe, info.wdma_idx, info.queue, info.bss,
+-				       info.wcid);
+-		pse_port = 3;
++		mtk_foe_entry_set_wdma(eth, foe, info.wdma_idx, info.queue,
++				       info.bss, info.wcid);
++		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
++			switch (info.wdma_idx) {
++			case 0:
++				pse_port = 8;
++				break;
++			case 1:
++				pse_port = 9;
++				break;
++			default:
++				return -EINVAL;
++			}
++		} else {
++			pse_port = 3;
++		}
+ 		*wed_index = info.wdma_idx;
+ 		goto out;
+ 	}
+@@ -333,9 +346,8 @@ mtk_flow_offload_replace(struct mtk_eth
+ 	    !is_valid_ether_addr(data.eth.h_dest))
+ 		return -EINVAL;
+ 
+-	err = mtk_foe_entry_prepare(&foe, offload_type, l4proto, 0,
+-				    data.eth.h_source,
+-				    data.eth.h_dest);
++	err = mtk_foe_entry_prepare(eth, &foe, offload_type, l4proto, 0,
++				    data.eth.h_source, data.eth.h_dest);
+ 	if (err)
+ 		return err;
+ 
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_regs.h
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_regs.h
+@@ -21,6 +21,9 @@
+ #define MTK_PPE_GLO_CFG_BUSY			BIT(31)
+ 
+ #define MTK_PPE_FLOW_CFG			0x204
++#define MTK_PPE_MD_TOAP_BYP_CRSN0		BIT(1)
++#define MTK_PPE_MD_TOAP_BYP_CRSN1		BIT(2)
++#define MTK_PPE_MD_TOAP_BYP_CRSN2		BIT(3)
+ #define MTK_PPE_FLOW_CFG_IP4_TCP_FRAG		BIT(6)
+ #define MTK_PPE_FLOW_CFG_IP4_UDP_FRAG		BIT(7)
+ #define MTK_PPE_FLOW_CFG_IP6_3T_ROUTE		BIT(8)
+@@ -54,6 +57,7 @@
+ #define MTK_PPE_TB_CFG_HASH_MODE		GENMASK(15, 14)
+ #define MTK_PPE_TB_CFG_SCAN_MODE		GENMASK(17, 16)
+ #define MTK_PPE_TB_CFG_HASH_DEBUG		GENMASK(19, 18)
++#define MTK_PPE_TB_CFG_INFO_SEL			BIT(20)
+ 
+ enum {
+ 	MTK_PPE_SCAN_MODE_DISABLED,
+@@ -112,6 +116,8 @@ enum {
+ #define MTK_PPE_DEFAULT_CPU_PORT		0x248
+ #define MTK_PPE_DEFAULT_CPU_PORT_MASK(_n)	(GENMASK(2, 0) << ((_n) * 4))
+ 
++#define MTK_PPE_DEFAULT_CPU_PORT1		0x24c
++
+ #define MTK_PPE_MTU_DROP			0x308
+ 
+ #define MTK_PPE_VLAN_MTU0			0x30c
+@@ -141,4 +147,6 @@ enum {
+ #define MTK_PPE_MIB_CACHE_CTL_EN		BIT(0)
+ #define MTK_PPE_MIB_CACHE_CTL_FLUSH		BIT(2)
+ 
++#define MTK_PPE_SBW_CTRL			0x374
++
+ #endif
