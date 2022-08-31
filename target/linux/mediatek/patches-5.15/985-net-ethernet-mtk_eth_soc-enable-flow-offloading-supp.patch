@@ -1,56 +1,53 @@
+From 8122edef11fbd149ed11c05c17eae0f2e97c69b9 Mon Sep 17 00:00:00 2001
+Message-Id: <8122edef11fbd149ed11c05c17eae0f2e97c69b9.1661953720.git.lorenzo@kernel.org>
+In-Reply-To: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
+References: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sat, 20 Aug 2022 16:34:03 +0200
+Subject: [PATCH net-next 5/5] net: ethernet: mtk_eth_soc: enable flow
+ offloading support for mt7986
+
+Enable hw flow offload support for mt7986 chipset.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c   |  9 ++--
+ drivers/net/ethernet/mediatek/mtk_ppe.c       | 52 +++++++++++++------
+ drivers/net/ethernet/mediatek/mtk_ppe.h       | 19 +++++--
+ .../net/ethernet/mediatek/mtk_ppe_offload.c   | 24 ++++++---
+ drivers/net/ethernet/mediatek/mtk_ppe_regs.h  |  8 +++
+ 5 files changed, 83 insertions(+), 29 deletions(-)
+
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1965,12 +1965,14 @@ static int mtk_poll_rx(struct napi_struc
- 		bytes += skb->len;
- 
- 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
-+			reason = FIELD_GET(MTK_RXD5_PPE_CPU_REASON, trxd.rxd5);
- 			hash = trxd.rxd5 & MTK_RXD5_FOE_ENTRY;
- 			if (hash != MTK_RXD5_FOE_ENTRY)
- 				skb_set_hash(skb, jhash_1word(hash, 0),
- 					     PKT_HASH_TYPE_L4);
- 			rxdcsum = &trxd.rxd3;
- 		} else {
-+			reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
- 			hash = trxd.rxd4 & MTK_RXD4_FOE_ENTRY;
- 			if (hash != MTK_RXD4_FOE_ENTRY)
- 				skb_set_hash(skb, jhash_1word(hash, 0),
-@@ -1984,7 +1986,6 @@ static int mtk_poll_rx(struct napi_struc
- 			skb_checksum_none_assert(skb);
- 		skb->protocol = eth_type_trans(skb, netdev);
- 
--		reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
- 		if (reason == MTK_PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
- 			mtk_ppe_check_skb(eth->ppe[0], skb, hash);
- 
-@@ -4262,7 +4263,7 @@ static const struct mtk_soc_data mt7621_
- 	.required_pctl = false,
+@@ -4265,7 +4265,7 @@ static const struct mtk_soc_data mt7621_
  	.offload_version = 2,
  	.hash_offset = 2,
+ 	.ppe_entries = MTK_PPE_ENTRIES,
 -	.foe_entry_size = sizeof(struct mtk_foe_entry),
 +	.foe_entry_size = sizeof(struct mtk_foe_entry) - 16,
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4282,7 +4283,7 @@ static const struct mtk_soc_data mt7622_
- 	.required_pctl = false,
+@@ -4286,7 +4286,7 @@ static const struct mtk_soc_data mt7622_
  	.offload_version = 2,
  	.hash_offset = 2,
+ 	.ppe_entries = MTK_PPE_ENTRIES,
 -	.foe_entry_size = sizeof(struct mtk_foe_entry),
 +	.foe_entry_size = sizeof(struct mtk_foe_entry) - 16,
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4301,7 +4302,7 @@ static const struct mtk_soc_data mt7623_
- 	.required_pctl = true,
+@@ -4306,7 +4306,7 @@ static const struct mtk_soc_data mt7623_
  	.offload_version = 2,
  	.hash_offset = 2,
+ 	.ppe_entries = MTK_PPE_ENTRIES,
 -	.foe_entry_size = sizeof(struct mtk_foe_entry),
 +	.foe_entry_size = sizeof(struct mtk_foe_entry) - 16,
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4333,9 +4334,12 @@ static const struct mtk_soc_data mt7986_
+@@ -4338,10 +4338,13 @@ static const struct mtk_soc_data mt7986_
  	.reg_map = &mt7986_reg_map,
  	.ana_rgc3 = 0x128,
  	.caps = MT7986_CAPS,
@@ -59,6 +56,7 @@
  	.required_pctl = false,
 +	.offload_version = 2,
  	.hash_offset = 4,
+ 	.ppe_entries = 2 * MTK_PPE_ENTRIES,
 +	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma_v2),
@@ -127,7 +125,7 @@
  
  	return 0;
  }
-@@ -771,6 +780,8 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -778,6 +787,8 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  			 MTK_PPE_SCAN_MODE_KEEPALIVE_AGE) |
  	      FIELD_PREP(MTK_PPE_TB_CFG_ENTRY_NUM,
  			 MTK_PPE_ENTRIES_SHIFT);
@@ -136,7 +134,7 @@
  	ppe_w32(ppe, MTK_PPE_TB_CFG, val);
  
  	ppe_w32(ppe, MTK_PPE_IP_PROTO_CHK,
-@@ -778,8 +789,7 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -785,8 +796,7 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  
  	mtk_ppe_cache_enable(ppe, true);
  
@@ -146,7 +144,7 @@
  	      MTK_PPE_FLOW_CFG_IP6_3T_ROUTE |
  	      MTK_PPE_FLOW_CFG_IP6_5T_ROUTE |
  	      MTK_PPE_FLOW_CFG_IP6_6RD |
-@@ -787,6 +797,13 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -794,6 +804,13 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  	      MTK_PPE_FLOW_CFG_IP4_NAPT |
  	      MTK_PPE_FLOW_CFG_IP4_DSLITE |
  	      MTK_PPE_FLOW_CFG_IP4_NAT_FRAG;
@@ -160,7 +158,7 @@
  	ppe_w32(ppe, MTK_PPE_FLOW_CFG, val);
  
  	val = FIELD_PREP(MTK_PPE_UNBIND_AGE_MIN_PACKETS, 1000) |
-@@ -820,6 +837,11 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -827,6 +844,11 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  	ppe_w32(ppe, MTK_PPE_GLO_CFG, val);
  
  	ppe_w32(ppe, MTK_PPE_DEFAULT_CPU_PORT, 0);
@@ -174,7 +172,7 @@
  int mtk_ppe_stop(struct mtk_ppe *ppe)
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
-@@ -53,7 +53,9 @@ enum {
+@@ -52,7 +52,9 @@ enum {
  
  #define MTK_FOE_IB2_PORT_MG		GENMASK(17, 12)
  
@@ -184,7 +182,7 @@
  
  #define MTK_FOE_IB2_DSCP		GENMASK(31, 24)
  
-@@ -61,6 +63,9 @@ enum {
+@@ -60,6 +62,9 @@ enum {
  #define MTK_FOE_VLAN2_WINFO_WCID	GENMASK(13, 6)
  #define MTK_FOE_VLAN2_WINFO_RING	GENMASK(15, 14)
  
@@ -194,7 +192,7 @@
  enum {
  	MTK_FOE_STATE_INVALID,
  	MTK_FOE_STATE_UNBIND,
-@@ -81,6 +86,9 @@ struct mtk_foe_mac_info {
+@@ -80,6 +85,9 @@ struct mtk_foe_mac_info {
  
  	u16 pppoe_id;
  	u16 src_mac_lo;
@@ -204,7 +202,7 @@
  };
  
  /* software-only entry type */
-@@ -198,7 +206,7 @@ struct mtk_foe_entry {
+@@ -197,7 +205,7 @@ struct mtk_foe_entry {
  		struct mtk_foe_ipv4_dslite dslite;
  		struct mtk_foe_ipv6 ipv6;
  		struct mtk_foe_ipv6_6rd ipv6_6rd;
@@ -213,7 +211,7 @@
  	};
  };
  
-@@ -303,8 +311,9 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, s
+@@ -302,8 +310,9 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, s
  	__mtk_ppe_check_skb(ppe, skb, hash);
  }
  
@@ -225,7 +223,7 @@
  int mtk_foe_entry_set_pse_port(struct mtk_foe_entry *entry, u8 port);
  int mtk_foe_entry_set_ipv4_tuple(struct mtk_foe_entry *entry, bool orig,
  				 __be32 src_addr, __be16 src_port,
-@@ -315,8 +324,8 @@ int mtk_foe_entry_set_ipv6_tuple(struct
+@@ -314,8 +323,8 @@ int mtk_foe_entry_set_ipv6_tuple(struct
  int mtk_foe_entry_set_dsa(struct mtk_foe_entry *entry, int port);
  int mtk_foe_entry_set_vlan(struct mtk_foe_entry *entry, int vid);
  int mtk_foe_entry_set_pppoe(struct mtk_foe_entry *entry, int sid);
