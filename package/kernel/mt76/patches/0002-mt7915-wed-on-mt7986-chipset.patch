@@ -1,15 +1,28 @@
-From 443ff288afa584d6103cbc2460b9c142519f00e9 Mon Sep 17 00:00:00 2001
-Message-Id: <443ff288afa584d6103cbc2460b9c142519f00e9.1661688231.git.lorenzo@kernel.org>
+From 63bf2b77f95fddea9a2b64c02d9c5868774f1440 Mon Sep 17 00:00:00 2001
+Message-Id: <63bf2b77f95fddea9a2b64c02d9c5868774f1440.1662298571.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 28 Aug 2022 14:03:42 +0200
 Subject: [PATCH] mt7915 wed on mt7986 chipset
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
+ mt7915/dma.c  |  1 +
  mt7915/pci.c  | 11 +++++++++++
  mt7915/regs.h |  8 ++++++++
- 2 files changed, 19 insertions(+)
+ 3 files changed, 20 insertions(+)
 
+diff --git a/mt7915/dma.c b/mt7915/dma.c
+index f7e6bb10..cd9caaa8 100644
+--- a/mt7915/dma.c
++++ b/mt7915/dma.c
+@@ -324,6 +324,7 @@ static int mt7915_dma_enable(struct mt7915_dev *dev)
+ 
+ 		wed_irq_mask |= MT_INT_TX_DONE_BAND0 | MT_INT_TX_DONE_BAND1;
+ 		mt76_wr(dev, MT_INT_WED_MASK_CSR, wed_irq_mask);
++		mt76_wr(dev, MT_INT_MASK_CSR, wed_irq_mask);
+ 		mtk_wed_device_start(&dev->mt76.mmio.wed, wed_irq_mask);
+ 	}
+ 
 diff --git a/mt7915/pci.c b/mt7915/pci.c
 index d74f6097..e3485a8f 100644
 --- a/mt7915/pci.c
