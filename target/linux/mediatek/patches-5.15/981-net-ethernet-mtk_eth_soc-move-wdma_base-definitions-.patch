@@ -1,10 +1,10 @@
-From 472cffaaf6844aeb3b565b455eb9404c7ace94fe Mon Sep 17 00:00:00 2001
-Message-Id: <472cffaaf6844aeb3b565b455eb9404c7ace94fe.1661953720.git.lorenzo@kernel.org>
-In-Reply-To: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
-References: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
+From 0dcbe607cec32ccae23b02a641b8bd6191a328ae Mon Sep 17 00:00:00 2001
+Message-Id: <0dcbe607cec32ccae23b02a641b8bd6191a328ae.1662243796.git.lorenzo@kernel.org>
+In-Reply-To: <43a21841ce0175d29f23c34a65ceaaf9dd7eb8b7.1662243796.git.lorenzo@kernel.org>
+References: <43a21841ce0175d29f23c34a65ceaaf9dd7eb8b7.1662243796.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 23 Aug 2022 23:09:05 +0200
-Subject: [PATCH net-next 2/5] net: ethernet: mtk_eth_soc: move wdma_base
+Subject: [PATCH net-next 2/4] net: ethernet: mtk_eth_soc: move wdma_base
  definitions in mtk register map
 
 This is a preliminary patch to introduce mt7986 wed support.
@@ -39,7 +39,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  /* strings used by ethtool */
-@@ -4050,16 +4058,12 @@ static int mtk_probe(struct platform_dev
+@@ -4048,16 +4056,12 @@ static int mtk_probe(struct platform_dev
  	for (i = 0;; i++) {
  		struct device_node *np = of_parse_phandle(pdev->dev.of_node,
  							  "mediatek,wed", i);

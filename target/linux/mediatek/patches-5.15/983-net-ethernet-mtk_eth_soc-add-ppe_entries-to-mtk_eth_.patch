@@ -1,8 +1,10 @@
-From 70d1eb844f20ba88f0ca272ded1886885411a753 Mon Sep 17 00:00:00 2001
-Message-Id: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
+From eae2ad3d228abeb1c05f66de85ae397eeca3f2ae Mon Sep 17 00:00:00 2001
+Message-Id: <eae2ad3d228abeb1c05f66de85ae397eeca3f2ae.1662243796.git.lorenzo@kernel.org>
+In-Reply-To: <43a21841ce0175d29f23c34a65ceaaf9dd7eb8b7.1662243796.git.lorenzo@kernel.org>
+References: <43a21841ce0175d29f23c34a65ceaaf9dd7eb8b7.1662243796.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Wed, 31 Aug 2022 11:47:40 +0200
-Subject: [PATCH net-next 1/5] net: ethernet: mtk_eth_soc: add ppe_entries to
+Subject: [PATCH net-next 4/4] net: ethernet: mtk_eth_soc: add ppe_entries to
  mtk_eth_soc
 
 Introduce ppe_entries to mtk_eth_soc data structure since mt7986
@@ -19,7 +21,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1957,12 +1957,14 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1965,12 +1965,14 @@ static int mtk_poll_rx(struct napi_struc
  		bytes += skb->len;
  
  		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
@@ -34,7 +36,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			hash = trxd.rxd4 & MTK_RXD4_FOE_ENTRY;
  			if (hash != MTK_RXD4_FOE_ENTRY)
  				skb_set_hash(skb, jhash_1word(hash, 0),
-@@ -1976,8 +1978,8 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1984,8 +1986,8 @@ static int mtk_poll_rx(struct napi_struc
  			skb_checksum_none_assert(skb);
  		skb->protocol = eth_type_trans(skb, netdev);
  
@@ -45,7 +47,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			mtk_ppe_check_skb(eth->ppe[0], skb, hash);
  
  		if (netdev->features & NETIF_F_HW_VLAN_CTAG_RX) {
-@@ -4248,6 +4250,7 @@ static const struct mtk_soc_data mt7621_
+@@ -4252,6 +4254,7 @@ static const struct mtk_soc_data mt7621_
  	.required_pctl = false,
  	.offload_version = 2,
  	.hash_offset = 2,
@@ -53,7 +55,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
-@@ -4268,6 +4271,7 @@ static const struct mtk_soc_data mt7622_
+@@ -4272,6 +4275,7 @@ static const struct mtk_soc_data mt7622_
  	.required_pctl = false,
  	.offload_version = 2,
  	.hash_offset = 2,
@@ -61,7 +63,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
-@@ -4287,6 +4291,7 @@ static const struct mtk_soc_data mt7623_
+@@ -4291,6 +4295,7 @@ static const struct mtk_soc_data mt7623_
  	.required_pctl = true,
  	.offload_version = 2,
  	.hash_offset = 2,
@@ -69,7 +71,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
-@@ -4322,6 +4327,7 @@ static const struct mtk_soc_data mt7986_
+@@ -4326,6 +4331,7 @@ static const struct mtk_soc_data mt7986_
  	.required_clks = MT7986_CLKS_BITMAP,
  	.required_pctl = false,
  	.hash_offset = 4,
@@ -79,7 +81,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		.rxd_size = sizeof(struct mtk_rx_dma_v2),
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -969,6 +969,7 @@ struct mtk_reg_map {
+@@ -967,6 +967,7 @@ struct mtk_reg_map {
   * @required_pctl		A bool value to show whether the SoC requires
   *				the extra setup for those pins used by GMAC.
   * @hash_offset			Flow table hash offset.
@@ -87,7 +89,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
   * @foe_entry_size		Foe table entry size.
   * @txd_size			Tx DMA descriptor size.
   * @rxd_size			Rx DMA descriptor size.
-@@ -985,6 +986,7 @@ struct mtk_soc_data {
+@@ -983,6 +984,7 @@ struct mtk_soc_data {
  	bool		required_pctl;
  	u8		offload_version;
  	u8		hash_offset;

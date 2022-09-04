@@ -1,10 +1,10 @@
-From ccf96b303df0bc8e322e07a72de38b1b0f12552e Mon Sep 17 00:00:00 2001
-Message-Id: <ccf96b303df0bc8e322e07a72de38b1b0f12552e.1661953720.git.lorenzo@kernel.org>
-In-Reply-To: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
-References: <70d1eb844f20ba88f0ca272ded1886885411a753.1661953720.git.lorenzo@kernel.org>
+From 1b5e0372a63dd603a868190b37c57b7b3f4e9659 Mon Sep 17 00:00:00 2001
+Message-Id: <1b5e0372a63dd603a868190b37c57b7b3f4e9659.1662244287.git.lorenzo@kernel.org>
+In-Reply-To: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
+References: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 26 Aug 2022 01:12:57 +0200
-Subject: [PATCH net-next 3/5] net: ethernet: mtk_eth_wed: add
+Subject: [PATCH net-next 2/5] net: ethernet: mtk_eth_wed: add
  mtk_wed_configure_irq and mtk_wed_dma_{enable/disable}
 
 Introduce mtk_wed_configure_irq, mtk_wed_dma_enable and mtk_wed_dma_disable

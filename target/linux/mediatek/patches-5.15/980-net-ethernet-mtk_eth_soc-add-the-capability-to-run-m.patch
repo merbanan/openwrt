@@ -1,3 +1,25 @@
+From 43a21841ce0175d29f23c34a65ceaaf9dd7eb8b7 Mon Sep 17 00:00:00 2001
+Message-Id: <43a21841ce0175d29f23c34a65ceaaf9dd7eb8b7.1662243796.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Thu, 18 Aug 2022 16:18:17 +0200
+Subject: [PATCH net-next 1/4] net: ethernet: mtk_eth_soc: add the capability
+ to run multiple ppe
+
+mt7986 chipset support multiple packet engines for wlan0 <-> wlan1
+packet forwarding.
+
+Co-developed-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c   | 36 +++++++++++++------
+ drivers/net/ethernet/mediatek/mtk_eth_soc.h   |  2 +-
+ drivers/net/ethernet/mediatek/mtk_ppe.c       | 14 +++++---
+ drivers/net/ethernet/mediatek/mtk_ppe.h       |  9 +++--
+ .../net/ethernet/mediatek/mtk_ppe_debugfs.c   |  8 ++---
+ .../net/ethernet/mediatek/mtk_ppe_offload.c   | 13 +++----
+ 6 files changed, 50 insertions(+), 32 deletions(-)
+
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 @@ -1978,7 +1978,7 @@ static int mtk_poll_rx(struct napi_struc
@@ -193,29 +215,20 @@
  {
  	static const struct file_operations fops_all = {
  		.open = mtk_ppe_debugfs_foe_open_all,
-@@ -195,17 +195,16 @@ int mtk_ppe_debugfs_init(struct mtk_ppe
- 		.llseek = seq_lseek,
- 		.release = single_release,
- 	};
--
- 	static const struct file_operations fops_bind = {
- 		.open = mtk_ppe_debugfs_foe_open_bind,
- 		.read = seq_read,
- 		.llseek = seq_lseek,
- 		.release = single_release,
- 	};
--
+@@ -205,7 +205,9 @@ int mtk_ppe_debugfs_init(struct mtk_ppe
+ 
  	struct dentry *root;
  
 -	root = debugfs_create_dir("mtk_ppe", NULL);
 +	snprintf(ppe->dirname, sizeof(ppe->dirname), "ppe%d", index);
++
 +	root = debugfs_create_dir(ppe->dirname, NULL);
  	if (!root)
  		return -ENOMEM;
  
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
-@@ -435,7 +435,7 @@ mtk_flow_offload_replace(struct mtk_eth
+@@ -434,7 +434,7 @@ mtk_flow_offload_replace(struct mtk_eth
  	memcpy(&entry->data, &foe, sizeof(entry->data));
  	entry->wed_index = wed_index;
  
@@ -224,7 +237,7 @@
  	if (err < 0)
  		goto free;
  
-@@ -447,7 +447,7 @@ mtk_flow_offload_replace(struct mtk_eth
+@@ -446,7 +446,7 @@ mtk_flow_offload_replace(struct mtk_eth
  	return 0;
  
  clear:
@@ -233,7 +246,7 @@
  free:
  	kfree(entry);
  	if (wed_index >= 0)
-@@ -465,7 +465,7 @@ mtk_flow_offload_destroy(struct mtk_eth
+@@ -464,7 +464,7 @@ mtk_flow_offload_destroy(struct mtk_eth
  	if (!entry)
  		return -ENOENT;
  
@@ -242,7 +255,7 @@
  	rhashtable_remove_fast(&eth->flow_table, &entry->node,
  			       mtk_flow_ht_params);
  	if (entry->wed_index >= 0)
-@@ -486,7 +486,7 @@ mtk_flow_offload_stats(struct mtk_eth *e
+@@ -485,7 +485,7 @@ mtk_flow_offload_stats(struct mtk_eth *e
  	if (!entry)
  		return -ENOENT;
  
@@ -251,7 +264,7 @@
  	f->stats.lastused = jiffies - idle * HZ;
  
  	return 0;
-@@ -538,7 +538,7 @@ mtk_eth_setup_tc_block(struct net_device
+@@ -537,7 +537,7 @@ mtk_eth_setup_tc_block(struct net_device
  	struct flow_block_cb *block_cb;
  	flow_setup_cb_t *cb;
  
@@ -260,7 +273,7 @@
  		return -EOPNOTSUPP;
  
  	if (f->binder_type != FLOW_BLOCK_BINDER_TYPE_CLSACT_INGRESS)
-@@ -590,8 +590,5 @@ int mtk_eth_setup_tc(struct net_device *
+@@ -589,8 +589,5 @@ int mtk_eth_setup_tc(struct net_device *
  
  int mtk_eth_offload_init(struct mtk_eth *eth)
  {
