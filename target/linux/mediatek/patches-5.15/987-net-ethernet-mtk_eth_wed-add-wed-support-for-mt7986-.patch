@@ -1,10 +1,10 @@
-From 2e90504c344fa7ce4ba6e7e4d1dc83e0c7355638 Mon Sep 17 00:00:00 2001
-Message-Id: <2e90504c344fa7ce4ba6e7e4d1dc83e0c7355638.1662244287.git.lorenzo@kernel.org>
-In-Reply-To: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
-References: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
+From f2e79c10fb28e6e49b40999b2a7a695dff9d8e79 Mon Sep 17 00:00:00 2001
+Message-Id: <f2e79c10fb28e6e49b40999b2a7a695dff9d8e79.1662332102.git.lorenzo@kernel.org>
+In-Reply-To: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
+References: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sat, 27 Aug 2022 16:15:14 +0200
-Subject: [PATCH net-next 3/5] net: ethernet: mtk_eth_wed: add wed support for
+Subject: [PATCH net-next 5/6] net: ethernet: mtk_eth_wed: add wed support for
  mt7986 chipset
 
 Introduce Wireless Etherne Dispatcher support on transmission side
@@ -12,19 +12,22 @@ for mt7986 chipset
 
 Co-developed-by: Bo Jiao <Bo.Jiao@mediatek.com>
 Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Co-developed-by: Sujuan Chen <sujuan.chen@mediatek.com>
+Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_soc.c   |  16 +-
- drivers/net/ethernet/mediatek/mtk_wed.c       | 374 ++++++++++++++----
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c   |  26 +-
+ drivers/net/ethernet/mediatek/mtk_eth_soc.h   |   7 +
+ drivers/net/ethernet/mediatek/mtk_wed.c       | 362 ++++++++++++++----
  drivers/net/ethernet/mediatek/mtk_wed.h       |   8 +-
  .../net/ethernet/mediatek/mtk_wed_debugfs.c   |   3 +
- drivers/net/ethernet/mediatek/mtk_wed_regs.h  |  84 +++-
+ drivers/net/ethernet/mediatek/mtk_wed_regs.h  |  77 +++-
  include/linux/soc/mediatek/mtk_wed.h          |   8 +
- 6 files changed, 402 insertions(+), 91 deletions(-)
+ 7 files changed, 404 insertions(+), 87 deletions(-)
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -3975,6 +3975,7 @@ void mtk_eth_set_dma_device(struct mtk_e
+@@ -3973,6 +3973,7 @@ void mtk_eth_set_dma_device(struct mtk_e
  
  static int mtk_probe(struct platform_device *pdev)
  {
@@ -32,7 +35,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	struct device_node *mac_np;
  	struct mtk_eth *eth;
  	int err, i;
-@@ -4055,16 +4056,25 @@ static int mtk_probe(struct platform_dev
+@@ -4053,16 +4054,25 @@ static int mtk_probe(struct platform_dev
  		}
  	}
  
@@ -45,23 +48,21 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	for (i = 0;; i++) {
  		struct device_node *np = of_parse_phandle(pdev->dev.of_node,
  							  "mediatek,wed", i);
--		void __iomem *wdma;
 +		phys_addr_t wdma_phy;
+ 		void __iomem *wdma;
  
  		if (!np || i >= ARRAY_SIZE(eth->soc->reg_map->wdma_base))
  			break;
  
--		wdma = eth->base + eth->soc->reg_map->wdma_base[i];
+ 		wdma = eth->base + eth->soc->reg_map->wdma_base[i];
 -		mtk_wed_add_hw(np, eth, wdma, i);
 +		wdma_phy = res ? res->start + eth->soc->reg_map->wdma_base[i]
 +			       : 0;
-+		mtk_wed_add_hw(np, eth,
-+			       eth->base + eth->soc->reg_map->wdma_base[i],
-+			       wdma_phy, i);
++		mtk_wed_add_hw(np, eth, wdma, wdma_phy, i);
  	}
  
  	for (i = 0; i < 3; i++) {
-@@ -4321,6 +4331,13 @@ static const struct mtk_soc_data mt7622_
+@@ -4317,6 +4327,13 @@ static const struct mtk_soc_data mt7622_
  			.dst_port = GENMASK(7, 5),
  		},
  	},
@@ -75,21 +76,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const struct mtk_soc_data mt7623_data = {
-@@ -4359,6 +4376,13 @@ static const struct mtk_soc_data mt7623_
- 			.dst_port = GENMASK(7, 5),
- 		},
- 	},
-+	.wed = {
-+		.desc_ctrl_len1 = GENMASK(13, 0),
-+		.desc_ctrl_last_seg1 = BIT(14),
-+		.tx_bm_tkid_addr = 0x0c8,
-+		.tx_bm_dyn_thr_lo = GENMASK(8, 0),
-+		.tx_bm_dyn_thr_hi = GENMASK(24, 16),
-+	},
- };
- 
- static const struct mtk_soc_data mt7629_data = {
-@@ -4396,6 +4420,13 @@ static const struct mtk_soc_data mt7986_
+@@ -4390,6 +4407,13 @@ static const struct mtk_soc_data mt7986_
  	.foe = {
  		.hash_offset = 4,
  	},
@@ -103,6 +90,22 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const struct mtk_soc_data rt5350_data = {
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+@@ -1010,6 +1010,13 @@ struct mtk_soc_data {
+ 			u16 dst_port;
+ 		} ib2;
+ 	} foe;
++	struct {
++		u32 desc_ctrl_len1;
++		u32 desc_ctrl_last_seg1;
++		u32 tx_bm_tkid_addr;
++		u32 tx_bm_dyn_thr_lo;
++		u32 tx_bm_dyn_thr_hi;
++	} wed;
+ };
+ 
+ /* currently no SoC has more than 2 macs */
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
 @@ -25,6 +25,11 @@
@@ -774,17 +777,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	struct mtk_wed_device *dev = hw->wed_dev;
 --- a/drivers/net/ethernet/mediatek/mtk_wed_regs.h
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_regs.h
-@@ -5,7 +5,9 @@
- #define __MTK_WED_REGS_H
- 
- #define MTK_WDMA_DESC_CTRL_LEN1			GENMASK(14, 0)
-+#define MTK_WDMA_DESC_CTRL_LEN1_V2		GENMASK(13, 0)
- #define MTK_WDMA_DESC_CTRL_LAST_SEG1		BIT(15)
-+#define MTK_WDMA_DESC_CTRL_LAST_SEG1_V2		BIT(14)
- #define MTK_WDMA_DESC_CTRL_BURST		BIT(16)
- #define MTK_WDMA_DESC_CTRL_LEN0			GENMASK(29, 16)
- #define MTK_WDMA_DESC_CTRL_LAST_SEG0		BIT(30)
-@@ -41,6 +43,7 @@ struct mtk_wdma_desc {
+@@ -41,6 +41,7 @@ struct mtk_wdma_desc {
  #define MTK_WED_CTRL_RESERVE_EN				BIT(12)
  #define MTK_WED_CTRL_RESERVE_BUSY			BIT(13)
  #define MTK_WED_CTRL_FINAL_DIDX_READ			BIT(24)
@@ -792,7 +785,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_WED_CTRL_MIB_READ_CLEAR			BIT(28)
  
  #define MTK_WED_EXT_INT_STATUS				0x020
-@@ -57,7 +60,8 @@ struct mtk_wdma_desc {
+@@ -57,7 +58,8 @@ struct mtk_wdma_desc {
  #define MTK_WED_EXT_INT_STATUS_RX_DRV_INIT_WDMA_EN	BIT(19)
  #define MTK_WED_EXT_INT_STATUS_RX_DRV_BM_DMAD_COHERENT	BIT(20)
  #define MTK_WED_EXT_INT_STATUS_TX_DRV_R_RESP_ERR	BIT(21)
@@ -802,7 +795,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_WED_EXT_INT_STATUS_RX_DRV_DMA_RECYCLE	BIT(24)
  #define MTK_WED_EXT_INT_STATUS_ERROR_MASK		(MTK_WED_EXT_INT_STATUS_TF_LEN_ERR | \
  							 MTK_WED_EXT_INT_STATUS_TKID_WO_PYLD | \
-@@ -65,8 +69,7 @@ struct mtk_wdma_desc {
+@@ -65,8 +67,7 @@ struct mtk_wdma_desc {
  							 MTK_WED_EXT_INT_STATUS_RX_DRV_R_RESP_ERR | \
  							 MTK_WED_EXT_INT_STATUS_RX_DRV_W_RESP_ERR | \
  							 MTK_WED_EXT_INT_STATUS_RX_DRV_INIT_WDMA_EN | \
@@ -812,7 +805,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  #define MTK_WED_EXT_INT_MASK				0x028
  
-@@ -96,6 +99,22 @@ struct mtk_wdma_desc {
+@@ -96,6 +97,22 @@ struct mtk_wdma_desc {
  #define MTK_WED_TX_BM_DYN_THR_LO			GENMASK(6, 0)
  #define MTK_WED_TX_BM_DYN_THR_HI			GENMASK(22, 16)
  
@@ -835,7 +828,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_WED_INT_STATUS				0x200
  #define MTK_WED_INT_MASK				0x204
  
-@@ -125,6 +144,7 @@ struct mtk_wdma_desc {
+@@ -125,6 +142,7 @@ struct mtk_wdma_desc {
  #define MTK_WED_RESET_IDX_RX				GENMASK(17, 16)
  
  #define MTK_WED_TX_MIB(_n)				(0x2a0 + (_n) * 4)
@@ -843,7 +836,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  #define MTK_WED_RING_TX(_n)				(0x300 + (_n) * 0x10)
  
-@@ -155,21 +175,62 @@ struct mtk_wdma_desc {
+@@ -155,21 +173,62 @@ struct mtk_wdma_desc {
  #define MTK_WED_WPDMA_GLO_CFG_BYTE_SWAP			BIT(29)
  #define MTK_WED_WPDMA_GLO_CFG_RX_2B_OFFSET		BIT(31)
  
@@ -906,7 +899,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  #define MTK_WED_WPDMA_TX_MIB(_n)			(0x5a0 + (_n) * 4)
  #define MTK_WED_WPDMA_TX_COHERENT_MIB(_n)		(0x5d0 + (_n) * 4)
-@@ -203,15 +264,24 @@ struct mtk_wdma_desc {
+@@ -203,15 +262,24 @@ struct mtk_wdma_desc {
  #define MTK_WED_WDMA_RESET_IDX_RX			GENMASK(17, 16)
  #define MTK_WED_WDMA_RESET_IDX_DRV			GENMASK(25, 24)
  
@@ -931,7 +924,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_WED_WDMA_RX_MIB(_n)				(0xae0 + (_n) * 4)
  #define MTK_WED_WDMA_RX_RECYCLE_MIB(_n)			(0xae8 + (_n) * 4)
  #define MTK_WED_WDMA_RX_PROCESSED_MIB(_n)		(0xaf0 + (_n) * 4)
-@@ -221,6 +291,7 @@ struct mtk_wdma_desc {
+@@ -221,6 +289,7 @@ struct mtk_wdma_desc {
  #define MTK_WED_RING_OFS_CPU_IDX			0x08
  #define MTK_WED_RING_OFS_DMA_IDX			0x0c
  
@@ -939,7 +932,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_WDMA_RING_RX(_n)				(0x100 + (_n) * 0x10)
  
  #define MTK_WDMA_GLO_CFG				0x204
-@@ -234,6 +305,8 @@ struct mtk_wdma_desc {
+@@ -234,6 +303,8 @@ struct mtk_wdma_desc {
  #define MTK_WDMA_RESET_IDX_TX				GENMASK(3, 0)
  #define MTK_WDMA_RESET_IDX_RX				GENMASK(17, 16)
  
@@ -976,19 +969,3 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		u32 (*init_buf)(void *ptr, dma_addr_t phys, int token_id);
  		int (*offload_enable)(struct mtk_wed_device *wed);
  		void (*offload_disable)(struct mtk_wed_device *wed);
---- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-+++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -1012,6 +1012,13 @@ struct mtk_soc_data {
- 			u16 dst_port;
- 		} ib2;
- 	} foe;
-+	struct {
-+		u32 desc_ctrl_len1;
-+		u32 desc_ctrl_last_seg1;
-+		u32 tx_bm_tkid_addr;
-+		u32 tx_bm_dyn_thr_lo;
-+		u32 tx_bm_dyn_thr_hi;
-+	} wed;
- };
- 
- /* currently no SoC has more than 2 macs */

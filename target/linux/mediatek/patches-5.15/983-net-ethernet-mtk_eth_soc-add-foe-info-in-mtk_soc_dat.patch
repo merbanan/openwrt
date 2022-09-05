@@ -1,8 +1,8 @@
-From 21d21d9f3672a547ba786c93dde6447886d1d2f5 Mon Sep 17 00:00:00 2001
-Message-Id: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
+From 2a60545635c2705312299384f4e9fec2f2a3acd6 Mon Sep 17 00:00:00 2001
+Message-Id: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sat, 3 Sep 2022 18:34:09 +0200
-Subject: [PATCH net-next 1/5] net: ethernet: mtk_eth_soc: add foe info in
+Subject: [PATCH net-next 1/6] net: ethernet: mtk_eth_soc: add foe info in
  mtk_soc_data structure
 
 Introduce foe struct in mtk_soc_data as a container for foe table chip
@@ -20,17 +20,16 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -4253,9 +4253,7 @@ static const struct mtk_soc_data mt7621_
+@@ -4251,8 +4251,6 @@ static const struct mtk_soc_data mt7621_
  	.required_clks = MT7621_CLKS_BITMAP,
  	.required_pctl = false,
  	.offload_version = 2,
 -	.hash_offset = 2,
- 	.ppe_entries = MTK_PPE_ENTRIES,
 -	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4264,6 +4262,26 @@ static const struct mtk_soc_data mt7621_
+@@ -4261,6 +4259,26 @@ static const struct mtk_soc_data mt7621_
  		.dma_max_len = MTK_TX_DMA_BUF_LEN,
  		.dma_len_offset = 16,
  	},
@@ -57,17 +56,16 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const struct mtk_soc_data mt7622_data = {
-@@ -4274,9 +4292,7 @@ static const struct mtk_soc_data mt7622_
+@@ -4271,8 +4289,6 @@ static const struct mtk_soc_data mt7622_
  	.required_clks = MT7622_CLKS_BITMAP,
  	.required_pctl = false,
  	.offload_version = 2,
 -	.hash_offset = 2,
- 	.ppe_entries = MTK_PPE_ENTRIES,
 -	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4285,6 +4301,26 @@ static const struct mtk_soc_data mt7622_
+@@ -4281,6 +4297,26 @@ static const struct mtk_soc_data mt7622_
  		.dma_max_len = MTK_TX_DMA_BUF_LEN,
  		.dma_len_offset = 16,
  	},
@@ -94,17 +92,16 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const struct mtk_soc_data mt7623_data = {
-@@ -4294,9 +4330,7 @@ static const struct mtk_soc_data mt7623_
+@@ -4290,8 +4326,6 @@ static const struct mtk_soc_data mt7623_
  	.required_clks = MT7623_CLKS_BITMAP,
  	.required_pctl = true,
  	.offload_version = 2,
 -	.hash_offset = 2,
- 	.ppe_entries = MTK_PPE_ENTRIES,
 -	.foe_entry_size = sizeof(struct mtk_foe_entry),
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4305,6 +4339,26 @@ static const struct mtk_soc_data mt7623_
+@@ -4300,6 +4334,26 @@ static const struct mtk_soc_data mt7623_
  		.dma_max_len = MTK_TX_DMA_BUF_LEN,
  		.dma_len_offset = 16,
  	},
@@ -131,15 +128,15 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const struct mtk_soc_data mt7629_data = {
-@@ -4330,7 +4384,6 @@ static const struct mtk_soc_data mt7986_
+@@ -4325,7 +4379,6 @@ static const struct mtk_soc_data mt7986_
  	.caps = MT7986_CAPS,
  	.required_clks = MT7986_CLKS_BITMAP,
  	.required_pctl = false,
 -	.hash_offset = 4,
- 	.ppe_entries = 2 * MTK_PPE_ENTRIES,
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma_v2),
-@@ -4340,6 +4393,9 @@ static const struct mtk_soc_data mt7986_
+ 		.rxd_size = sizeof(struct mtk_rx_dma_v2),
+@@ -4334,6 +4387,9 @@ static const struct mtk_soc_data mt7986_
  		.dma_max_len = MTK_TX_DMA_BUF_LEN_V2,
  		.dma_len_offset = 8,
  	},
@@ -151,12 +148,11 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static const struct mtk_soc_data rt5350_data = {
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -966,15 +966,14 @@ struct mtk_reg_map {
+@@ -966,14 +966,13 @@ struct mtk_reg_map {
   *				the target SoC
   * @required_pctl		A bool value to show whether the SoC requires
   *				the extra setup for those pins used by GMAC.
 - * @hash_offset			Flow table hash offset.
-  * @ppe_entries			Number of entries into the foe table.
 - * @foe_entry_size		Foe table entry size.
   * @txd_size			Tx DMA descriptor size.
   * @rxd_size			Rx DMA descriptor size.
@@ -168,17 +164,16 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
   */
  struct mtk_soc_data {
  	const struct mtk_reg_map *reg_map;
-@@ -983,9 +982,7 @@ struct mtk_soc_data {
+@@ -982,8 +981,6 @@ struct mtk_soc_data {
  	u32		required_clks;
  	bool		required_pctl;
  	u8		offload_version;
 -	u8		hash_offset;
- 	u16		ppe_entries;
 -	u16		foe_entry_size;
  	netdev_features_t hw_features;
  	struct {
  		u32	txd_size;
-@@ -995,6 +992,26 @@ struct mtk_soc_data {
+@@ -993,6 +990,26 @@ struct mtk_soc_data {
  		u32	dma_max_len;
  		u32	dma_len_offset;
  	} txrx;
@@ -205,7 +200,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  /* currently no SoC has more than 2 macs */
-@@ -1150,7 +1167,7 @@ mtk_foe_get_entry(struct mtk_ppe *ppe, u
+@@ -1148,7 +1165,7 @@ mtk_foe_get_entry(struct mtk_ppe *ppe, u
  {
  	const struct mtk_soc_data *soc = ppe->eth->soc;
  
@@ -240,7 +235,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	hash ^= hash >> 16;
 -	hash <<= (ffs(eth->soc->hash_offset) - 1);
 +	hash <<= (ffs(eth->soc->foe.hash_offset) - 1);
- 	hash &= eth->soc->ppe_entries - 1;
+ 	hash &= MTK_PPE_ENTRIES - 1;
  
  	return hash;
  }
@@ -601,35 +596,35 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			if (entry->hash != 0xffff)
  				entry->hash = 0xffff;
  			continue;
-@@ -707,14 +720,14 @@ struct mtk_ppe *mtk_ppe_init(struct mtk_
+@@ -706,14 +719,14 @@ struct mtk_ppe *mtk_ppe_init(struct mtk_
  	ppe->version = version;
  
  	foe = dmam_alloc_coherent(ppe->dev,
--				  soc->ppe_entries * soc->foe_entry_size,
-+				  soc->ppe_entries * soc->foe.entry_size,
+-				  MTK_PPE_ENTRIES * soc->foe_entry_size,
++				  MTK_PPE_ENTRIES * soc->foe.entry_size,
  				  &ppe->foe_phys, GFP_KERNEL);
  	if (!foe)
  		return NULL;
  
  	ppe->foe_table = foe;
  
--	foe_flow_size = (soc->ppe_entries / soc->hash_offset) *
-+	foe_flow_size = (soc->ppe_entries / soc->foe.hash_offset) *
+-	foe_flow_size = (MTK_PPE_ENTRIES / soc->hash_offset) *
++	foe_flow_size = (MTK_PPE_ENTRIES / soc->foe.hash_offset) *
  			sizeof(*ppe->foe_flow);
  	ppe->foe_flow = devm_kzalloc(dev, foe_flow_size, GFP_KERNEL);
  	if (!ppe->foe_flow)
-@@ -737,7 +750,7 @@ static void mtk_ppe_init_foe_table(struc
- 	const struct mtk_soc_data *soc = ppe->eth->soc;
+@@ -730,7 +743,7 @@ static void mtk_ppe_init_foe_table(struc
  	int i, k;
  
--	memset(ppe->foe_table, 0, soc->ppe_entries * soc->foe_entry_size);
-+	memset(ppe->foe_table, 0, soc->ppe_entries * soc->foe.entry_size);
+ 	memset(ppe->foe_table, 0,
+-	       MTK_PPE_ENTRIES * ppe->eth->soc->foe_entry_size);
++	       MTK_PPE_ENTRIES * ppe->eth->soc->foe.entry_size);
  
  	if (!IS_ENABLED(CONFIG_SOC_MT7621))
  		return;
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
-@@ -60,6 +60,8 @@ enum {
+@@ -61,6 +61,8 @@ enum {
  #define MTK_FOE_VLAN2_WINFO_WCID	GENMASK(13, 6)
  #define MTK_FOE_VLAN2_WINFO_RING	GENMASK(15, 14)
  
@@ -638,7 +633,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  enum {
  	MTK_FOE_STATE_INVALID,
  	MTK_FOE_STATE_UNBIND,
-@@ -302,20 +304,27 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, s
+@@ -303,20 +305,27 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, s
  	__mtk_ppe_check_skb(ppe, skb, hash);
  }
  

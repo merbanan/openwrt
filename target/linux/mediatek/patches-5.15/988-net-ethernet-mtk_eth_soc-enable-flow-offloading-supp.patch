@@ -1,26 +1,53 @@
-From 24c02f15b06ffc8bba3a6974eacfae17ffc30b8e Mon Sep 17 00:00:00 2001
-Message-Id: <24c02f15b06ffc8bba3a6974eacfae17ffc30b8e.1662244287.git.lorenzo@kernel.org>
-In-Reply-To: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
-References: <21d21d9f3672a547ba786c93dde6447886d1d2f5.1662244287.git.lorenzo@kernel.org>
+From 4bbc81c29097c4a4d207f187071c90115570cd38 Mon Sep 17 00:00:00 2001
+Message-Id: <4bbc81c29097c4a4d207f187071c90115570cd38.1662332102.git.lorenzo@kernel.org>
+In-Reply-To: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
+References: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sat, 20 Aug 2022 16:34:03 +0200
-Subject: [PATCH net-next 5/5] net: ethernet: mtk_eth_soc: enable flow
+Subject: [PATCH net-next 6/6] net: ethernet: mtk_eth_soc: enable flow
  offloading support for mt7986
 
 Enable hw flow offload support for mt7986 chipset.
 
+Co-developed-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Co-developed-by: Sujuan Chen <sujuan.chen@mediatek.com>
+Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_soc.c   | 25 +++++++++--
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c   | 28 ++++++++++--
  drivers/net/ethernet/mediatek/mtk_ppe.c       | 45 ++++++++++++++-----
  drivers/net/ethernet/mediatek/mtk_ppe.h       | 10 ++++-
  .../net/ethernet/mediatek/mtk_ppe_offload.c   | 15 ++++++-
  drivers/net/ethernet/mediatek/mtk_ppe_regs.h  |  8 ++++
- 5 files changed, 86 insertions(+), 17 deletions(-)
+ 5 files changed, 88 insertions(+), 18 deletions(-)
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -4273,7 +4273,7 @@ static const struct mtk_soc_data mt7621_
+@@ -1965,12 +1965,14 @@ static int mtk_poll_rx(struct napi_struc
+ 		bytes += skb->len;
+ 
+ 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
++			reason = FIELD_GET(MTK_RXD5_PPE_CPU_REASON, trxd.rxd5);
+ 			hash = trxd.rxd5 & MTK_RXD5_FOE_ENTRY;
+ 			if (hash != MTK_RXD5_FOE_ENTRY)
+ 				skb_set_hash(skb, jhash_1word(hash, 0),
+ 					     PKT_HASH_TYPE_L4);
+ 			rxdcsum = &trxd.rxd3;
+ 		} else {
++			reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
+ 			hash = trxd.rxd4 & MTK_RXD4_FOE_ENTRY;
+ 			if (hash != MTK_RXD4_FOE_ENTRY)
+ 				skb_set_hash(skb, jhash_1word(hash, 0),
+@@ -1984,7 +1986,6 @@ static int mtk_poll_rx(struct napi_struc
+ 			skb_checksum_none_assert(skb);
+ 		skb->protocol = eth_type_trans(skb, netdev);
+ 
+-		reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
+ 		if (reason == MTK_PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
+ 			mtk_ppe_check_skb(eth->ppe[0], skb, hash);
+ 
+@@ -4270,7 +4271,7 @@ static const struct mtk_soc_data mt7621_
  		.dma_len_offset = 16,
  	},
  	.foe = {
@@ -29,7 +56,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		.hash_offset = 2,
  		.ib1 = {
  			.bind_ppoe = BIT(19),
-@@ -4312,7 +4312,7 @@ static const struct mtk_soc_data mt7622_
+@@ -4308,7 +4309,7 @@ static const struct mtk_soc_data mt7622_
  		.dma_len_offset = 16,
  	},
  	.foe = {
@@ -38,7 +65,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		.hash_offset = 2,
  		.ib1 = {
  			.bind_ppoe = BIT(19),
-@@ -4357,7 +4357,7 @@ static const struct mtk_soc_data mt7623_
+@@ -4352,7 +4353,7 @@ static const struct mtk_soc_data mt7623_
  		.dma_len_offset = 16,
  	},
  	.foe = {
@@ -47,7 +74,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		.hash_offset = 2,
  		.ib1 = {
  			.bind_ppoe = BIT(19),
-@@ -4406,8 +4406,10 @@ static const struct mtk_soc_data mt7986_
+@@ -4394,8 +4395,10 @@ static const struct mtk_soc_data mt7986_
  	.reg_map = &mt7986_reg_map,
  	.ana_rgc3 = 0x128,
  	.caps = MT7986_CAPS,
@@ -55,14 +82,15 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	.required_clks = MT7986_CLKS_BITMAP,
  	.required_pctl = false,
 +	.offload_version = 2,
- 	.ppe_entries = 2 * MTK_PPE_ENTRIES,
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma_v2),
-@@ -4419,6 +4421,23 @@ static const struct mtk_soc_data mt7986_
+ 		.rxd_size = sizeof(struct mtk_rx_dma_v2),
+@@ -4405,7 +4408,24 @@ static const struct mtk_soc_data mt7986_
+ 		.dma_len_offset = 8,
  	},
  	.foe = {
- 		.hash_offset = 4,
 +		.entry_size = sizeof(struct mtk_foe_entry),
+ 		.hash_offset = 4,
 +		.ib1 = {
 +			.bind_ppoe = BIT(17),
 +			.bind_vlan_tag = BIT(18),
@@ -124,7 +152,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	return 0;
  }
-@@ -791,6 +799,8 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -784,6 +792,8 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  			 MTK_PPE_SCAN_MODE_KEEPALIVE_AGE) |
  	      FIELD_PREP(MTK_PPE_TB_CFG_ENTRY_NUM,
  			 MTK_PPE_ENTRIES_SHIFT);
@@ -133,7 +161,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	ppe_w32(ppe, MTK_PPE_TB_CFG, val);
  
  	ppe_w32(ppe, MTK_PPE_IP_PROTO_CHK,
-@@ -798,15 +808,21 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -791,15 +801,21 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  
  	mtk_ppe_cache_enable(ppe, true);
  
@@ -158,7 +186,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	ppe_w32(ppe, MTK_PPE_FLOW_CFG, val);
  
  	val = FIELD_PREP(MTK_PPE_UNBIND_AGE_MIN_PACKETS, 1000) |
-@@ -840,6 +856,11 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
+@@ -833,6 +849,11 @@ void mtk_ppe_start(struct mtk_ppe *ppe)
  	ppe_w32(ppe, MTK_PPE_GLO_CFG, val);
  
  	ppe_w32(ppe, MTK_PPE_DEFAULT_CPU_PORT, 0);
@@ -172,7 +200,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  int mtk_ppe_stop(struct mtk_ppe *ppe)
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
-@@ -52,6 +52,7 @@ enum {
+@@ -53,6 +53,7 @@ enum {
  
  #define MTK_FOE_IB2_PORT_MG		GENMASK(17, 12)
  
@@ -180,7 +208,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_FOE_IB2_PORT_AG		GENMASK(23, 18)
  
  #define MTK_FOE_IB2_DSCP		GENMASK(31, 24)
-@@ -60,8 +61,12 @@ enum {
+@@ -61,8 +62,12 @@ enum {
  #define MTK_FOE_VLAN2_WINFO_WCID	GENMASK(13, 6)
  #define MTK_FOE_VLAN2_WINFO_RING	GENMASK(15, 14)
  
@@ -193,7 +221,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  enum {
  	MTK_FOE_STATE_INVALID,
  	MTK_FOE_STATE_UNBIND,
-@@ -82,6 +87,9 @@ struct mtk_foe_mac_info {
+@@ -83,6 +88,9 @@ struct mtk_foe_mac_info {
  
  	u16 pppoe_id;
  	u16 src_mac_lo;
@@ -203,7 +231,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  /* software-only entry type */
-@@ -199,7 +207,7 @@ struct mtk_foe_entry {
+@@ -200,7 +208,7 @@ struct mtk_foe_entry {
  		struct mtk_foe_ipv4_dslite dslite;
  		struct mtk_foe_ipv6 ipv6;
  		struct mtk_foe_ipv6_6rd ipv6_6rd;
