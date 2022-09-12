@@ -21,7 +21,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1495,6 +1495,11 @@ static void mtk_update_rx_cpu_idx(struct
+@@ -1432,6 +1432,11 @@ static void mtk_update_rx_cpu_idx(struct
  	}
  }
  
@@ -33,7 +33,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static struct page_pool *mtk_create_page_pool(struct mtk_eth *eth,
  					      struct xdp_rxq_info *xdp_q,
  					      int id, int size)
-@@ -1557,11 +1562,52 @@ static void mtk_rx_put_buff(struct mtk_r
+@@ -1494,11 +1499,52 @@ static void mtk_rx_put_buff(struct mtk_r
  		skb_free_frag(data);
  }
  
@@ -86,7 +86,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	int idx;
  	struct sk_buff *skb;
  	u8 *data, *new_data;
-@@ -1570,9 +1616,9 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1507,9 +1553,9 @@ static int mtk_poll_rx(struct napi_struc
  
  	while (done < budget) {
  		unsigned int pktlen, *rxdcsum;
@@ -97,7 +97,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		int mac = 0;
  
  		ring = mtk_get_rx_ring(eth);
-@@ -1602,8 +1648,14 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1539,8 +1585,14 @@ static int mtk_poll_rx(struct napi_struc
  		if (unlikely(test_bit(MTK_RESETTING, &eth->state)))
  			goto release_desc;
  
@@ -112,7 +112,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			new_data = mtk_page_pool_get_buff(ring->page_pool,
  							  &dma_addr,
  							  GFP_ATOMIC);
-@@ -1611,6 +1663,34 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1548,6 +1600,34 @@ static int mtk_poll_rx(struct napi_struc
  				netdev->stats.rx_dropped++;
  				goto release_desc;
  			}
@@ -147,7 +147,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		} else {
  			if (ring->frag_size <= PAGE_SIZE)
  				new_data = napi_alloc_frag(ring->frag_size);
-@@ -1634,27 +1714,20 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1571,27 +1651,20 @@ static int mtk_poll_rx(struct napi_struc
  
  			dma_unmap_single(eth->dma_dev, trxd.rxd1,
  					 ring->buf_size, DMA_FROM_DEVICE);
@@ -182,17 +182,17 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 -		skb_put(skb, pktlen);
 +		bytes += skb->len;
  
- 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2))
- 			rxdcsum = &trxd.rxd3;
-@@ -1666,7 +1739,6 @@ static int mtk_poll_rx(struct napi_struc
+ 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
+ 			hash = trxd.rxd5 & MTK_RXD5_FOE_ENTRY;
+@@ -1612,7 +1685,6 @@ static int mtk_poll_rx(struct napi_struc
  		else
  			skb_checksum_none_assert(skb);
  		skb->protocol = eth_type_trans(skb, netdev);
 -		bytes += pktlen;
  
- 		hash = trxd.rxd4 & MTK_RXD4_FOE_ENTRY;
- 		if (hash != MTK_RXD4_FOE_ENTRY) {
-@@ -1729,6 +1801,9 @@ rx_done:
+ 		reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
+ 		if (reason == MTK_PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
+@@ -1668,6 +1740,9 @@ rx_done:
  			  &dim_sample);
  	net_dim(&eth->rx_dim, dim_sample);
  
@@ -202,7 +202,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	return done;
  }
  
-@@ -2074,7 +2149,7 @@ static int mtk_rx_alloc(struct mtk_eth *
+@@ -2013,7 +2088,7 @@ static int mtk_rx_alloc(struct mtk_eth *
  	if (!ring->data)
  		return -ENOMEM;
  
@@ -211,7 +211,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		struct page_pool *pp;
  
  		pp = mtk_create_page_pool(eth, &ring->xdp_q, ring_no,
-@@ -2814,6 +2889,48 @@ static int mtk_stop(struct net_device *d
+@@ -2753,6 +2828,48 @@ static int mtk_stop(struct net_device *d
  	return 0;
  }
  
@@ -260,7 +260,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static void ethsys_reset(struct mtk_eth *eth, u32 reset_bits)
  {
  	regmap_update_bits(eth->ethsys, ETHSYS_RSTCTRL,
-@@ -3109,6 +3226,12 @@ static int mtk_change_mtu(struct net_dev
+@@ -3048,6 +3165,12 @@ static int mtk_change_mtu(struct net_dev
  	struct mtk_eth *eth = mac->hw;
  	u32 mcr_cur, mcr_new;
  
@@ -273,7 +273,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	if (!MTK_HAS_CAPS(eth->soc->caps, MTK_SOC_MT7628)) {
  		mcr_cur = mtk_r32(mac->hw, MTK_MAC_MCR(mac->id));
  		mcr_new = mcr_cur & ~MAC_MCR_MAX_RX_MASK;
-@@ -3436,6 +3559,7 @@ static const struct net_device_ops mtk_n
+@@ -3375,6 +3498,7 @@ static const struct net_device_ops mtk_n
  	.ndo_poll_controller	= mtk_poll_controller,
  #endif
  	.ndo_setup_tc		= mtk_eth_setup_tc,
@@ -283,7 +283,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static int mtk_add_mac(struct mtk_eth *eth, struct device_node *np)
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -1086,6 +1086,8 @@ struct mtk_eth {
+@@ -1093,6 +1093,8 @@ struct mtk_eth {
  
  	struct mtk_ppe			*ppe;
  	struct rhashtable		flow_table;

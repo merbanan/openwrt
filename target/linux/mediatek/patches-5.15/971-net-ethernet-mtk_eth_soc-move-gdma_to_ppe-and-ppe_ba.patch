@@ -18,7 +18,7 @@
  };
  
  /* strings used by ethtool */
-@@ -3029,6 +3033,7 @@ static int mtk_open(struct net_device *d
+@@ -2968,6 +2972,7 @@ static int mtk_open(struct net_device *d
  
  	/* we run 2 netdevs on the same dma ring so we only bring it up once */
  	if (!refcount_read(&eth->dma_refcnt)) {
@@ -26,7 +26,7 @@
  		u32 gdm_config = MTK_GDMA_TO_PDMA;
  		int err;
  
-@@ -3036,15 +3041,15 @@ static int mtk_open(struct net_device *d
+@@ -2975,15 +2980,15 @@ static int mtk_open(struct net_device *d
  		if (err)
  			return err;
  
@@ -45,7 +45,7 @@
  		refcount_set(&eth->dma_refcnt, 1);
  	}
  	else
-@@ -4126,7 +4131,9 @@ static int mtk_probe(struct platform_dev
+@@ -4089,7 +4094,9 @@ static int mtk_probe(struct platform_dev
  	}
  
  	if (eth->soc->offload_version) {
@@ -66,7 +66,7 @@
  #define MTK_GDMA_DROP_ALL       0x7777
  
  /* Unicast Filter MAC Address Register - Low */
-@@ -949,6 +948,8 @@ struct mtk_reg_map {
+@@ -955,6 +954,8 @@ struct mtk_reg_map {
  		u32	fq_blen;	/* fq free page buffer length */
  	} qdma;
  	u32	gdm1_cnt;

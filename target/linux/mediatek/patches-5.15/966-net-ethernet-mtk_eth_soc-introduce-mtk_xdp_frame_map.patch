@@ -13,11 +13,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  drivers/net/ethernet/mediatek/mtk_eth_soc.c | 68 +++++++++++++--------
  1 file changed, 42 insertions(+), 26 deletions(-)
 
-diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-index d6630fc1ee99..58831d6dbd46 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1525,6 +1525,41 @@ static void mtk_rx_put_buff(struct mtk_rx_ring *ring, void *data, bool napi)
+@@ -1523,6 +1523,41 @@ static void mtk_rx_put_buff(struct mtk_r
  		skb_free_frag(data);
  }
  
@@ -59,7 +57,7 @@ index d6630fc1ee99..58831d6dbd46 100644
  static int mtk_xdp_submit_frame(struct mtk_eth *eth, struct xdp_frame *xdpf,
  				struct net_device *dev, bool dma_map)
  {
-@@ -1535,9 +1570,8 @@ static int mtk_xdp_submit_frame(struct mtk_eth *eth, struct xdp_frame *xdpf,
+@@ -1533,9 +1568,8 @@ static int mtk_xdp_submit_frame(struct m
  		.first	= true,
  		.last	= true,
  	};
@@ -70,7 +68,7 @@ index d6630fc1ee99..58831d6dbd46 100644
  	struct mtk_tx_buf *tx_buf;
  
  	if (unlikely(test_bit(MTK_RESETTING, &eth->state)))
-@@ -1557,36 +1591,18 @@ static int mtk_xdp_submit_frame(struct mtk_eth *eth, struct xdp_frame *xdpf,
+@@ -1555,36 +1589,18 @@ static int mtk_xdp_submit_frame(struct m
  	tx_buf = mtk_desc_to_tx_buf(ring, txd, soc->txrx.txd_size);
  	memset(tx_buf, 0, sizeof(*tx_buf));
  
@@ -113,6 +111,3 @@ index d6630fc1ee99..58831d6dbd46 100644
  		if (index & 1)
  			txd_pdma->txd2 |= TX_DMA_LS0;
  		else
--- 
-2.37.1
-

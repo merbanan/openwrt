@@ -17,7 +17,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1094,15 +1094,26 @@ static void mtk_tx_unmap(struct mtk_eth
+@@ -1031,15 +1031,26 @@ static void mtk_tx_unmap(struct mtk_eth
  		}
  	}
  
@@ -51,7 +51,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  }
  
  static void setup_tx_buf(struct mtk_eth *eth, struct mtk_tx_buf *tx_buf,
-@@ -1119,7 +1130,7 @@ static void setup_tx_buf(struct mtk_eth
+@@ -1056,7 +1067,7 @@ static void setup_tx_buf(struct mtk_eth
  			dma_unmap_addr_set(tx_buf, dma_addr1, mapped_addr);
  			dma_unmap_len_set(tx_buf, dma_len1, size);
  		} else {
@@ -60,7 +60,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			txd->txd1 = mapped_addr;
  			txd->txd2 = TX_DMA_PLEN0(size);
  			dma_unmap_addr_set(tx_buf, dma_addr0, mapped_addr);
-@@ -1295,7 +1306,7 @@ static int mtk_tx_map(struct sk_buff *sk
+@@ -1232,7 +1243,7 @@ static int mtk_tx_map(struct sk_buff *sk
  						    soc->txrx.txd_size);
  			if (new_desc)
  				memset(tx_buf, 0, sizeof(*tx_buf));
@@ -69,7 +69,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  			tx_buf->flags |= MTK_TX_FLAGS_PAGE0;
  			tx_buf->flags |= (!mac->id) ? MTK_TX_FLAGS_FPORT0 :
  					 MTK_TX_FLAGS_FPORT1;
-@@ -1309,7 +1320,8 @@ static int mtk_tx_map(struct sk_buff *sk
+@@ -1246,7 +1257,8 @@ static int mtk_tx_map(struct sk_buff *sk
  	}
  
  	/* store skb to cleanup */
@@ -79,7 +79,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	if (!MTK_HAS_CAPS(soc->caps, MTK_QDMA)) {
  		if (k & 0x1)
-@@ -1521,13 +1533,14 @@ static struct page_pool *mtk_create_page
+@@ -1458,13 +1470,14 @@ static struct page_pool *mtk_create_page
  		.pool_size = size,
  		.nid = NUMA_NO_NODE,
  		.dev = eth->dma_dev,
@@ -95,7 +95,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	pp = page_pool_create(&pp_params);
  	if (IS_ERR(pp))
  		return pp;
-@@ -1573,6 +1586,122 @@ static void mtk_rx_put_buff(struct mtk_r
+@@ -1510,6 +1523,122 @@ static void mtk_rx_put_buff(struct mtk_r
  		skb_free_frag(data);
  }
  
@@ -218,7 +218,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static u32 mtk_xdp_run(struct mtk_eth *eth, struct mtk_rx_ring *ring,
  		       struct xdp_buff *xdp, struct net_device *dev)
  {
-@@ -1601,6 +1730,18 @@ static u32 mtk_xdp_run(struct mtk_eth *e
+@@ -1538,6 +1667,18 @@ static u32 mtk_xdp_run(struct mtk_eth *e
  
  		count = &hw_stats->xdp_stats.rx_xdp_redirect;
  		goto update_stats;
@@ -237,7 +237,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	default:
  		bpf_warn_invalid_xdp_action(act);
  		fallthrough;
-@@ -1834,9 +1975,8 @@ static int mtk_poll_tx_qdma(struct mtk_e
+@@ -1773,9 +1914,8 @@ static int mtk_poll_tx_qdma(struct mtk_e
  {
  	const struct mtk_reg_map *reg_map = eth->soc->reg_map;
  	struct mtk_tx_ring *ring = &eth->tx_ring;
@@ -248,7 +248,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	u32 cpu, dma;
  
  	cpu = ring->last_free_ptr;
-@@ -1857,15 +1997,21 @@ static int mtk_poll_tx_qdma(struct mtk_e
+@@ -1796,15 +1936,21 @@ static int mtk_poll_tx_qdma(struct mtk_e
  		if (tx_buf->flags & MTK_TX_FLAGS_FPORT1)
  			mac = 1;
  
@@ -273,7 +273,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		mtk_tx_unmap(eth, tx_buf, true);
  
  		ring->last_free = desc;
-@@ -1884,9 +2030,8 @@ static int mtk_poll_tx_pdma(struct mtk_e
+@@ -1823,9 +1969,8 @@ static int mtk_poll_tx_pdma(struct mtk_e
  			    unsigned int *done, unsigned int *bytes)
  {
  	struct mtk_tx_ring *ring = &eth->tx_ring;
@@ -284,7 +284,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	u32 cpu, dma;
  
  	cpu = ring->cpu_idx;
-@@ -1894,14 +2039,18 @@ static int mtk_poll_tx_pdma(struct mtk_e
+@@ -1833,14 +1978,18 @@ static int mtk_poll_tx_pdma(struct mtk_e
  
  	while ((cpu != dma) && budget) {
  		tx_buf = &ring->buf[cpu];
@@ -306,7 +306,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		}
  
  		mtk_tx_unmap(eth, tx_buf, true);
-@@ -3582,6 +3731,7 @@ static const struct net_device_ops mtk_n
+@@ -3521,6 +3670,7 @@ static const struct net_device_ops mtk_n
  #endif
  	.ndo_setup_tc		= mtk_eth_setup_tc,
  	.ndo_bpf		= mtk_xdp,
@@ -316,7 +316,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static int mtk_add_mac(struct mtk_eth *eth, struct device_node *np)
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -695,6 +695,12 @@ enum mtk_dev_state {
+@@ -701,6 +701,12 @@ enum mtk_dev_state {
  	MTK_RESETTING
  };
  
@@ -329,7 +329,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  /* struct mtk_tx_buf -	This struct holds the pointers to the memory pointed at
   *			by the TX descriptor	s
   * @skb:		The SKB pointer of the packet being sent
-@@ -704,7 +710,9 @@ enum mtk_dev_state {
+@@ -710,7 +716,9 @@ enum mtk_dev_state {
   * @dma_len1:		The length of the second segment
   */
  struct mtk_tx_buf {

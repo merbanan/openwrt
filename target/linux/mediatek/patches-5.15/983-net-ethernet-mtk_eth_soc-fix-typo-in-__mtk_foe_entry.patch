@@ -14,11 +14,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  drivers/net/ethernet/mediatek/mtk_ppe.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.c b/drivers/net/ethernet/mediatek/mtk_ppe.c
-index 289cf02e6918..4248a3b78aa6 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
-@@ -425,7 +425,7 @@ __mtk_foe_entry_clear(struct mtk_ppe *ppe, struct mtk_flow_entry *entry)
+@@ -413,7 +413,7 @@ __mtk_foe_entry_clear(struct mtk_ppe *pp
  		struct mtk_foe_entry *hwe = mtk_foe_get_entry(ppe, entry->hash);
  
  		hwe->ib1 &= ~MTK_FOE_IB1_STATE;
@@ -27,6 +25,3 @@ index 289cf02e6918..4248a3b78aa6 100644
  		dma_wmb();
  	}
  	entry->hash = 0xffff;
--- 
-2.37.2
-

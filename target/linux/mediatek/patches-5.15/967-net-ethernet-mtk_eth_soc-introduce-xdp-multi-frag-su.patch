@@ -13,11 +13,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  drivers/net/ethernet/mediatek/mtk_eth_soc.c | 125 +++++++++++++-------
  1 file changed, 82 insertions(+), 43 deletions(-)
 
-diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-index 8450604d22ff..24235f8f0a8f 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1031,23 +1031,22 @@ static void mtk_tx_unmap(struct mtk_eth *eth, struct mtk_tx_buf *tx_buf,
+@@ -1031,23 +1031,22 @@ static void mtk_tx_unmap(struct mtk_eth
  		}
  	}
  
@@ -50,7 +48,7 @@ index 8450604d22ff..24235f8f0a8f 100644
  	}
  	tx_buf->flags = 0;
  	tx_buf->data = NULL;
-@@ -1550,6 +1549,8 @@ static int mtk_xdp_frame_map(struct mtk_eth *eth, struct net_device *dev,
+@@ -1550,6 +1549,8 @@ static int mtk_xdp_frame_map(struct mtk_
  	mtk_tx_set_dma_desc(dev, txd, txd_info);
  
  	tx_buf->flags |= !mac->id ? MTK_TX_FLAGS_FPORT0 : MTK_TX_FLAGS_FPORT1;
@@ -59,7 +57,7 @@ index 8450604d22ff..24235f8f0a8f 100644
  
  	txd_pdma = qdma_to_pdma(ring, txd);
  	setup_tx_buf(eth, tx_buf, txd_pdma, txd_info->addr, txd_info->size,
-@@ -1561,43 +1562,69 @@ static int mtk_xdp_frame_map(struct mtk_eth *eth, struct net_device *dev,
+@@ -1561,43 +1562,69 @@ static int mtk_xdp_frame_map(struct mtk_
  static int mtk_xdp_submit_frame(struct mtk_eth *eth, struct xdp_frame *xdpf,
  				struct net_device *dev, bool dma_map)
  {
@@ -116,13 +114,13 @@ index 8450604d22ff..24235f8f0a8f 100644
 +
 +		if (txd_info.last)
 +			break;
-+
+ 
 +		if (MTK_HAS_CAPS(soc->caps, MTK_QDMA) || (index & 0x1)) {
 +			txd = mtk_qdma_phys_to_virt(ring, txd->txd2);
 +			txd_pdma = qdma_to_pdma(ring, txd);
 +			if (txd == ring->last_free)
 +				goto unmap;
- 
++
 +			tx_buf = mtk_desc_to_tx_buf(ring, txd,
 +						    soc->txrx.txd_size);
 +			memset(tx_buf, 0, sizeof(*tx_buf));
@@ -143,7 +141,7 @@ index 8450604d22ff..24235f8f0a8f 100644
  
  	if (!MTK_HAS_CAPS(soc->caps, MTK_QDMA)) {
  		txd_pdma = qdma_to_pdma(ring, txd);
-@@ -1624,7 +1651,24 @@ static int mtk_xdp_submit_frame(struct mtk_eth *eth, struct xdp_frame *xdpf,
+@@ -1624,7 +1651,24 @@ static int mtk_xdp_submit_frame(struct m
  		mtk_w32(eth, NEXT_DESP_IDX(idx, ring->dma_size),
  			MT7628_TX_CTX_IDX0);
  	}
@@ -169,7 +167,7 @@ index 8450604d22ff..24235f8f0a8f 100644
  	spin_unlock(&eth->page_lock);
  
  	return err;
-@@ -1953,18 +1997,15 @@ static int mtk_poll_tx_qdma(struct mtk_eth *eth, int budget,
+@@ -1955,18 +1999,15 @@ static int mtk_poll_tx_qdma(struct mtk_e
  		if (!tx_buf->data)
  			break;
  
@@ -194,7 +192,7 @@ index 8450604d22ff..24235f8f0a8f 100644
  		mtk_tx_unmap(eth, tx_buf, true);
  
  		ring->last_free = desc;
-@@ -1995,17 +2036,15 @@ static int mtk_poll_tx_pdma(struct mtk_eth *eth, int budget,
+@@ -1997,17 +2038,15 @@ static int mtk_poll_tx_pdma(struct mtk_e
  		if (!tx_buf->data)
  			break;
  
@@ -219,6 +217,3 @@ index 8450604d22ff..24235f8f0a8f 100644
  		mtk_tx_unmap(eth, tx_buf, true);
  
  		desc = ring->dma + cpu * eth->soc->txrx.txd_size;
--- 
-2.37.1
-

@@ -42,7 +42,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const char * const mtk_clks_source_name[] = {
-@@ -1565,6 +1576,9 @@ static void mtk_rx_put_buff(struct mtk_r
+@@ -1502,6 +1513,9 @@ static void mtk_rx_put_buff(struct mtk_r
  static u32 mtk_xdp_run(struct mtk_eth *eth, struct mtk_rx_ring *ring,
  		       struct xdp_buff *xdp, struct net_device *dev)
  {
@@ -52,7 +52,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	struct bpf_prog *prog;
  	u32 act = XDP_PASS;
  
-@@ -1577,13 +1591,16 @@ static u32 mtk_xdp_run(struct mtk_eth *e
+@@ -1514,13 +1528,16 @@ static u32 mtk_xdp_run(struct mtk_eth *e
  	act = bpf_prog_run_xdp(prog, xdp);
  	switch (act) {
  	case XDP_PASS:
@@ -71,7 +71,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	default:
  		bpf_warn_invalid_xdp_action(act);
  		fallthrough;
-@@ -1596,6 +1613,11 @@ static u32 mtk_xdp_run(struct mtk_eth *e
+@@ -1533,6 +1550,11 @@ static u32 mtk_xdp_run(struct mtk_eth *e
  
  	page_pool_put_full_page(ring->page_pool,
  				virt_to_head_page(xdp->data), true);
@@ -85,7 +85,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -569,6 +569,16 @@ struct mtk_tx_dma_v2 {
+@@ -575,6 +575,16 @@ struct mtk_tx_dma_v2 {
  struct mtk_eth;
  struct mtk_mac;
  
@@ -102,7 +102,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  /* struct mtk_hw_stats - the structure that holds the traffic statistics.
   * @stats_lock:		make sure that stats operations are atomic
   * @reg_offset:		the status register offset of the SoC
-@@ -592,6 +602,8 @@ struct mtk_hw_stats {
+@@ -598,6 +608,8 @@ struct mtk_hw_stats {
  	u64 rx_checksum_errors;
  	u64 rx_flow_control_packets;
  

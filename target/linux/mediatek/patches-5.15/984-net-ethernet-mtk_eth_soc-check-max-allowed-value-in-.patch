@@ -14,11 +14,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  drivers/net/ethernet/mediatek/mtk_ppe.h | 3 +++
  1 file changed, 3 insertions(+)
 
-diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.h b/drivers/net/ethernet/mediatek/mtk_ppe.h
-index 4b5449a63044..a364f45edf38 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
-@@ -296,6 +296,9 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, struct sk_buff *skb, u16 hash)
+@@ -317,6 +317,9 @@ mtk_ppe_check_skb(struct mtk_ppe *ppe, s
  	if (!ppe)
  		return;
  
@@ -28,6 +26,3 @@ index 4b5449a63044..a364f45edf38 100644
  	now = (u16)jiffies;
  	diff = now - ppe->foe_check_time[hash];
  	if (diff < HZ / 10)
--- 
-2.37.2
-

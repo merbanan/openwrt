@@ -22,7 +22,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -1978,7 +1978,7 @@ static int mtk_poll_rx(struct napi_struc
+@@ -1915,7 +1915,7 @@ static int mtk_poll_rx(struct napi_struc
  
  		reason = FIELD_GET(MTK_RXD4_PPE_CPU_REASON, trxd.rxd4);
  		if (reason == MTK_PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
@@ -31,7 +31,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  		if (netdev->features & NETIF_F_HW_VLAN_CTAG_RX) {
  			if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
-@@ -3036,16 +3036,18 @@ static int mtk_open(struct net_device *d
+@@ -2973,16 +2973,18 @@ static int mtk_open(struct net_device *d
  	/* we run 2 netdevs on the same dma ring so we only bring it up once */
  	if (!refcount_read(&eth->dma_refcnt)) {
  		const struct mtk_soc_data *soc = eth->soc;
@@ -54,7 +54,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		mtk_gdm_config(eth, gdm_config);
  
  		napi_enable(&eth->tx_napi);
-@@ -3089,6 +3091,7 @@ static int mtk_stop(struct net_device *d
+@@ -3026,6 +3028,7 @@ static int mtk_stop(struct net_device *d
  {
  	struct mtk_mac *mac = netdev_priv(dev);
  	struct mtk_eth *eth = mac->hw;
@@ -62,7 +62,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	phylink_stop(mac->phylink);
  
-@@ -3116,8 +3119,8 @@ static int mtk_stop(struct net_device *d
+@@ -3053,8 +3056,8 @@ static int mtk_stop(struct net_device *d
  
  	mtk_dma_free(eth);
  
@@ -73,7 +73,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	return 0;
  }
-@@ -4133,12 +4136,22 @@ static int mtk_probe(struct platform_dev
+@@ -4094,12 +4097,22 @@ static int mtk_probe(struct platform_dev
  	}
  
  	if (eth->soc->offload_version) {
@@ -103,7 +103,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		err = mtk_eth_offload_init(eth);
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -1112,7 +1112,7 @@ struct mtk_eth {
+@@ -1119,7 +1119,7 @@ struct mtk_eth {
  
  	int				ip_align;
  

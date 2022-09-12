@@ -1,6 +1,6 @@
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -4232,6 +4232,7 @@ static const struct mtk_soc_data mt7621_
+@@ -4195,6 +4195,7 @@ static const struct mtk_soc_data mt7621_
  	.required_clks = MT7621_CLKS_BITMAP,
  	.required_pctl = false,
  	.offload_version = 2,
@@ -8,7 +8,7 @@
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4250,6 +4251,7 @@ static const struct mtk_soc_data mt7622_
+@@ -4213,6 +4214,7 @@ static const struct mtk_soc_data mt7622_
  	.required_clks = MT7622_CLKS_BITMAP,
  	.required_pctl = false,
  	.offload_version = 2,
@@ -16,7 +16,7 @@
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4267,6 +4269,7 @@ static const struct mtk_soc_data mt7623_
+@@ -4230,6 +4232,7 @@ static const struct mtk_soc_data mt7623_
  	.required_clks = MT7623_CLKS_BITMAP,
  	.required_pctl = true,
  	.offload_version = 2,
@@ -24,7 +24,7 @@
  	.txrx = {
  		.txd_size = sizeof(struct mtk_tx_dma),
  		.rxd_size = sizeof(struct mtk_rx_dma),
-@@ -4300,6 +4303,7 @@ static const struct mtk_soc_data mt7986_
+@@ -4263,6 +4266,7 @@ static const struct mtk_soc_data mt7986_
  	.caps = MT7986_CAPS,
  	.required_clks = MT7986_CLKS_BITMAP,
  	.required_pctl = false,
@@ -34,7 +34,7 @@
  		.rxd_size = sizeof(struct mtk_rx_dma_v2),
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -963,6 +963,7 @@ struct mtk_reg_map {
+@@ -969,6 +969,7 @@ struct mtk_reg_map {
   *				the target SoC
   * @required_pctl		A bool value to show whether the SoC requires
   *				the extra setup for those pins used by GMAC.
@@ -42,7 +42,7 @@
   * @txd_size			Tx DMA descriptor size.
   * @rxd_size			Rx DMA descriptor size.
   * @rx_irq_done_mask		Rx irq done register mask.
-@@ -977,6 +978,7 @@ struct mtk_soc_data {
+@@ -983,6 +984,7 @@ struct mtk_soc_data {
  	u32		required_clks;
  	bool		required_pctl;
  	u8		offload_version;

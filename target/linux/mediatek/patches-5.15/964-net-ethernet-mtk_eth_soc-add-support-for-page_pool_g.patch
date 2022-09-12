@@ -28,7 +28,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	  MediaTek SoC family.
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -3592,11 +3592,18 @@ static void mtk_get_strings(struct net_d
+@@ -3531,11 +3531,18 @@ static void mtk_get_strings(struct net_d
  	int i;
  
  	switch (stringset) {
@@ -48,7 +48,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		break;
  	}
  }
-@@ -3604,13 +3611,35 @@ static void mtk_get_strings(struct net_d
+@@ -3543,13 +3550,35 @@ static void mtk_get_strings(struct net_d
  static int mtk_get_sset_count(struct net_device *dev, int sset)
  {
  	switch (sset) {
@@ -86,7 +86,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static void mtk_get_ethtool_stats(struct net_device *dev,
  				  struct ethtool_stats *stats, u64 *data)
  {
-@@ -3638,6 +3667,8 @@ static void mtk_get_ethtool_stats(struct
+@@ -3577,6 +3606,8 @@ static void mtk_get_ethtool_stats(struct
  
  		for (i = 0; i < ARRAY_SIZE(mtk_ethtool_stats); i++)
  			*data_dst++ = *(data_src + mtk_ethtool_stats[i].offset);
