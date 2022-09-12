@@ -1,13 +1,21 @@
-From 63bf2b77f95fddea9a2b64c02d9c5868774f1440 Mon Sep 17 00:00:00 2001
-Message-Id: <63bf2b77f95fddea9a2b64c02d9c5868774f1440.1662298571.git.lorenzo@kernel.org>
+From 0d9deb91372ef8c85ff4be0ca32820d2b3dab7b0 Mon Sep 17 00:00:00 2001
+Message-Id: <0d9deb91372ef8c85ff4be0ca32820d2b3dab7b0.1662984160.git.lorenzo@kernel.org>
+In-Reply-To: <1aa8198e998e4364fa33fa874e92418fbbd8983f.1662984160.git.lorenzo@kernel.org>
+References: <1aa8198e998e4364fa33fa874e92418fbbd8983f.1662984160.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
-Date: Sun, 28 Aug 2022 14:03:42 +0200
-Subject: [PATCH] mt7915 wed on mt7986 chipset
+Date: Sun, 11 Sep 2022 11:17:25 +0200
+Subject: [PATCH 2/3] wifi: mt76: mt7915: enable wed for mt7986 chipset
 
+Introduce wed tx support for MT7986 chipset
+
+Co-developed-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Co-developed-by: Sujuan Chen <sujuan.chen@mediatek.com>
+Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  mt7915/dma.c  |  1 +
- mt7915/pci.c  | 11 +++++++++++
+ mt7915/mmio.c | 11 +++++++++++
  mt7915/regs.h |  8 ++++++++
  3 files changed, 20 insertions(+)
 
@@ -23,11 +31,11 @@ index f7e6bb10..cd9caaa8 100644
  		mtk_wed_device_start(&dev->mt76.mmio.wed, wed_irq_mask);
  	}
  
-diff --git a/mt7915/pci.c b/mt7915/pci.c
-index d74f6097..e3485a8f 100644
---- a/mt7915/pci.c
-+++ b/mt7915/pci.c
-@@ -140,7 +140,18 @@ mt7915_pci_wed_init(struct mt7915_dev *dev, struct pci_dev *pdev, int *irq)
+diff --git a/mt7915/mmio.c b/mt7915/mmio.c
+index 5782dce4..3a3fd3e9 100644
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -518,7 +518,18 @@ int mt7915_mmio_wed_init(struct mt7915_dev *dev, struct pci_dev *pdev,
  	wed->wlan.pci_dev = pdev;
  	wed->wlan.wpdma_phys = pci_resource_start(pdev, 0) +
  			       MT_WFDMA_EXT_CSR_BASE;
@@ -45,7 +53,7 @@ index d74f6097..e3485a8f 100644
 +	wed->wlan.txfree_tbit = MT_WED_TX_FREE_DONE;
  	wed->wlan.token_start = MT7915_TOKEN_SIZE - wed->wlan.nbuf;
  	wed->wlan.init_buf = mt7915_wed_init_buf;
- 	wed->wlan.offload_enable = mt7915_wed_offload_enable;
+ 	wed->wlan.offload_enable = mt7915_mmio_wed_offload_enable;
 diff --git a/mt7915/regs.h b/mt7915/regs.h
 index 53061aa7..58dc4097 100644
 --- a/mt7915/regs.h
@@ -73,5 +81,5 @@ index 53061aa7..58dc4097 100644
  #define MT_INT_MASK_CSR			__REG(INT_MASK_CSR)
  
 -- 
-2.37.2
+2.37.3
 
