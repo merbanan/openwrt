@@ -1,11 +1,31 @@
+From f977b78485bcdd9f38d572fbf365263db166a079 Mon Sep 17 00:00:00 2001
+Message-Id: <f977b78485bcdd9f38d572fbf365263db166a079.1662885348.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Wed, 17 Aug 2022 11:30:12 +0200
+Subject: [PATCH net-next] arm64: dts: mediatek: mt7986: add support for
+ Wireless Ethernet Dispatch
+
+Introduce wed0 and wed1 nodes in order to enable offloading forwarding
+between ethernet and wireless devices on the mt7986 chipset.
+
+Co-developed-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ arch/arm64/boot/dts/mediatek/mt7986a.dtsi | 24 +++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/mediatek/mt7986a.dtsi b/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
+index e3a407d03551..692102f6248d 100644
 --- a/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
 +++ b/arch/arm64/boot/dts/mediatek/mt7986a.dtsi
-@@ -390,6 +390,29 @@
+@@ -222,6 +222,28 @@ ethsys: syscon@15000000 {
  			 #reset-cells = <1>;
  		};
  
-+		wed_pcie: wed_pcie@10003000 {
-+			compatible = "mediatek,wed_pcie";
++		wed_pcie: wed-pcie@10003000 {
++			compatible = "mediatek,mt7986-wed-pcie",
++				     "syscon";
 +			reg = <0 0x10003000 0 0x10>;
 +		};
 +
@@ -15,7 +35,6 @@
 +			reg = <0 0x15010000 0 0x1000>;
 +			interrupt-parent = <&gic>;
 +			interrupts = <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>;
-+			mediatek,wed_pcie = <&wed_pcie>;
 +		};
 +
 +		wed1: wed@15011000 {
@@ -24,18 +43,20 @@
 +			reg = <0 0x15011000 0 0x1000>;
 +			interrupt-parent = <&gic>;
 +			interrupts = <GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>;
-+			mediatek,wed_pcie = <&wed_pcie>;
 +		};
 +
  		eth: ethernet@15100000 {
  			compatible = "mediatek,mt7986-eth";
  			reg = <0 0x15100000 0 0x80000>;
-@@ -424,6 +447,8 @@
+@@ -256,6 +278,8 @@ eth: ethernet@15100000 {
  						 <&apmixedsys CLK_APMIXED_SGMPLL>;
  			mediatek,ethsys = <&ethsys>;
  			mediatek,sgmiisys = <&sgmiisys0>, <&sgmiisys1>;
++			mediatek,wed-pcie = <&wed_pcie>;
 +			mediatek,wed = <&wed0>, <&wed1>;
-+			mediatek,num_ppe = <2>;
  			#reset-cells = <1>;
  			#address-cells = <1>;
  			#size-cells = <0>;
+-- 
+2.37.3
+

@@ -1,10 +1,8 @@
-From 85f9086364e8d51d76475bec1f6e9abfdc426007 Mon Sep 17 00:00:00 2001
-Message-Id: <85f9086364e8d51d76475bec1f6e9abfdc426007.1662332102.git.lorenzo@kernel.org>
-In-Reply-To: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
-References: <2a60545635c2705312299384f4e9fec2f2a3acd6.1662332102.git.lorenzo@kernel.org>
+From e5ecb4f619197b93fa682d722452dc8412864cdb Mon Sep 17 00:00:00 2001
+Message-Id: <e5ecb4f619197b93fa682d722452dc8412864cdb.1662886033.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 26 Aug 2022 01:12:57 +0200
-Subject: [PATCH net-next 4/6] net: ethernet: mtk_eth_wed: add
+Subject: [PATCH net-next 1/5] net: ethernet: mtk_eth_wed: add
  mtk_wed_configure_irq and mtk_wed_dma_{enable/disable}
 
 Introduce mtk_wed_configure_irq, mtk_wed_dma_enable and mtk_wed_dma_disable
@@ -194,5 +192,5 @@ index 0a0465ea58b4..eec22daebd30 100644
  #define MTK_WDMA_RESET_IDX				0x208
  #define MTK_WDMA_RESET_IDX_TX				GENMASK(3, 0)
 -- 
-2.37.2
+2.37.3
 
