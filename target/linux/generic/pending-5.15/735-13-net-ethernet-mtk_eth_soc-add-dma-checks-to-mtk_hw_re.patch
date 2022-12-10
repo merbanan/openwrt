@@ -1,10 +1,10 @@
-From c1951fe87e571b6fbbf76ff2af7dce8bf3908d80 Mon Sep 17 00:00:00 2001
-Message-Id: <c1951fe87e571b6fbbf76ff2af7dce8bf3908d80.1669204567.git.lorenzo@kernel.org>
-In-Reply-To: <379f5130e1bdb6266f6f5039f29e46bf0a968e8b.1669204567.git.lorenzo@kernel.org>
-References: <379f5130e1bdb6266f6f5039f29e46bf0a968e8b.1669204567.git.lorenzo@kernel.org>
+From e77a257e3864818f661e5706fb667383905feba5 Mon Sep 17 00:00:00 2001
+Message-Id: <e77a257e3864818f661e5706fb667383905feba5.1670698930.git.lorenzo@kernel.org>
+In-Reply-To: <d5d0a2646d1caf759bc46e0222971074029ea4a3.1670698930.git.lorenzo@kernel.org>
+References: <d5d0a2646d1caf759bc46e0222971074029ea4a3.1670698930.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sat, 19 Nov 2022 01:46:23 +0100
-Subject: [PATCH net-next 2/2] net: ethernet: mtk_eth_soc: add dma checks to
+Subject: [PATCH net-next 3/4] net: ethernet: mtk_eth_soc: add dma checks to
  mtk_hw_reset_check
 
 Introduce mtk_hw_check_dma_hang routine to monitor possible dma hangs.
@@ -13,13 +13,15 @@ Co-developed-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_soc.c | 104 ++++++++++++++++++++
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c | 103 ++++++++++++++++++++
  drivers/net/ethernet/mediatek/mtk_eth_soc.h |  26 +++++
- 2 files changed, 130 insertions(+)
+ 2 files changed, 129 insertions(+)
 
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index ba924ceb6c94..bafae4f0312e 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -51,6 +51,7 @@ static const struct mtk_reg_map mtk_reg_
+@@ -51,6 +51,7 @@ static const struct mtk_reg_map mtk_reg_map = {
  		.delay_irq	= 0x0a0c,
  		.irq_status	= 0x0a20,
  		.irq_mask	= 0x0a28,
@@ -27,7 +29,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		.int_grp	= 0x0a50,
  	},
  	.qdma = {
-@@ -82,6 +83,8 @@ static const struct mtk_reg_map mtk_reg_
+@@ -82,6 +83,8 @@ static const struct mtk_reg_map mtk_reg_map = {
  		[0]		= 0x2800,
  		[1]		= 0x2c00,
  	},
@@ -36,7 +38,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  static const struct mtk_reg_map mt7628_reg_map = {
-@@ -112,6 +115,7 @@ static const struct mtk_reg_map mt7986_r
+@@ -112,6 +115,7 @@ static const struct mtk_reg_map mt7986_reg_map = {
  		.delay_irq	= 0x620c,
  		.irq_status	= 0x6220,
  		.irq_mask	= 0x6228,
@@ -44,7 +46,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		.int_grp	= 0x6250,
  	},
  	.qdma = {
-@@ -143,6 +147,8 @@ static const struct mtk_reg_map mt7986_r
+@@ -143,6 +147,8 @@ static const struct mtk_reg_map mt7986_reg_map = {
  		[0]		= 0x4800,
  		[1]		= 0x4c00,
  	},
@@ -53,7 +55,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  /* strings used by ethtool */
-@@ -3502,6 +3508,100 @@ static void mtk_hw_warm_reset(struct mtk
+@@ -3554,6 +3560,99 @@ static void mtk_hw_warm_reset(struct mtk_eth *eth)
  			val, rst_mask);
  }
  
@@ -142,10 +144,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +					   reset.monitor_work);
 +
 +	/* DMA stuck checks */
-+	if (mtk_hw_check_dma_hang(eth)) {
-+		flush_work(&eth->pending_work);
++	if (!test_bit(MTK_RESETTING, &eth->state) &&
++	    mtk_hw_check_dma_hang(eth))
 +		schedule_work(&eth->pending_work);
-+	}
 +
 +	schedule_delayed_work(&eth->reset.monitor_work,
 +			      MTK_DMA_MONITOR_TIMEOUT);
@@ -154,7 +155,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static int mtk_hw_init(struct mtk_eth *eth, bool reset)
  {
  	u32 dma_mask = ETHSYS_DMA_AG_MAP_PDMA | ETHSYS_DMA_AG_MAP_QDMA |
-@@ -3841,6 +3941,7 @@ static int mtk_cleanup(struct mtk_eth *e
+@@ -3894,6 +3993,7 @@ static int mtk_cleanup(struct mtk_eth *eth)
  	mtk_unreg_dev(eth);
  	mtk_free_dev(eth);
  	cancel_work_sync(&eth->pending_work);
@@ -162,7 +163,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	return 0;
  }
-@@ -4295,6 +4396,7 @@ static int mtk_probe(struct platform_dev
+@@ -4348,6 +4448,7 @@ static int mtk_probe(struct platform_device *pdev)
  
  	eth->rx_dim.mode = DIM_CQ_PERIOD_MODE_START_FROM_EQE;
  	INIT_WORK(&eth->rx_dim.work, mtk_dim_rx);
@@ -170,8 +171,8 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	eth->tx_dim.mode = DIM_CQ_PERIOD_MODE_START_FROM_EQE;
  	INIT_WORK(&eth->tx_dim.work, mtk_dim_tx);
-@@ -4503,6 +4605,8 @@ static int mtk_probe(struct platform_dev
- 		       NAPI_POLL_WEIGHT);
+@@ -4550,6 +4651,8 @@ static int mtk_probe(struct platform_device *pdev)
+ 	netif_napi_add(&eth->dummy_dev, &eth->rx_napi, mtk_napi_rx);
  
  	platform_set_drvdata(pdev, eth);
 +	schedule_delayed_work(&eth->reset.monitor_work,
@@ -179,9 +180,11 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	return 0;
  
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.h b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+index a8066b3ee3ed..dff0e3ad2de6 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -282,6 +282,8 @@
+@@ -284,6 +284,8 @@
  
  #define MTK_RX_DONE_INT_V2	BIT(14)
  
@@ -190,7 +193,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  /* QDMA Interrupt grouping registers */
  #define MTK_RLS_DONE_INT	BIT(0)
  
-@@ -562,6 +564,17 @@
+@@ -574,6 +576,17 @@
  #define MT7628_SDM_RBCNT	(MT7628_SDM_OFFSET + 0x10c)
  #define MT7628_SDM_CS_ERR	(MT7628_SDM_OFFSET + 0x110)
  
@@ -208,7 +211,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  struct mtk_rx_dma {
  	unsigned int rxd1;
  	unsigned int rxd2;
-@@ -964,6 +977,7 @@ struct mtk_reg_map {
+@@ -970,6 +983,7 @@ struct mtk_reg_map {
  		u32	delay_irq;	/* delay interrupt */
  		u32	irq_status;	/* interrupt status */
  		u32	irq_mask;	/* interrupt mask */
@@ -216,8 +219,8 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		u32	int_grp;
  	} pdma;
  	struct {
-@@ -992,6 +1006,8 @@ struct mtk_reg_map {
- 	u32	gdma_to_ppe0;
+@@ -998,6 +1012,8 @@ struct mtk_reg_map {
+ 	u32	gdma_to_ppe;
  	u32	ppe_base;
  	u32	wdma_base[2];
 +	u32	pse_iq_sta;
@@ -225,7 +228,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  /* struct mtk_eth_data -	This is the structure holding all differences
-@@ -1035,6 +1051,8 @@ struct mtk_soc_data {
+@@ -1040,6 +1056,8 @@ struct mtk_soc_data {
  	} txrx;
  };
  
@@ -234,7 +237,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  /* currently no SoC has more than 2 macs */
  #define MTK_MAX_DEVS			2
  
-@@ -1159,6 +1177,14 @@ struct mtk_eth {
+@@ -1164,6 +1182,14 @@ struct mtk_eth {
  	struct rhashtable		flow_table;
  
  	struct bpf_prog			__rcu *prog;
@@ -249,3 +252,6 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  };
  
  /* struct mtk_mac -	the structure that holds the info about the MACs of the
+-- 
+2.38.1
+

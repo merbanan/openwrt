@@ -1,10 +1,8 @@
-From 7bfc04eddd3f4c08bb145f13774e7b01a7bf64a3 Mon Sep 17 00:00:00 2001
-Message-Id: <7bfc04eddd3f4c08bb145f13774e7b01a7bf64a3.1669193986.git.lorenzo@kernel.org>
-In-Reply-To: <c6f9f9d8d8a4e8e2372c3130ff8521b984d79a02.1669193986.git.lorenzo@kernel.org>
-References: <c6f9f9d8d8a4e8e2372c3130ff8521b984d79a02.1669193986.git.lorenzo@kernel.org>
+From d5d0a2646d1caf759bc46e0222971074029ea4a3 Mon Sep 17 00:00:00 2001
+Message-Id: <d5d0a2646d1caf759bc46e0222971074029ea4a3.1670698930.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Thu, 17 Nov 2022 16:34:11 +0100
-Subject: [PATCH net-next 2/4] net: ethernet: mtk_eth_soc: introduce
+Subject: [PATCH net-next 1/4] net: ethernet: mtk_eth_soc: introduce
  mtk_hw_warm_reset support
 
 Introduce mtk_hw_warm_reset utility routine. This is a preliminary patch
@@ -15,12 +13,14 @@ Co-developed-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_soc.c | 60 +++++++++++++++++++--
- 1 file changed, 56 insertions(+), 4 deletions(-)
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c | 59 +++++++++++++++++++--
+ 1 file changed, 55 insertions(+), 4 deletions(-)
 
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index ce429deea389..ffd4dbee0488 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -3442,7 +3442,55 @@ static void mtk_hw_reset(struct mtk_eth
+@@ -3492,7 +3492,54 @@ static void mtk_hw_reset(struct mtk_eth *eth)
  			     0x3ffffff);
  }
  
@@ -30,7 +30,6 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +	u32 val;
 +
 +	regmap_read(eth->ethsys, ETHSYS_RSTCTRL, &val);
-+
 +	return val;
 +}
 +
@@ -40,8 +39,8 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +
 +	regmap_update_bits(eth->ethsys, ETHSYS_RSTCTRL, RSTCTRL_FE,
 +			   RSTCTRL_FE);
-+	if (readx_poll_timeout(mtk_hw_reset_read, eth, val, val & RSTCTRL_FE,
-+			       1, 1000)) {
++	if (readx_poll_timeout_atomic(mtk_hw_reset_read, eth, val,
++				      val & RSTCTRL_FE, 1, 1000)) {
 +		dev_err(eth->dev, "warm reset failed\n");
 +		mtk_hw_reset(eth);
 +		return;
@@ -57,7 +56,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +
 +	regmap_update_bits(eth->ethsys, ETHSYS_RSTCTRL, rst_mask, rst_mask);
 +
-+	usleep_range(10, 20);
++	udelay(1);
 +	val = mtk_hw_reset_read(eth);
 +	if (!(val & rst_mask))
 +		dev_err(eth->dev, "warm reset stage0 failed %08x (%08x)\n",
@@ -66,7 +65,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +	rst_mask |= RSTCTRL_FE;
 +	regmap_update_bits(eth->ethsys, ETHSYS_RSTCTRL, rst_mask, ~rst_mask);
 +
-+	usleep_range(10, 20);
++	udelay(1);
 +	val = mtk_hw_reset_read(eth);
 +	if (val & rst_mask)
 +		dev_err(eth->dev, "warm reset stage1 failed %08x (%08x)\n",
@@ -77,7 +76,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  {
  	u32 dma_mask = ETHSYS_DMA_AG_MAP_PDMA | ETHSYS_DMA_AG_MAP_QDMA |
  		       ETHSYS_DMA_AG_MAP_PPE;
-@@ -3481,7 +3529,11 @@ static int mtk_hw_init(struct mtk_eth *e
+@@ -3531,7 +3578,11 @@ static int mtk_hw_init(struct mtk_eth *eth)
  		return 0;
  	}
  
@@ -90,7 +89,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	if (MTK_HAS_CAPS(eth->soc->caps, MTK_NETSYS_V2)) {
  		/* Set FE to PDMAv2 if necessary */
-@@ -3692,7 +3744,7 @@ static void mtk_pending_work(struct work
+@@ -3743,7 +3794,7 @@ static void mtk_pending_work(struct work_struct *work)
  	if (eth->dev->pins)
  		pinctrl_select_state(eth->dev->pins->p,
  				     eth->dev->pins->default_state);
@@ -99,7 +98,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	/* restart DMA and enable IRQs */
  	for (i = 0; i < MTK_MAC_COUNT; i++) {
-@@ -4321,7 +4373,7 @@ static int mtk_probe(struct platform_dev
+@@ -4372,7 +4423,7 @@ static int mtk_probe(struct platform_device *pdev)
  	eth->msg_enable = netif_msg_init(mtk_msg_level, MTK_DEFAULT_MSG_ENABLE);
  	INIT_WORK(&eth->pending_work, mtk_pending_work);
  
@@ -108,3 +107,6 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  	if (err)
  		goto err_wed_exit;
  
+-- 
+2.38.1
+

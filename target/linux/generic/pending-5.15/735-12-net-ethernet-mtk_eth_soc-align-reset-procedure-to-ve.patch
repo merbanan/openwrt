@@ -1,8 +1,10 @@
-From 379f5130e1bdb6266f6f5039f29e46bf0a968e8b Mon Sep 17 00:00:00 2001
-Message-Id: <379f5130e1bdb6266f6f5039f29e46bf0a968e8b.1669204567.git.lorenzo@kernel.org>
+From 07c8994a328f826a974249bedbd3303956099c16 Mon Sep 17 00:00:00 2001
+Message-Id: <07c8994a328f826a974249bedbd3303956099c16.1670698930.git.lorenzo@kernel.org>
+In-Reply-To: <d5d0a2646d1caf759bc46e0222971074029ea4a3.1670698930.git.lorenzo@kernel.org>
+References: <d5d0a2646d1caf759bc46e0222971074029ea4a3.1670698930.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 18 Nov 2022 13:39:15 +0100
-Subject: [PATCH net-next 1/2] net: ethernet: mtk_eth_soc: align reset
+Subject: [PATCH net-next 2/4] net: ethernet: mtk_eth_soc: align reset
  procedure to vendor sdk
 
 Avoid to power-down the ethernet chip during hw reset and align reset
@@ -12,16 +14,18 @@ Co-developed-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- drivers/net/ethernet/mediatek/mtk_eth_soc.c  | 83 ++++++++++++++------
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c  | 86 ++++++++++++++------
  drivers/net/ethernet/mediatek/mtk_eth_soc.h  | 12 +++
- drivers/net/ethernet/mediatek/mtk_ppe.c      | 27 +++++++
+ drivers/net/ethernet/mediatek/mtk_ppe.c      | 27 ++++++
  drivers/net/ethernet/mediatek/mtk_ppe.h      |  1 +
  drivers/net/ethernet/mediatek/mtk_ppe_regs.h |  6 ++
- 5 files changed, 105 insertions(+), 24 deletions(-)
+ 5 files changed, 108 insertions(+), 24 deletions(-)
 
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index ffd4dbee0488..ba924ceb6c94 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -2930,14 +2930,26 @@ static void mtk_dma_free(struct mtk_eth
+@@ -2984,14 +2984,29 @@ static void mtk_dma_free(struct mtk_eth *eth)
  	kfree(eth->scratch_head);
  }
  
@@ -47,10 +51,13 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 -		  "transmit timed out\n");
 +	netif_err(eth, tx_err, dev, "transmit timed out\n");
 +
++	if (test_bit(MTK_RESETTING, &eth->state))
++		return;
++
  	schedule_work(&eth->pending_work);
  }
  
-@@ -3497,15 +3509,17 @@ static int mtk_hw_init(struct mtk_eth *e
+@@ -3546,15 +3561,17 @@ static int mtk_hw_init(struct mtk_eth *eth, bool reset)
  	const struct mtk_reg_map *reg_map = eth->soc->reg_map;
  	int i, val, ret;
  
@@ -74,7 +81,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	if (eth->ethsys)
  		regmap_update_bits(eth->ethsys, ETHSYS_DMA_AG_MAP, dma_mask,
-@@ -3636,8 +3650,10 @@ static int mtk_hw_init(struct mtk_eth *e
+@@ -3686,8 +3703,10 @@ static int mtk_hw_init(struct mtk_eth *eth, bool reset)
  	return 0;
  
  err_disable_pm:
@@ -87,7 +94,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	return ret;
  }
-@@ -3719,46 +3735,65 @@ static int mtk_do_ioctl(struct net_devic
+@@ -3769,46 +3788,65 @@ static int mtk_do_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
  static void mtk_pending_work(struct work_struct *work)
  {
  	struct mtk_eth *eth = container_of(work, struct mtk_eth, pending_work);
@@ -167,9 +174,11 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  	clear_bit(MTK_RESETTING, &eth->state);
  
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.h b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+index 18a50529ce7b..a8066b3ee3ed 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
-@@ -75,12 +75,24 @@
+@@ -77,12 +77,24 @@
  #define	MTK_HW_LRO_REPLACE_DELTA	1000
  #define	MTK_HW_LRO_SDL_REMAIN_ROOM	1522
  
@@ -194,10 +203,12 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  #define MTK_GDM1_AF		BIT(28)
  #define MTK_GDM2_AF		BIT(29)
  
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.c b/drivers/net/ethernet/mediatek/mtk_ppe.c
+index 269208a841c7..994408d8f416 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
-@@ -812,6 +812,33 @@ struct mtk_foe_accounting *mtk_foe_entry
- 	return acct;
+@@ -730,6 +730,33 @@ int mtk_foe_entry_idle_time(struct mtk_ppe *ppe, struct mtk_flow_entry *entry)
+ 	return __mtk_foe_entry_idle_time(ppe, entry->data.ib1);
  }
  
 +int mtk_ppe_prepare_reset(struct mtk_ppe *ppe)
@@ -228,18 +239,22 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 +}
 +
  struct mtk_ppe *mtk_ppe_init(struct mtk_eth *eth, void __iomem *base,
- 			     int version, int index, bool accounting)
+ 			     int version, int index)
  {
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.h b/drivers/net/ethernet/mediatek/mtk_ppe.h
+index ea64fac1d425..16b02e1d4649 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
-@@ -327,6 +327,7 @@ struct mtk_ppe *mtk_ppe_init(struct mtk_
- 			     int version, int index, bool accounting);
+@@ -309,6 +309,7 @@ struct mtk_ppe *mtk_ppe_init(struct mtk_eth *eth, void __iomem *base,
+ void mtk_ppe_deinit(struct mtk_eth *eth);
  void mtk_ppe_start(struct mtk_ppe *ppe);
  int mtk_ppe_stop(struct mtk_ppe *ppe);
 +int mtk_ppe_prepare_reset(struct mtk_ppe *ppe);
  
  void __mtk_ppe_check_skb(struct mtk_ppe *ppe, struct sk_buff *skb, u16 hash);
  
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe_regs.h b/drivers/net/ethernet/mediatek/mtk_ppe_regs.h
+index 59596d823d8b..0fdb983b0a88 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_regs.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_regs.h
 @@ -58,6 +58,12 @@
@@ -255,3 +270,6 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  
  enum {
  	MTK_PPE_SCAN_MODE_DISABLED,
+-- 
+2.38.1
+
