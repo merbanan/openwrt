@@ -1,0 +1,170 @@
+From 181153cc21090e31c2126d6d6259dfef0da2d905 Mon Sep 17 00:00:00 2001
+Message-Id: <181153cc21090e31c2126d6d6259dfef0da2d905.1672097883.git.lorenzo@kernel.org>
+In-Reply-To: <20d2e529439c33b1f5a68ab784e19313d851b8d9.1672097883.git.lorenzo@kernel.org>
+References: <20d2e529439c33b1f5a68ab784e19313d851b8d9.1672097883.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Fri, 23 Dec 2022 11:26:30 +0100
+Subject: [PATCH 3/3] mt76: enable page_pool stats
+
+Enable page_pool ethtool statistics for mt7915 and mt7921 chipsets.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mac80211.c    | 13 +++++++++++++
+ mt76.h        |  1 +
+ mt7915/main.c | 26 ++++++++++++++++----------
+ mt7921/main.c | 31 +++++++++++++++++++++++++++----
+ 4 files changed, 57 insertions(+), 14 deletions(-)
+
+--- a/mac80211.c
++++ b/mac80211.c
+@@ -1742,6 +1742,19 @@ void mt76_ethtool_worker(struct mt76_eth
+ }
+ EXPORT_SYMBOL_GPL(mt76_ethtool_worker);
+ 
++void mt76_ethtool_page_pool_stats(struct mt76_dev *dev, u64 *data, int *index)
++{
++	struct page_pool_stats stats = {};
++	int i;
++
++	mt76_for_each_q_rx(dev, i)
++		page_pool_get_stats(dev->q_rx[i].page_pool, &stats);
++
++	page_pool_ethtool_stats_get(data, &stats);
++	*index += page_pool_ethtool_stats_get_count();
++}
++EXPORT_SYMBOL_GPL(mt76_ethtool_page_pool_stats);
++
+ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
+ {
+ 	struct ieee80211_hw *hw = phy->hw;
+--- a/mt76.h
++++ b/mt76.h
+@@ -1315,6 +1315,7 @@ mt76u_bulk_msg(struct mt76_dev *dev, voi
+ 	return usb_bulk_msg(udev, pipe, data, len, actual_len, timeout);
+ }
+ 
++void mt76_ethtool_page_pool_stats(struct mt76_dev *dev, u64 *data, int *index);
+ void mt76_ethtool_worker(struct mt76_ethtool_worker_info *wi,
+ 			 struct mt76_sta_stats *stats);
+ int mt76_skb_adjust_pad(struct sk_buff *skb, int pad);
+--- a/mt7915/main.c
++++ b/mt7915/main.c
+@@ -1280,19 +1280,22 @@ void mt7915_get_et_strings(struct ieee80
+ 			   struct ieee80211_vif *vif,
+ 			   u32 sset, u8 *data)
+ {
+-	if (sset == ETH_SS_STATS)
+-		memcpy(data, *mt7915_gstrings_stats,
+-		       sizeof(mt7915_gstrings_stats));
++	if (sset != ETH_SS_STATS)
++		return;
++
++	memcpy(data, *mt7915_gstrings_stats, sizeof(mt7915_gstrings_stats));
++	data += sizeof(mt7915_gstrings_stats);
++	page_pool_ethtool_stats_get_strings(data);
+ }
+ 
+ static
+ int mt7915_get_et_sset_count(struct ieee80211_hw *hw,
+ 			     struct ieee80211_vif *vif, int sset)
+ {
+-	if (sset == ETH_SS_STATS)
+-		return MT7915_SSTATS_LEN;
++	if (sset != ETH_SS_STATS)
++		return 0;
+ 
+-	return 0;
++	return MT7915_SSTATS_LEN + page_pool_ethtool_stats_get_count();
+ }
+ 
+ static void mt7915_ethtool_worker(void *wi_data, struct ieee80211_sta *sta)
+@@ -1320,7 +1323,7 @@ void mt7915_get_et_stats(struct ieee8021
+ 	};
+ 	struct mib_stats *mib = &phy->mib;
+ 	/* See mt7915_ampdu_stat_read_phy, etc */
+-	int i, ei = 0;
++	int i, ei = 0, stats_size;
+ 
+ 	mutex_lock(&dev->mt76.mutex);
+ 
+@@ -1401,9 +1404,12 @@ void mt7915_get_et_stats(struct ieee8021
+ 		return;
+ 
+ 	ei += wi.worker_stat_count;
+-	if (ei != MT7915_SSTATS_LEN)
+-		dev_err(dev->mt76.dev, "ei: %d  MT7915_SSTATS_LEN: %d",
+-			ei, (int)MT7915_SSTATS_LEN);
++
++	mt76_ethtool_page_pool_stats(&dev->mt76, &data[ei], &ei);
++
++	stats_size = MT7915_SSTATS_LEN + page_pool_ethtool_stats_get_count();
++	if (ei != stats_size)
++		dev_err(dev->mt76.dev, "ei: %d size: %d", ei, stats_size);
+ }
+ 
+ static void
+--- a/mt7921/main.c
++++ b/mt7921/main.c
+@@ -1130,17 +1130,34 @@ static void
+ mt7921_get_et_strings(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 		      u32 sset, u8 *data)
+ {
++	struct mt7921_dev *dev = mt7921_hw_dev(hw);
++
+ 	if (sset != ETH_SS_STATS)
+ 		return;
+ 
+ 	memcpy(data, *mt7921_gstrings_stats, sizeof(mt7921_gstrings_stats));
++
++	if (mt76_is_sdio(&dev->mt76))
++		return;
++
++	data += sizeof(mt7921_gstrings_stats);
++	page_pool_ethtool_stats_get_strings(data);
+ }
+ 
+ static int
+ mt7921_get_et_sset_count(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			 int sset)
+ {
+-	return sset == ETH_SS_STATS ? ARRAY_SIZE(mt7921_gstrings_stats) : 0;
++	struct mt7921_dev *dev = mt7921_hw_dev(hw);
++
++	if (sset != ETH_SS_STATS)
++		return 0;
++
++	if (mt76_is_sdio(&dev->mt76))
++		return ARRAY_SIZE(mt7921_gstrings_stats);
++
++	return ARRAY_SIZE(mt7921_gstrings_stats) +
++	       page_pool_ethtool_stats_get_count();
+ }
+ 
+ static void
+@@ -1160,6 +1177,7 @@ void mt7921_get_et_stats(struct ieee8021
+ 			 struct ethtool_stats *stats, u64 *data)
+ {
+ 	struct mt7921_vif *mvif = (struct mt7921_vif *)vif->drv_priv;
++	int stats_size = ARRAY_SIZE(mt7921_gstrings_stats);
+ 	struct mt7921_phy *phy = mt7921_hw_phy(hw);
+ 	struct mt7921_dev *dev = phy->dev;
+ 	struct mib_stats *mib = &phy->mib;
+@@ -1215,9 +1233,14 @@ void mt7921_get_et_stats(struct ieee8021
+ 		return;
+ 
+ 	ei += wi.worker_stat_count;
+-	if (ei != ARRAY_SIZE(mt7921_gstrings_stats))
+-		dev_err(dev->mt76.dev, "ei: %d  SSTATS_LEN: %zu",
+-			ei, ARRAY_SIZE(mt7921_gstrings_stats));
++
++	if (!mt76_is_sdio(&dev->mt76)) {
++		mt76_ethtool_page_pool_stats(&dev->mt76, &data[ei], &ei);
++		stats_size += page_pool_ethtool_stats_get_count();
++	}
++
++	if (ei != stats_size)
++		dev_err(dev->mt76.dev, "ei: %d  SSTATS_LEN: %d", ei, stats_size);
+ }
+ 
+ static u64

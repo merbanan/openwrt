@@ -1,0 +1,71 @@
+From 465bb6c7547eddcee39a37eecdc7c815537e710a Mon Sep 17 00:00:00 2001
+Message-Id: <465bb6c7547eddcee39a37eecdc7c815537e710a.1672176850.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Wed, 21 Dec 2022 23:38:30 +0100
+Subject: [PATCH] mt76: introduce mt76_queue_is_wed_rx utility routine
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ dma.c        | 6 ++----
+ mt76.h       | 6 ++++++
+ mt7915/mac.c | 3 +--
+ 3 files changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/dma.c b/dma.c
+index 93a2e8ab64ed..f1368a6aed15 100644
+--- a/dma.c
++++ b/dma.c
+@@ -218,8 +218,7 @@ mt76_dma_add_rx_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ 
+ 	ctrl = FIELD_PREP(MT_DMA_CTL_SD_LEN0, buf[0].len);
+ 
+-	if ((q->flags & MT_QFLAG_WED) &&
+-	    FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX) {
++	if (mt76_queue_is_wed_rx(q)) {
+ 		txwi = mt76_get_rxwi(dev);
+ 		if (!txwi)
+ 			return -ENOMEM;
+@@ -399,8 +398,7 @@ mt76_dma_get_buf(struct mt76_dev *dev, struct mt76_queue *q, int idx,
+ 	if (info)
+ 		*info = le32_to_cpu(desc->info);
+ 
+-	if ((q->flags & MT_QFLAG_WED) &&
+-	    FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX) {
++	if (mt76_queue_is_wed_rx(q)) {
+ 		u32 token = FIELD_GET(MT_DMA_CTL_TOKEN,
+ 				      le32_to_cpu(desc->buf1));
+ 		struct mt76_txwi_cache *t = mt76_rx_token_release(dev, token);
+diff --git a/mt76.h b/mt76.h
+index 1037d23bc4d0..f351a37c47f7 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -1409,6 +1409,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
+ 			      struct mt76_power_limits *dest,
+ 			      s8 target_power);
+ 
++static inline bool mt76_queue_is_wed_rx(struct mt76_queue *q)
++{
++	return (q->flags & MT_QFLAG_WED) &&
++	       FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX;
++}
++
+ struct mt76_txwi_cache *
+ mt76_token_release(struct mt76_dev *dev, int token, bool *wake);
+ int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi);
+diff --git a/mt7915/mac.c b/mt7915/mac.c
+index f0d5a3603902..65727ce6c29e 100644
+--- a/mt7915/mac.c
++++ b/mt7915/mac.c
+@@ -256,8 +256,7 @@ mt7915_wed_check_ppe(struct mt7915_dev *dev, struct mt76_queue *q,
+ 	if (!msta || !msta->vif)
+ 		return;
+ 
+-	if (!(q->flags & MT_QFLAG_WED) ||
+-	    FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) != MT76_WED_Q_RX)
++	if (!mt76_queue_is_wed_rx(q))
+ 		return;
+ 
+ 	if (!(info & MT_DMA_INFO_PPE_VLD))
+-- 
+2.38.1
+
