@@ -1,3 +1,26 @@
+From e362b8a1a8fde777c64a9931e4d1e5cfbfb821b8 Mon Sep 17 00:00:00 2001
+Message-ID: <e362b8a1a8fde777c64a9931e4d1e5cfbfb821b8.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:18:07 +0200
+Subject: [PATCH 28/57] disable ctrl iface mib
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/Makefile            |  3 +++
+ hostapd/ctrl_iface.c        |  2 ++
+ src/ap/ctrl_iface_ap.c      | 45 +++++++++++++++++++------------------
+ src/ap/ieee802_1x.c         |  2 ++
+ src/ap/wpa_auth.c           |  3 ++-
+ src/rsn_supp/wpa.c          |  3 +++
+ wpa_supplicant/Makefile     |  3 +++
+ wpa_supplicant/ap.c         |  2 +-
+ wpa_supplicant/ctrl_iface.c |  8 ++++++-
+ 9 files changed, 46 insertions(+), 25 deletions(-)
+
+diff --git a/hostapd/Makefile b/hostapd/Makefile
+index 4931f46b5..55cfa35cd 100644
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
 @@ -221,6 +221,9 @@ endif
@@ -10,9 +33,11 @@
  ifeq ($(CONFIG_CTRL_IFACE), udp)
  CFLAGS += -DCONFIG_CTRL_IFACE_UDP
  else
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index 2a09b4eb2..924d1bd82 100644
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
-@@ -3342,6 +3342,7 @@ static int hostapd_ctrl_iface_receive_pr
+@@ -3379,6 +3379,7 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
  						      reply_size);
  	} else if (os_strcmp(buf, "STATUS-DRIVER") == 0) {
  		reply_len = hostapd_drv_status(hapd, reply, reply_size);
@@ -20,7 +45,7 @@
  	} else if (os_strcmp(buf, "MIB") == 0) {
  		reply_len = ieee802_11_get_mib(hapd, reply, reply_size);
  		if (reply_len >= 0) {
-@@ -3383,6 +3384,7 @@ static int hostapd_ctrl_iface_receive_pr
+@@ -3420,6 +3421,7 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
  	} else if (os_strncmp(buf, "STA-NEXT ", 9) == 0) {
  		reply_len = hostapd_ctrl_iface_sta_next(hapd, buf + 9, reply,
  							reply_size);
@@ -28,69 +53,8 @@
  	} else if (os_strcmp(buf, "ATTACH") == 0) {
  		if (hostapd_ctrl_iface_attach(hapd, from, fromlen, NULL))
  			reply_len = -1;
---- a/wpa_supplicant/Makefile
-+++ b/wpa_supplicant/Makefile
-@@ -985,6 +985,9 @@ ifdef CONFIG_FILS
- OBJS += ../src/ap/fils_hlp.o
- endif
- ifdef CONFIG_CTRL_IFACE
-+ifdef CONFIG_CTRL_IFACE_MIB
-+CFLAGS += -DCONFIG_CTRL_IFACE_MIB
-+endif
- OBJS += ../src/ap/ctrl_iface_ap.o
- endif
- 
---- a/wpa_supplicant/ctrl_iface.c
-+++ b/wpa_supplicant/ctrl_iface.c
-@@ -2326,7 +2326,7 @@ static int wpa_supplicant_ctrl_iface_sta
- 			pos += ret;
- 		}
- 
--#ifdef CONFIG_AP
-+#if defined(CONFIG_AP) && defined(CONFIG_CTRL_IFACE_MIB)
- 		if (wpa_s->ap_iface) {
- 			pos += ap_ctrl_iface_wpa_get_status(wpa_s, pos,
- 							    end - pos,
-@@ -11964,6 +11964,7 @@ char * wpa_supplicant_ctrl_iface_process
- 			reply_len = -1;
- 	} else if (os_strncmp(buf, "NOTE ", 5) == 0) {
- 		wpa_printf(MSG_INFO, "NOTE: %s", buf + 5);
-+#ifdef CONFIG_CTRL_IFACE_MIB
- 	} else if (os_strcmp(buf, "MIB") == 0) {
- 		reply_len = wpa_sm_get_mib(wpa_s->wpa, reply, reply_size);
- 		if (reply_len >= 0) {
-@@ -11976,6 +11977,7 @@ char * wpa_supplicant_ctrl_iface_process
- 				reply_size - reply_len);
- #endif /* CONFIG_MACSEC */
- 		}
-+#endif
- 	} else if (os_strncmp(buf, "STATUS", 6) == 0) {
- 		reply_len = wpa_supplicant_ctrl_iface_status(
- 			wpa_s, buf + 6, reply, reply_size);
-@@ -12464,6 +12466,7 @@ char * wpa_supplicant_ctrl_iface_process
- 		reply_len = wpa_supplicant_ctrl_iface_bss(
- 			wpa_s, buf + 4, reply, reply_size);
- #ifdef CONFIG_AP
-+#ifdef CONFIG_CTRL_IFACE_MIB
- 	} else if (os_strcmp(buf, "STA-FIRST") == 0) {
- 		reply_len = ap_ctrl_iface_sta_first(wpa_s, reply, reply_size);
- 	} else if (os_strncmp(buf, "STA ", 4) == 0) {
-@@ -12472,12 +12475,15 @@ char * wpa_supplicant_ctrl_iface_process
- 	} else if (os_strncmp(buf, "STA-NEXT ", 9) == 0) {
- 		reply_len = ap_ctrl_iface_sta_next(wpa_s, buf + 9, reply,
- 						   reply_size);
-+#endif
-+#ifdef CONFIG_CTRL_IFACE_MIB
- 	} else if (os_strncmp(buf, "DEAUTHENTICATE ", 15) == 0) {
- 		if (ap_ctrl_iface_sta_deauthenticate(wpa_s, buf + 15))
- 			reply_len = -1;
- 	} else if (os_strncmp(buf, "DISASSOCIATE ", 13) == 0) {
- 		if (ap_ctrl_iface_sta_disassociate(wpa_s, buf + 13))
- 			reply_len = -1;
-+#endif
- 	} else if (os_strncmp(buf, "CHAN_SWITCH ", 12) == 0) {
- 		if (ap_ctrl_iface_chanswitch(wpa_s, buf + 12))
- 			reply_len = -1;
+diff --git a/src/ap/ctrl_iface_ap.c b/src/ap/ctrl_iface_ap.c
+index 0706afb7a..50a4dc4d6 100644
 --- a/src/ap/ctrl_iface_ap.c
 +++ b/src/ap/ctrl_iface_ap.c
 @@ -26,6 +26,26 @@
@@ -120,7 +84,7 @@
  
  static size_t hostapd_write_ht_mcs_bitmask(char *buf, size_t buflen,
  					   size_t curr_len, const u8 *mcs_set)
-@@ -212,26 +232,6 @@ static const char * timeout_next_str(int
+@@ -212,26 +232,6 @@ static const char * timeout_next_str(int val)
  }
  
  
@@ -147,7 +111,7 @@
  static int hostapd_ctrl_iface_sta_mib(struct hostapd_data *hapd,
  				      struct sta_info *sta,
  				      char *buf, size_t buflen)
-@@ -493,6 +493,7 @@ int hostapd_ctrl_iface_sta_next(struct h
+@@ -493,6 +493,7 @@ int hostapd_ctrl_iface_sta_next(struct hostapd_data *hapd, const char *txtaddr,
  	return hostapd_ctrl_iface_sta_mib(hapd, sta->next, buf, buflen);
  }
  
@@ -155,7 +119,7 @@
  
  #ifdef CONFIG_P2P_MANAGER
  static int p2p_manager_disconnect(struct hostapd_data *hapd, u16 stype,
-@@ -884,12 +885,12 @@ int hostapd_ctrl_iface_status(struct hos
+@@ -884,12 +885,12 @@ int hostapd_ctrl_iface_status(struct hostapd_data *hapd, char *buf,
  			return len;
  		len += ret;
  	}
@@ -170,9 +134,11 @@
  	if (iface->current_rates && iface->num_rates) {
  		ret = os_snprintf(buf + len, buflen - len, "supported_rates=");
  		if (os_snprintf_error(buflen - len, ret))
+diff --git a/src/ap/ieee802_1x.c b/src/ap/ieee802_1x.c
+index 5688f1a9e..06f8ef987 100644
 --- a/src/ap/ieee802_1x.c
 +++ b/src/ap/ieee802_1x.c
-@@ -2753,6 +2753,7 @@ static const char * bool_txt(bool val)
+@@ -2834,6 +2834,7 @@ static const char * bool_txt(bool val)
  	return val ? "TRUE" : "FALSE";
  }
  
@@ -180,7 +146,7 @@
  
  int ieee802_1x_get_mib(struct hostapd_data *hapd, char *buf, size_t buflen)
  {
-@@ -2939,6 +2940,7 @@ int ieee802_1x_get_mib_sta(struct hostap
+@@ -3020,6 +3021,7 @@ int ieee802_1x_get_mib_sta(struct hostapd_data *hapd, struct sta_info *sta,
  	return len;
  }
  
@@ -188,9 +154,11 @@
  
  #ifdef CONFIG_HS20
  static void ieee802_1x_wnm_notif_send(void *eloop_ctx, void *timeout_ctx)
+diff --git a/src/ap/wpa_auth.c b/src/ap/wpa_auth.c
+index 9d153da7d..88f42a04d 100644
 --- a/src/ap/wpa_auth.c
 +++ b/src/ap/wpa_auth.c
-@@ -4786,6 +4786,7 @@ static const char * wpa_bool_txt(int val
+@@ -5328,6 +5328,7 @@ static const char * wpa_bool_txt(int val)
  	return val ? "TRUE" : "FALSE";
  }
  
@@ -198,7 +166,7 @@
  
  #define RSN_SUITE "%02x-%02x-%02x-%d"
  #define RSN_SUITE_ARG(s) \
-@@ -4938,7 +4939,7 @@ int wpa_get_mib_sta(struct wpa_state_mac
+@@ -5480,7 +5481,7 @@ int wpa_get_mib_sta(struct wpa_state_machine *sm, char *buf, size_t buflen)
  
  	return len;
  }
@@ -207,9 +175,11 @@
  
  void wpa_auth_countermeasures_start(struct wpa_authenticator *wpa_auth)
  {
+diff --git a/src/rsn_supp/wpa.c b/src/rsn_supp/wpa.c
+index 9c7c526fc..f1557dc17 100644
 --- a/src/rsn_supp/wpa.c
 +++ b/src/rsn_supp/wpa.c
-@@ -3834,6 +3834,8 @@ static u32 wpa_key_mgmt_suite(struct wpa
+@@ -3834,6 +3834,8 @@ static u32 wpa_key_mgmt_suite(struct wpa_sm *sm)
  }
  
  
@@ -218,7 +188,7 @@
  #define RSN_SUITE "%02x-%02x-%02x-%d"
  #define RSN_SUITE_ARG(s) \
  ((s) >> 24) & 0xff, ((s) >> 16) & 0xff, ((s) >> 8) & 0xff, (s) & 0xff
-@@ -3915,6 +3917,7 @@ int wpa_sm_get_mib(struct wpa_sm *sm, ch
+@@ -3915,6 +3917,7 @@ int wpa_sm_get_mib(struct wpa_sm *sm, char *buf, size_t buflen)
  
  	return (int) len;
  }
@@ -226,9 +196,25 @@
  #endif /* CONFIG_CTRL_IFACE */
  
  
+diff --git a/wpa_supplicant/Makefile b/wpa_supplicant/Makefile
+index 0cd538c7f..69b308900 100644
+--- a/wpa_supplicant/Makefile
++++ b/wpa_supplicant/Makefile
+@@ -985,6 +985,9 @@ ifdef CONFIG_FILS
+ OBJS += ../src/ap/fils_hlp.o
+ endif
+ ifdef CONFIG_CTRL_IFACE
++ifdef CONFIG_CTRL_IFACE_MIB
++CFLAGS += -DCONFIG_CTRL_IFACE_MIB
++endif
+ OBJS += ../src/ap/ctrl_iface_ap.o
+ endif
+ 
+diff --git a/wpa_supplicant/ap.c b/wpa_supplicant/ap.c
+index a7a35884f..69bb0778a 100644
 --- a/wpa_supplicant/ap.c
 +++ b/wpa_supplicant/ap.c
-@@ -1499,7 +1499,7 @@ int wpas_ap_wps_nfc_report_handover(stru
+@@ -1499,7 +1499,7 @@ int wpas_ap_wps_nfc_report_handover(struct wpa_supplicant *wpa_s,
  #endif /* CONFIG_WPS */
  
  
@@ -237,3 +223,59 @@
  
  int ap_ctrl_iface_sta_first(struct wpa_supplicant *wpa_s,
  			    char *buf, size_t buflen)
+diff --git a/wpa_supplicant/ctrl_iface.c b/wpa_supplicant/ctrl_iface.c
+index 9abfeb216..eb10b3cfd 100644
+--- a/wpa_supplicant/ctrl_iface.c
++++ b/wpa_supplicant/ctrl_iface.c
+@@ -2326,7 +2326,7 @@ static int wpa_supplicant_ctrl_iface_status(struct wpa_supplicant *wpa_s,
+ 			pos += ret;
+ 		}
+ 
+-#ifdef CONFIG_AP
++#if defined(CONFIG_AP) && defined(CONFIG_CTRL_IFACE_MIB)
+ 		if (wpa_s->ap_iface) {
+ 			pos += ap_ctrl_iface_wpa_get_status(wpa_s, pos,
+ 							    end - pos,
+@@ -11964,6 +11964,7 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
+ 			reply_len = -1;
+ 	} else if (os_strncmp(buf, "NOTE ", 5) == 0) {
+ 		wpa_printf(MSG_INFO, "NOTE: %s", buf + 5);
++#ifdef CONFIG_CTRL_IFACE_MIB
+ 	} else if (os_strcmp(buf, "MIB") == 0) {
+ 		reply_len = wpa_sm_get_mib(wpa_s->wpa, reply, reply_size);
+ 		if (reply_len >= 0) {
+@@ -11976,6 +11977,7 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
+ 				reply_size - reply_len);
+ #endif /* CONFIG_MACSEC */
+ 		}
++#endif
+ 	} else if (os_strncmp(buf, "STATUS", 6) == 0) {
+ 		reply_len = wpa_supplicant_ctrl_iface_status(
+ 			wpa_s, buf + 6, reply, reply_size);
+@@ -12464,6 +12466,7 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
+ 		reply_len = wpa_supplicant_ctrl_iface_bss(
+ 			wpa_s, buf + 4, reply, reply_size);
+ #ifdef CONFIG_AP
++#ifdef CONFIG_CTRL_IFACE_MIB
+ 	} else if (os_strcmp(buf, "STA-FIRST") == 0) {
+ 		reply_len = ap_ctrl_iface_sta_first(wpa_s, reply, reply_size);
+ 	} else if (os_strncmp(buf, "STA ", 4) == 0) {
+@@ -12472,12 +12475,15 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
+ 	} else if (os_strncmp(buf, "STA-NEXT ", 9) == 0) {
+ 		reply_len = ap_ctrl_iface_sta_next(wpa_s, buf + 9, reply,
+ 						   reply_size);
++#endif
++#ifdef CONFIG_CTRL_IFACE_MIB
+ 	} else if (os_strncmp(buf, "DEAUTHENTICATE ", 15) == 0) {
+ 		if (ap_ctrl_iface_sta_deauthenticate(wpa_s, buf + 15))
+ 			reply_len = -1;
+ 	} else if (os_strncmp(buf, "DISASSOCIATE ", 13) == 0) {
+ 		if (ap_ctrl_iface_sta_disassociate(wpa_s, buf + 13))
+ 			reply_len = -1;
++#endif
+ 	} else if (os_strncmp(buf, "CHAN_SWITCH ", 12) == 0) {
+ 		if (ap_ctrl_iface_chanswitch(wpa_s, buf + 12))
+ 			reply_len = -1;
+-- 
+2.41.0
+

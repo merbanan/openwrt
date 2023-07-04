@@ -1,17 +1,21 @@
-From 4bb69d15477e0f2b00e166845341dc933de47c58 Mon Sep 17 00:00:00 2001
-From: Antonio Quartulli <ordex@autistici.org>
-Date: Sun, 3 Jun 2012 18:22:56 +0200
-Subject: [PATCHv2 601/602] wpa_supplicant: add new config params to be used
- with the ibss join command
+From 86abe485996606de48668c67adb405baaa0a86b6 Mon Sep 17 00:00:00 2001
+Message-ID: <86abe485996606de48668c67adb405baaa0a86b6.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:35:51 +0200
+Subject: [PATCH 37/57] wpa_supplicant add new config params to be used with
 
-Signed-hostap: Antonio Quartulli <ordex@autistici.org>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- src/drivers/driver.h            |    6 +++
- wpa_supplicant/config.c         |   96 +++++++++++++++++++++++++++++++++++++++
- wpa_supplicant/config_ssid.h    |    6 +++
- wpa_supplicant/wpa_supplicant.c |   23 +++++++---
- 4 files changed, 124 insertions(+), 7 deletions(-)
+ src/drivers/driver.h            |  4 ++
+ wpa_supplicant/config.c         | 94 +++++++++++++++++++++++++++++++++
+ wpa_supplicant/config_ssid.h    |  5 ++
+ wpa_supplicant/wpa_supplicant.c |  6 +++
+ 4 files changed, 109 insertions(+)
 
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index e6c93e7fd..cc003e9db 100644
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
 @@ -19,6 +19,7 @@
@@ -22,7 +26,7 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  #include "common/defs.h"
  #include "common/ieee802_11_defs.h"
  #include "common/wpa_common.h"
-@@ -936,6 +937,9 @@ struct wpa_driver_associate_params {
+@@ -953,6 +954,9 @@ struct wpa_driver_associate_params {
  	 * responsible for selecting with which BSS to associate. */
  	const u8 *bssid;
  
@@ -32,6 +36,8 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  	/**
  	 * bssid_hint - BSSID of a proposed AP
  	 *
+diff --git a/wpa_supplicant/config.c b/wpa_supplicant/config.c
+index f9958fe99..325ab8db8 100644
 --- a/wpa_supplicant/config.c
 +++ b/wpa_supplicant/config.c
 @@ -18,6 +18,7 @@
@@ -42,7 +48,7 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  #include "config.h"
  
  
-@@ -2389,6 +2390,97 @@ static char * wpa_config_write_mac_value
+@@ -2389,6 +2390,97 @@ static char * wpa_config_write_mac_value(const struct parse_data *data,
  #endif /* NO_CONFIG_WRITE */
  
  
@@ -140,7 +146,7 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  /* Helper macros for network block parser */
  
  #ifdef OFFSET
-@@ -2673,6 +2765,8 @@ static const struct parse_data ssid_fiel
+@@ -2674,6 +2766,8 @@ static const struct parse_data ssid_fields[] = {
  	{ INT(ap_max_inactivity) },
  	{ INT(dtim_period) },
  	{ INT(beacon_int) },
@@ -149,6 +155,8 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  #ifdef CONFIG_MACSEC
  	{ INT_RANGE(macsec_policy, 0, 1) },
  	{ INT_RANGE(macsec_integ_only, 0, 1) },
+diff --git a/wpa_supplicant/config_ssid.h b/wpa_supplicant/config_ssid.h
+index e6e50f572..bc1f55666 100644
 --- a/wpa_supplicant/config_ssid.h
 +++ b/wpa_supplicant/config_ssid.h
 @@ -10,8 +10,10 @@
@@ -172,9 +180,11 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  #ifdef CONFIG_MACSEC
  	/**
  	 * macsec_policy - Determines the policy for MACsec secure session
+diff --git a/wpa_supplicant/wpa_supplicant.c b/wpa_supplicant/wpa_supplicant.c
+index b88fdb1f8..4eac6ff8b 100644
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -4177,6 +4177,12 @@ static void wpas_start_assoc_cb(struct w
+@@ -4203,6 +4203,12 @@ static void wpas_start_assoc_cb(struct wpa_radio_work *work, int deinit)
  			params.beacon_int = ssid->beacon_int;
  		else
  			params.beacon_int = wpa_s->conf->beacon_int;
@@ -187,3 +197,6 @@ Signed-hostap: Antonio Quartulli <ordex@autistici.org>
  	}
  
  	if (bss && ssid->enable_edmg)
+-- 
+2.41.0
+

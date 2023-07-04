@@ -1,3 +1,19 @@
+From c9d3d53ff3f7c436bcf98523f53103b69334dd85 Mon Sep 17 00:00:00 2001
+Message-ID: <c9d3d53ff3f7c436bcf98523f53103b69334dd85.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:21:03 +0200
+Subject: [PATCH 32/57] limit debug messages
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/utils/wpa_debug.c | 36 ++++------------------
+ src/utils/wpa_debug.h | 69 +++++++++++++++++++++++++++++++++++++------
+ 2 files changed, 65 insertions(+), 40 deletions(-)
+
+diff --git a/src/utils/wpa_debug.c b/src/utils/wpa_debug.c
+index 7f3dd185f..65d5af01c 100644
 --- a/src/utils/wpa_debug.c
 +++ b/src/utils/wpa_debug.c
 @@ -206,7 +206,7 @@ void wpa_debug_close_linux_tracing(void)
@@ -9,7 +25,7 @@
  {
  	va_list ap;
  
-@@ -255,7 +255,7 @@ void wpa_printf(int level, const char *f
+@@ -255,7 +255,7 @@ void wpa_printf(int level, const char *fmt, ...)
  }
  
  
@@ -18,7 +34,7 @@
  			 size_t len, int show, int only_syslog)
  {
  	size_t i;
-@@ -382,19 +382,7 @@ static void _wpa_hexdump(int level, cons
+@@ -382,19 +382,7 @@ static void _wpa_hexdump(int level, const char *title, const u8 *buf,
  #endif /* CONFIG_ANDROID_LOG */
  }
  
@@ -60,7 +76,7 @@
  #ifdef CONFIG_DEBUG_FILE
  static char *last_path = NULL;
  #endif /* CONFIG_DEBUG_FILE */
-@@ -644,7 +618,7 @@ void wpa_msg_register_ifname_cb(wpa_msg_
+@@ -644,7 +618,7 @@ void wpa_msg_register_ifname_cb(wpa_msg_get_ifname_func func)
  }
  
  
@@ -69,7 +85,7 @@
  {
  	va_list ap;
  	char *buf;
-@@ -682,7 +656,7 @@ void wpa_msg(void *ctx, int level, const
+@@ -682,7 +656,7 @@ void wpa_msg(void *ctx, int level, const char *fmt, ...)
  }
  
  
@@ -78,6 +94,8 @@
  {
  	va_list ap;
  	char *buf;
+diff --git a/src/utils/wpa_debug.h b/src/utils/wpa_debug.h
+index 4c02ad3c7..a57f1d507 100644
 --- a/src/utils/wpa_debug.h
 +++ b/src/utils/wpa_debug.h
 @@ -51,6 +51,17 @@ void wpa_debug_close_file(void);
@@ -130,7 +148,7 @@
  
  static inline void wpa_hexdump_buf(int level, const char *title,
  				   const struct wpabuf *buf)
-@@ -107,7 +130,13 @@ static inline void wpa_hexdump_buf(int l
+@@ -107,7 +130,13 @@ static inline void wpa_hexdump_buf(int level, const char *title,
   * like wpa_hexdump(), but by default, does not include secret keys (passwords,
   * etc.) in debug output.
   */
@@ -145,7 +163,7 @@
  
  static inline void wpa_hexdump_buf_key(int level, const char *title,
  				       const struct wpabuf *buf)
-@@ -129,8 +158,14 @@ static inline void wpa_hexdump_buf_key(i
+@@ -129,8 +158,14 @@ static inline void wpa_hexdump_buf_key(int level, const char *title,
   * the hex numbers and ASCII characters (for printable range) are shown. 16
   * bytes per line will be shown.
   */
@@ -162,7 +180,7 @@
  
  /**
   * wpa_hexdump_ascii_key - conditional hex dump, hide keys
-@@ -146,8 +181,14 @@ void wpa_hexdump_ascii(int level, const
+@@ -146,8 +181,14 @@ void wpa_hexdump_ascii(int level, const char *title, const void *buf,
   * bytes per line will be shown. This works like wpa_hexdump_ascii(), but by
   * default, does not include secret keys (passwords, etc.) in debug output.
   */
@@ -179,7 +197,7 @@
  
  /*
   * wpa_dbg() behaves like wpa_msg(), but it can be removed from build to reduce
-@@ -184,7 +225,12 @@ void wpa_hexdump_ascii_key(int level, co
+@@ -184,7 +225,12 @@ void wpa_hexdump_ascii_key(int level, const char *title, const void *buf,
   *
   * Note: New line '\n' is added to the end of the text when printing to stdout.
   */
@@ -193,7 +211,7 @@
  
  /**
   * wpa_msg_ctrl - Conditional printf for ctrl_iface monitors
-@@ -198,8 +244,13 @@ void wpa_msg(void *ctx, int level, const
+@@ -198,8 +244,13 @@ void wpa_msg(void *ctx, int level, const char *fmt, ...) PRINTF_FORMAT(3, 4);
   * attached ctrl_iface monitors. In other words, it can be used for frequent
   * events that do not need to be sent to syslog.
   */
@@ -208,3 +226,6 @@
  
  /**
   * wpa_msg_global - Global printf for ctrl_iface monitors
+-- 
+2.41.0
+

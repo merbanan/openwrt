@@ -1,6 +1,21 @@
+From 8d53acf79b5f7f2607b8e0be6ee30d9899bf3ad2 Mon Sep 17 00:00:00 2001
+Message-ID: <8d53acf79b5f7f2607b8e0be6ee30d9899bf3ad2.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:04:25 +0200
+Subject: [PATCH 24/57] mesh ctrl iface channel switch
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ wpa_supplicant/ap.c | 22 +++++++++++++++++++++-
+ 1 file changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/wpa_supplicant/ap.c b/wpa_supplicant/ap.c
+index ff7c75644..a7a35884f 100644
 --- a/wpa_supplicant/ap.c
 +++ b/wpa_supplicant/ap.c
-@@ -1825,15 +1825,35 @@ int ap_switch_channel(struct wpa_supplic
+@@ -1825,15 +1825,35 @@ int ap_switch_channel(struct wpa_supplicant *wpa_s,
  
  
  #ifdef CONFIG_CTRL_IFACE
@@ -37,3 +52,6 @@
  }
  #endif /* CONFIG_CTRL_IFACE */
  
+-- 
+2.41.0
+

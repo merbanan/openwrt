@@ -1,19 +1,21 @@
-From c9304d3303d563ad6d2619f4e07864ed12f96889 Mon Sep 17 00:00:00 2001
-From: David Bauer <mail@david-bauer.net>
-Date: Sat, 14 May 2022 21:41:03 +0200
-Subject: [PATCH] hostapd: config: support random BSS color
+From 388b0e2374e2d05c1707d5555018bbb5137785cc Mon Sep 17 00:00:00 2001
+Message-ID: <388b0e2374e2d05c1707d5555018bbb5137785cc.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:40:01 +0200
+Subject: [PATCH 40/57] hostapd config support random BSS color
 
-Configure the HE BSS color to a random value in case the config defines
-a BSS color which exceeds the max BSS color (63).
-
-Signed-off-by: David Bauer <mail@david-bauer.net>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  hostapd/config_file.c | 2 ++
  1 file changed, 2 insertions(+)
 
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 27b2f3b93..7ff3b7ec9 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3498,6 +3498,8 @@ static int hostapd_config_fill(struct ho
+@@ -3498,6 +3498,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  	} else if (os_strcmp(buf, "he_bss_color") == 0) {
  		conf->he_op.he_bss_color = atoi(pos) & 0x3f;
  		conf->he_op.he_bss_color_disabled = 0;
@@ -22,3 +24,6 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	} else if (os_strcmp(buf, "he_bss_color_partial") == 0) {
  		conf->he_op.he_bss_color_partial = atoi(pos);
  	} else if (os_strcmp(buf, "he_default_pe_duration") == 0) {
+-- 
+2.41.0
+

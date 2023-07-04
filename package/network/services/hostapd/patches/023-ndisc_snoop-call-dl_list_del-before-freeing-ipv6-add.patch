@@ -1,15 +1,25 @@
+From 536292f5d1a1a739ed67919eb62e2689b94cd7a3 Mon Sep 17 00:00:00 2001
+Message-ID: <536292f5d1a1a739ed67919eb62e2689b94cd7a3.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Felix Fietkau <nbd@nbd.name>
 Date: Wed, 28 Jul 2021 05:43:29 +0200
-Subject: [PATCH] ndisc_snoop: call dl_list_del before freeing ipv6 addresses
+Subject: [PATCH 06/57] ndisc_snoop: call dl_list_del before freeing ipv6
+ addresses
 
 Fixes a segmentation fault on sta disconnect
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
+ src/ap/ndisc_snoop.c | 1 +
+ 1 file changed, 1 insertion(+)
 
+diff --git a/src/ap/ndisc_snoop.c b/src/ap/ndisc_snoop.c
+index 788c12fdc..bc1eb6251 100644
 --- a/src/ap/ndisc_snoop.c
 +++ b/src/ap/ndisc_snoop.c
-@@ -61,6 +61,7 @@ void sta_ip6addr_del(struct hostapd_data
+@@ -61,6 +61,7 @@ void sta_ip6addr_del(struct hostapd_data *hapd, struct sta_info *sta)
  	dl_list_for_each_safe(ip6addr, prev, &sta->ip6addr, struct ip6addr,
  			      list) {
  		hostapd_drv_br_delete_ip_neigh(hapd, 6, (u8 *) &ip6addr->addr);
@@ -17,3 +27,6 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		os_free(ip6addr);
  	}
  }
+-- 
+2.41.0
+

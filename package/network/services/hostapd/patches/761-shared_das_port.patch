@@ -1,23 +1,32 @@
---- a/src/radius/radius_das.h
-+++ b/src/radius/radius_das.h
-@@ -44,6 +44,7 @@ struct radius_das_attrs {
- struct radius_das_conf {
- 	int port;
- 	const u8 *shared_secret;
-+	const u8 *nas_identifier;
- 	size_t shared_secret_len;
- 	const struct hostapd_ip_addr *client_addr;
- 	unsigned int time_window;
+From 646372a401f76234b8adbc08b5d33f75e0b03fec Mon Sep 17 00:00:00 2001
+Message-ID: <646372a401f76234b8adbc08b5d33f75e0b03fec.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:10:45 +0200
+Subject: [PATCH 56/57] shared das port
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/hostapd.c        |   1 +
+ src/radius/radius_das.c | 201 ++++++++++++++++++++++++++++------------
+ src/radius/radius_das.h |   1 +
+ 3 files changed, 144 insertions(+), 59 deletions(-)
+
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 25911ff87..fbc6b4d0c 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1442,6 +1442,7 @@ static int hostapd_setup_bss(struct host
- 		struct radius_das_conf das_conf;
- 		os_memset(&das_conf, 0, sizeof(das_conf));
- 		das_conf.port = conf->radius_das_port;
-+		das_conf.nas_identifier = conf->nas_identifier;
- 		das_conf.shared_secret = conf->radius_das_shared_secret;
- 		das_conf.shared_secret_len =
- 			conf->radius_das_shared_secret_len;
+@@ -1471,6 +1471,7 @@ static int hostapd_setup_bss(struct hostapd_data *hapd, int first,
+ 
+ 			os_memset(&das_conf, 0, sizeof(das_conf));
+ 			das_conf.port = conf->radius_das_port;
++			das_conf.nas_identifier = conf->nas_identifier;
+ 			das_conf.shared_secret = conf->radius_das_shared_secret;
+ 			das_conf.shared_secret_len =
+ 				conf->radius_das_shared_secret_len;
+diff --git a/src/radius/radius_das.c b/src/radius/radius_das.c
+index aaa3fc267..327782f62 100644
 --- a/src/radius/radius_das.c
 +++ b/src/radius/radius_das.c
 @@ -12,13 +12,26 @@
@@ -111,7 +120,7 @@
  
  	if (radius_msg_verify_das_req(msg, das->shared_secret,
  				       das->shared_secret_len,
-@@ -494,9 +468,8 @@ static void radius_das_receive(int sock,
+@@ -494,9 +468,8 @@ static void radius_das_receive(int sock, void *eloop_ctx, void *sock_ctx)
  			radius_msg_dump(reply);
  
  		rbuf = radius_msg_get_buf(reply);
@@ -196,7 +205,7 @@
  
  static int radius_das_open_socket(int port)
  {
-@@ -533,6 +572,49 @@ static int radius_das_open_socket(int po
+@@ -533,6 +572,49 @@ static int radius_das_open_socket(int port)
  }
  
  
@@ -246,7 +255,7 @@
  struct radius_das_data *
  radius_das_init(struct radius_das_conf *conf)
  {
-@@ -553,6 +635,8 @@ radius_das_init(struct radius_das_conf *
+@@ -553,6 +635,8 @@ radius_das_init(struct radius_das_conf *conf)
  	das->ctx = conf->ctx;
  	das->disconnect = conf->disconnect;
  	das->coa = conf->coa;
@@ -255,7 +264,7 @@
  
  	os_memcpy(&das->client_addr, conf->client_addr,
  		  sizeof(das->client_addr));
-@@ -565,19 +649,15 @@ radius_das_init(struct radius_das_conf *
+@@ -565,19 +649,15 @@ radius_das_init(struct radius_das_conf *conf)
  	}
  	das->shared_secret_len = conf->shared_secret_len;
  
@@ -278,7 +287,7 @@
  
  	return das;
  }
-@@ -588,11 +668,14 @@ void radius_das_deinit(struct radius_das
+@@ -588,11 +668,14 @@ void radius_das_deinit(struct radius_das_data *das)
  	if (das == NULL)
  		return;
  
@@ -296,3 +305,18 @@
  	os_free(das->shared_secret);
  	os_free(das);
  }
+diff --git a/src/radius/radius_das.h b/src/radius/radius_das.h
+index 233d662f6..80dc13fc8 100644
+--- a/src/radius/radius_das.h
++++ b/src/radius/radius_das.h
+@@ -44,6 +44,7 @@ struct radius_das_attrs {
+ struct radius_das_conf {
+ 	int port;
+ 	const u8 *shared_secret;
++	const u8 *nas_identifier;
+ 	size_t shared_secret_len;
+ 	const struct hostapd_ip_addr *client_addr;
+ 	unsigned int time_window;
+-- 
+2.41.0
+

@@ -1,3 +1,33 @@
+From f5fd78d2903855db86ee07a21500d29ea783b938 Mon Sep 17 00:00:00 2001
+Message-ID: <f5fd78d2903855db86ee07a21500d29ea783b938.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:05:00 +0200
+Subject: [PATCH 48/57] vlan no bridge
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c | 2 ++
+ src/ap/ap_config.h    | 1 +
+ src/ap/vlan_full.c    | 4 ++++
+ 3 files changed, 7 insertions(+)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 88acb4635..2c606090b 100644
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -3353,6 +3353,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ #ifndef CONFIG_NO_VLAN
+ 	} else if (os_strcmp(buf, "dynamic_vlan") == 0) {
+ 		bss->ssid.dynamic_vlan = atoi(pos);
++	} else if (os_strcmp(buf, "vlan_no_bridge") == 0) {
++		bss->ssid.vlan_no_bridge = atoi(pos);
+ 	} else if (os_strcmp(buf, "per_sta_vif") == 0) {
+ 		bss->ssid.per_sta_vif = atoi(pos);
+ 	} else if (os_strcmp(buf, "vlan_file") == 0) {
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 5628da1d0..336fe3386 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
 @@ -121,6 +121,7 @@ struct hostapd_ssid {
@@ -8,9 +38,11 @@
  #define DYNAMIC_VLAN_NAMING_WITHOUT_DEVICE 0
  #define DYNAMIC_VLAN_NAMING_WITH_DEVICE 1
  #define DYNAMIC_VLAN_NAMING_END 2
+diff --git a/src/ap/vlan_full.c b/src/ap/vlan_full.c
+index 19aa3c649..053d6338e 100644
 --- a/src/ap/vlan_full.c
 +++ b/src/ap/vlan_full.c
-@@ -475,6 +475,9 @@ void vlan_newlink(const char *ifname, st
+@@ -475,6 +475,9 @@ void vlan_newlink(const char *ifname, struct hostapd_data *hapd)
  	if (!vlan)
  		return;
  
@@ -20,7 +52,7 @@
  	vlan->configured = 1;
  
  	notempty = vlan->vlan_desc.notempty;
-@@ -506,6 +509,7 @@ void vlan_newlink(const char *ifname, st
+@@ -506,6 +509,7 @@ void vlan_newlink(const char *ifname, struct hostapd_data *hapd)
  				    ifname, br_name, tagged[i], hapd);
  	}
  
@@ -28,14 +60,6 @@
  	ifconfig_up(ifname);
  }
  
---- a/hostapd/config_file.c
-+++ b/hostapd/config_file.c
-@@ -3353,6 +3353,8 @@ static int hostapd_config_fill(struct ho
- #ifndef CONFIG_NO_VLAN
- 	} else if (os_strcmp(buf, "dynamic_vlan") == 0) {
- 		bss->ssid.dynamic_vlan = atoi(pos);
-+	} else if (os_strcmp(buf, "vlan_no_bridge") == 0) {
-+		bss->ssid.vlan_no_bridge = atoi(pos);
- 	} else if (os_strcmp(buf, "per_sta_vif") == 0) {
- 		bss->ssid.per_sta_vif = atoi(pos);
- 	} else if (os_strcmp(buf, "vlan_file") == 0) {
+-- 
+2.41.0
+

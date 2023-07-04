@@ -1,6 +1,10 @@
+From d1ec50b0159277888a8aa6c1d28178bf2784c280 Mon Sep 17 00:00:00 2001
+Message-ID: <d1ec50b0159277888a8aa6c1d28178bf2784c280.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Felix Fietkau <nbd@nbd.name>
 Date: Thu, 8 Jul 2021 16:33:03 +0200
-Subject: [PATCH] hostapd: fix use of uninitialized stack variables
+Subject: [PATCH 05/57] hostapd: fix use of uninitialized stack variables
 
 When a CSA is performed on an 80 MHz channel, hostapd_change_config_freq
 unconditionally calls hostapd_set_oper_centr_freq_seg0/1_idx with seg0/1
@@ -10,11 +14,16 @@ seg0/1 remains uninitialized and filled with stack garbage, causing errors
 such as "hostapd: 80 MHz: center segment 1 configured"
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
+ src/ap/hostapd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
 
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 99d10bea9..01a9d4a78 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -3562,7 +3562,7 @@ static int hostapd_change_config_freq(st
+@@ -3764,7 +3764,7 @@ static int hostapd_change_config_freq(struct hostapd_data *hapd,
  				      struct hostapd_freq_params *old_params)
  {
  	int channel;
@@ -23,3 +32,6 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct hostapd_hw_modes *mode;
  
  	if (!params->channel) {
+-- 
+2.41.0
+

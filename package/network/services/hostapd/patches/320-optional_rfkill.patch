@@ -1,3 +1,19 @@
+From 0a5a7c923005114bc417d8f3a4971609a9706456 Mon Sep 17 00:00:00 2001
+Message-ID: <0a5a7c923005114bc417d8f3a4971609a9706456.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 18:58:38 +0200
+Subject: [PATCH 21/57] optional rfkill
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/drivers/drivers.mak |  4 +---
+ src/drivers/rfkill.h    | 16 ++++++++++++++++
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/src/drivers/drivers.mak b/src/drivers/drivers.mak
+index a03d4a034..8da44d9f5 100644
 --- a/src/drivers/drivers.mak
 +++ b/src/drivers/drivers.mak
 @@ -54,7 +54,6 @@ NEED_SME=y
@@ -32,6 +48,8 @@
  endif
  
  ifdef NEED_RADIOTAP
+diff --git a/src/drivers/rfkill.h b/src/drivers/rfkill.h
+index 0412ac330..e27565375 100644
 --- a/src/drivers/rfkill.h
 +++ b/src/drivers/rfkill.h
 @@ -18,8 +18,24 @@ struct rfkill_config {
@@ -59,3 +77,6 @@
 +#endif
  
  #endif /* RFKILL_H */
+-- 
+2.41.0
+

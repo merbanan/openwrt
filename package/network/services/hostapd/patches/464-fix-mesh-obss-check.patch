@@ -1,6 +1,21 @@
+From fc9f4c0cf678b79ef3d3db1b353df3af10e81635 Mon Sep 17 00:00:00 2001
+Message-ID: <fc9f4c0cf678b79ef3d3db1b353df3af10e81635.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:39:25 +0200
+Subject: [PATCH 39/57] fix mesh obss check
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ wpa_supplicant/wpa_supplicant.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/wpa_supplicant/wpa_supplicant.c b/wpa_supplicant/wpa_supplicant.c
+index 4eac6ff8b..d99d8c415 100644
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -3077,6 +3077,10 @@ void ibss_mesh_setup_freq(struct wpa_sup
+@@ -3094,6 +3094,10 @@ void ibss_mesh_setup_freq(struct wpa_supplicant *wpa_s,
  
  	freq->freq = ssid->frequency;
  
@@ -11,3 +26,6 @@
  	if (ssid->mode == WPAS_MODE_IBSS && !ssid->fixed_freq) {
  		struct wpa_bss *bss = ibss_find_existing_bss(wpa_s, ssid);
  
+-- 
+2.41.0
+

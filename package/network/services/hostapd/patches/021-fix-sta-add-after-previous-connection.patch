@@ -1,6 +1,21 @@
+From b5e8391786cad73459a2e9ae94280fd62b45abcf Mon Sep 17 00:00:00 2001
+Message-ID: <b5e8391786cad73459a2e9ae94280fd62b45abcf.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 18:38:01 +0200
+Subject: [PATCH 04/57] fix sta add after previous connection
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/ieee802_11.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index 1edc2b892..d632b33c7 100644
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -4168,6 +4168,13 @@ static int add_associated_sta(struct hos
+@@ -4601,6 +4601,13 @@ static int add_associated_sta(struct hostapd_data *hapd,
  	 * drivers to accept the STA parameter configuration. Since this is
  	 * after a new FT-over-DS exchange, a new TK has been derived, so key
  	 * reinstallation is not a concern for this case.
@@ -14,7 +29,7 @@
  	 */
  	wpa_printf(MSG_DEBUG, "Add associated STA " MACSTR
  		   " (added_unassoc=%d auth_alg=%u ft_over_ds=%u reassoc=%d authorized=%d ft_tk=%d fils_tk=%d)",
-@@ -4181,7 +4188,8 @@ static int add_associated_sta(struct hos
+@@ -4614,7 +4621,8 @@ static int add_associated_sta(struct hostapd_data *hapd,
  	    (!(sta->flags & WLAN_STA_AUTHORIZED) ||
  	     (reassoc && sta->ft_over_ds && sta->auth_alg == WLAN_AUTH_FT) ||
  	     (!wpa_auth_sta_ft_tk_already_set(sta->wpa_sm) &&
@@ -24,3 +39,6 @@
  		hostapd_drv_sta_remove(hapd, sta->addr);
  		wpa_auth_sm_event(sta->wpa_sm, WPA_DRV_STA_REMOVED);
  		set = 0;
+-- 
+2.41.0
+

@@ -1,6 +1,21 @@
+From 5a31eb11ea384c0cd4acd8584bce187752ffc3f9 Mon Sep 17 00:00:00 2001
+Message-ID: <5a31eb11ea384c0cd4acd8584bce187752ffc3f9.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 19:00:41 +0200
+Subject: [PATCH 22/57] nl80211 fix set freq
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/drivers/driver_nl80211.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index d8187e569..86c8a9a24 100644
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -5224,7 +5224,7 @@ static int nl80211_set_channel(struct i8
+@@ -5407,7 +5407,7 @@ static int nl80211_set_channel(struct i802_bss *bss,
  		   freq->he_enabled, freq->eht_enabled, freq->bandwidth,
  		   freq->center_freq1, freq->center_freq2);
  
@@ -9,3 +24,6 @@
  			      NL80211_CMD_SET_WIPHY);
  	if (!msg || nl80211_put_freq_params(msg, freq) < 0) {
  		nlmsg_free(msg);
+-- 
+2.41.0
+

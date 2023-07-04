@@ -1,6 +1,22 @@
+From 862fe4f506eb035a440187845939a2709dc205b0 Mon Sep 17 00:00:00 2001
+Message-ID: <862fe4f506eb035a440187845939a2709dc205b0.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:05:40 +0200
+Subject: [PATCH 49/57] wds no bridge
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c | 2 ++
+ src/ap/ap_drv_ops.c   | 2 --
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 2c606090b..c1236a60a 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -2316,6 +2316,8 @@ static int hostapd_config_fill(struct ho
+@@ -2316,6 +2316,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  			   sizeof(conf->bss[0]->iface));
  	} else if (os_strcmp(buf, "bridge") == 0) {
  		os_strlcpy(bss->bridge, pos, sizeof(bss->bridge));
@@ -9,9 +25,11 @@
  	} else if (os_strcmp(buf, "bridge_hairpin") == 0) {
  		bss->bridge_hairpin = atoi(pos);
  	} else if (os_strcmp(buf, "vlan_bridge") == 0) {
+diff --git a/src/ap/ap_drv_ops.c b/src/ap/ap_drv_ops.c
+index 8f9cc5b36..3ad4a822f 100644
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -348,8 +348,6 @@ int hostapd_set_wds_sta(struct hostapd_d
+@@ -348,8 +348,6 @@ int hostapd_set_wds_sta(struct hostapd_data *hapd, char *ifname_wds,
  		return -1;
  	if (hapd->conf->wds_bridge[0])
  		bridge = hapd->conf->wds_bridge;
@@ -20,3 +38,6 @@
  	return hapd->driver->set_wds_sta(hapd->drv_priv, addr, aid, val,
  					 bridge, ifname_wds);
  }
+-- 
+2.41.0
+

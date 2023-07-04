@@ -1,6 +1,21 @@
+From 9de57f1013c5a68d1e70bb08e59406a1db1a1b58 Mon Sep 17 00:00:00 2001
+Message-ID: <9de57f1013c5a68d1e70bb08e59406a1db1a1b58.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 18:57:45 +0200
+Subject: [PATCH 20/57] rescan immediately
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ wpa_supplicant/wpa_supplicant.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/wpa_supplicant/wpa_supplicant.c b/wpa_supplicant/wpa_supplicant.c
+index addc0b68a..a46ac54fb 100644
 --- a/wpa_supplicant/wpa_supplicant.c
 +++ b/wpa_supplicant/wpa_supplicant.c
-@@ -5713,7 +5713,7 @@ wpa_supplicant_alloc(struct wpa_supplica
+@@ -5740,7 +5740,7 @@ wpa_supplicant_alloc(struct wpa_supplicant *parent)
  	if (wpa_s == NULL)
  		return NULL;
  	wpa_s->scan_req = INITIAL_SCAN_REQ;
@@ -9,3 +24,6 @@
  	wpa_s->new_connection = 1;
  	wpa_s->parent = parent ? parent : wpa_s;
  	wpa_s->p2pdev = wpa_s->parent;
+-- 
+2.41.0
+

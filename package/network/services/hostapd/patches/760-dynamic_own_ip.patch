@@ -1,3 +1,35 @@
+From ff43b22f78b45e959b91f48a877631b1c5d398b0 Mon Sep 17 00:00:00 2001
+Message-ID: <ff43b22f78b45e959b91f48a877631b1c5d398b0.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:09:22 +0200
+Subject: [PATCH 55/57] dynamic own ip
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c      |  2 ++
+ src/ap/ap_config.h         |  1 +
+ src/ap/ieee802_1x.c        |  4 ++++
+ src/radius/radius_client.c | 34 ++++++++++++++++++++++++++++++++++
+ src/radius/radius_client.h |  2 ++
+ 5 files changed, 43 insertions(+)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index cad498aff..45b4d457b 100644
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -2688,6 +2688,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ 	} else if (os_strcmp(buf, "iapp_interface") == 0) {
+ 		wpa_printf(MSG_INFO, "DEPRECATED: iapp_interface not used");
+ #endif /* CONFIG_IAPP */
++	} else if (os_strcmp(buf, "dynamic_own_ip_addr") == 0) {
++		bss->dynamic_own_ip_addr = atoi(pos);
+ 	} else if (os_strcmp(buf, "own_ip_addr") == 0) {
+ 		if (hostapd_parse_ip_addr(pos, &bss->own_ip_addr)) {
+ 			wpa_printf(MSG_ERROR,
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index d124ea7b9..02fd4940c 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
 @@ -310,6 +310,7 @@ struct hostapd_bss_config {
@@ -8,6 +40,23 @@
  	char *nas_identifier;
  	struct hostapd_radius_servers *radius;
  	int acct_interim_interval;
+diff --git a/src/ap/ieee802_1x.c b/src/ap/ieee802_1x.c
+index 06f8ef987..46b120d55 100644
+--- a/src/ap/ieee802_1x.c
++++ b/src/ap/ieee802_1x.c
+@@ -598,6 +598,10 @@ int add_common_radius_attr(struct hostapd_data *hapd,
+ 	struct hostapd_radius_attr *attr;
+ 	int len;
+ 
++	if (hapd->conf->dynamic_own_ip_addr)
++		radius_client_get_local_addr(hapd->radius,
++					     &hapd->conf->own_ip_addr);
++
+ 	if (!hostapd_config_get_radius_attr(req_attr,
+ 					    RADIUS_ATTR_NAS_IP_ADDRESS) &&
+ 	    hapd->conf->own_ip_addr.af == AF_INET &&
+diff --git a/src/radius/radius_client.c b/src/radius/radius_client.c
+index ee9e46d2a..b5a2e017d 100644
 --- a/src/radius/radius_client.c
 +++ b/src/radius/radius_client.c
 @@ -163,6 +163,8 @@ struct radius_client_data {
@@ -19,10 +68,11 @@
  	/**
  	 * conf - RADIUS client configuration (list of RADIUS servers to use)
  	 */
-@@ -720,6 +722,30 @@ static void radius_client_list_add(struc
+@@ -719,6 +721,30 @@ static void radius_client_list_add(struct radius_client_data *radius,
+ }
  
  
- /**
++/**
 + * radius_client_send - Get local address for the RADIUS auth socket
 + * @radius: RADIUS client context from radius_client_init()
 + * @addr: pointer to store the address
@@ -46,11 +96,10 @@
 +	return 0;
 +}
 +
-+/**
+ /**
   * radius_client_send - Send a RADIUS request
   * @radius: RADIUS client context from radius_client_init()
-  * @msg: RADIUS message to be sent
-@@ -1238,6 +1264,10 @@ radius_change_server(struct radius_clien
+@@ -1238,6 +1264,10 @@ radius_change_server(struct radius_client_data *radius,
  			wpa_printf(MSG_DEBUG, "RADIUS local address: %s:%u",
  				   inet_ntoa(claddr.sin_addr),
  				   ntohs(claddr.sin_port));
@@ -61,7 +110,7 @@
  		}
  		break;
  #ifdef CONFIG_IPV6
-@@ -1249,6 +1279,10 @@ radius_change_server(struct radius_clien
+@@ -1249,6 +1279,10 @@ radius_change_server(struct radius_client_data *radius,
  				   inet_ntop(AF_INET6, &claddr6.sin6_addr,
  					     abuf, sizeof(abuf)),
  				   ntohs(claddr6.sin6_port));
@@ -72,9 +121,11 @@
  		}
  		break;
  	}
+diff --git a/src/radius/radius_client.h b/src/radius/radius_client.h
+index 687cd81ae..a51d3e589 100644
 --- a/src/radius/radius_client.h
 +++ b/src/radius/radius_client.h
-@@ -249,6 +249,8 @@ int radius_client_register(struct radius
+@@ -249,6 +249,8 @@ int radius_client_register(struct radius_client_data *radius,
  void radius_client_set_interim_error_cb(struct radius_client_data *radius,
  					void (*cb)(const u8 *addr, void *ctx),
  					void *ctx);
@@ -83,27 +134,6 @@
  int radius_client_send(struct radius_client_data *radius,
  		       struct radius_msg *msg,
  		       RadiusType msg_type, const u8 *addr);
---- a/src/ap/ieee802_1x.c
-+++ b/src/ap/ieee802_1x.c
-@@ -535,6 +535,10 @@ int add_common_radius_attr(struct hostap
- 	struct hostapd_radius_attr *attr;
- 	int len;
- 
-+	if (hapd->conf->dynamic_own_ip_addr)
-+		radius_client_get_local_addr(hapd->radius,
-+					     &hapd->conf->own_ip_addr);
-+
- 	if (!hostapd_config_get_radius_attr(req_attr,
- 					    RADIUS_ATTR_NAS_IP_ADDRESS) &&
- 	    hapd->conf->own_ip_addr.af == AF_INET &&
---- a/hostapd/config_file.c
-+++ b/hostapd/config_file.c
-@@ -2688,6 +2688,8 @@ static int hostapd_config_fill(struct ho
- 	} else if (os_strcmp(buf, "iapp_interface") == 0) {
- 		wpa_printf(MSG_INFO, "DEPRECATED: iapp_interface not used");
- #endif /* CONFIG_IAPP */
-+	} else if (os_strcmp(buf, "dynamic_own_ip_addr") == 0) {
-+		bss->dynamic_own_ip_addr = atoi(pos);
- 	} else if (os_strcmp(buf, "own_ip_addr") == 0) {
- 		if (hostapd_parse_ip_addr(pos, &bss->own_ip_addr)) {
- 			wpa_printf(MSG_ERROR,
+-- 
+2.41.0
+

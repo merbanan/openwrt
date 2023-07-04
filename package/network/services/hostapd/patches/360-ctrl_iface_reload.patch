@@ -1,3 +1,19 @@
+From 6b16be2042597d03714aba8f206de65945dc9228 Mon Sep 17 00:00:00 2001
+Message-ID: <6b16be2042597d03714aba8f206de65945dc9228.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:07:47 +0200
+Subject: [PATCH 26/57] ctrl iface reload
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/ctrl_iface.c   | 61 ++++++++++++++++++++++++++++++++++++++++++
+ src/ap/ctrl_iface_ap.c |  8 +++++-
+ 2 files changed, 68 insertions(+), 1 deletion(-)
+
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index f90eb22c4..9760c4273 100644
 --- a/hostapd/ctrl_iface.c
 +++ b/hostapd/ctrl_iface.c
 @@ -68,6 +68,7 @@
@@ -8,7 +24,7 @@
  
  
  #define HOSTAPD_CLI_DUP_VALUE_MAX_LEN 256
-@@ -83,6 +84,7 @@ static void hostapd_ctrl_iface_send(stru
+@@ -83,6 +84,7 @@ static void hostapd_ctrl_iface_send(struct hostapd_data *hapd, int level,
  				    enum wpa_msg_type type,
  				    const char *buf, size_t len);
  
@@ -16,7 +32,7 @@
  
  static int hostapd_ctrl_iface_attach(struct hostapd_data *hapd,
  				     struct sockaddr_storage *from,
-@@ -134,6 +136,61 @@ static int hostapd_ctrl_iface_new_sta(st
+@@ -134,6 +136,63 @@ static int hostapd_ctrl_iface_new_sta(struct hostapd_data *hapd,
  	return 0;
  }
  
@@ -74,11 +90,13 @@
 +	hostapd_reload_config(iface);
 +
 +	iface->interfaces->config_read_cb = config_read_cb;
++
++	return 0;
 +}
  
  #ifdef NEED_AP_MLME
  static int hostapd_ctrl_iface_sa_query(struct hostapd_data *hapd,
-@@ -3529,6 +3586,8 @@ static int hostapd_ctrl_iface_receive_pr
+@@ -3564,6 +3623,8 @@ static int hostapd_ctrl_iface_receive_process(struct hostapd_data *hapd,
  	} else if (os_strncmp(buf, "VENDOR ", 7) == 0) {
  		reply_len = hostapd_ctrl_iface_vendor(hapd, buf + 7, reply,
  						      reply_size);
@@ -87,9 +105,11 @@
  	} else if (os_strcmp(buf, "ERP_FLUSH") == 0) {
  		ieee802_1x_erp_flush(hapd);
  #ifdef RADIUS_SERVER
+diff --git a/src/ap/ctrl_iface_ap.c b/src/ap/ctrl_iface_ap.c
+index c7504ad2b..0706afb7a 100644
 --- a/src/ap/ctrl_iface_ap.c
 +++ b/src/ap/ctrl_iface_ap.c
-@@ -1008,7 +1008,13 @@ int hostapd_parse_csa_settings(const cha
+@@ -1023,7 +1023,13 @@ int hostapd_parse_csa_settings(const char *pos,
  
  int hostapd_ctrl_iface_stop_ap(struct hostapd_data *hapd)
  {
@@ -104,3 +124,6 @@
  }
  
  
+-- 
+2.41.0
+

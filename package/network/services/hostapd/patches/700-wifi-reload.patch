@@ -1,6 +1,29 @@
+From 7352d8485b78604025b0d8187d3684bfe9a75bfe Mon Sep 17 00:00:00 2001
+Message-ID: <7352d8485b78604025b0d8187d3684bfe9a75bfe.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:04:17 +0200
+Subject: [PATCH 47/57] wifi reload
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c        |  4 ++++
+ hostapd/ctrl_iface.c         |  2 +-
+ hostapd/main.c               |  2 +-
+ src/ap/ap_config.c           |  1 +
+ src/ap/ap_config.h           |  1 +
+ src/ap/hostapd.c             | 37 +++++++++++++++++++++++++++++++++++-
+ src/ap/hostapd.h             |  5 +++--
+ src/ap/wps_hostapd.c         |  2 +-
+ src/drivers/driver_nl80211.c |  3 +++
+ 9 files changed, 51 insertions(+), 6 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 7ff3b7ec9..88acb4635 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -2418,6 +2418,8 @@ static int hostapd_config_fill(struct ho
+@@ -2418,6 +2418,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  		bss->isolate = atoi(pos);
  	} else if (os_strcmp(buf, "ap_max_inactivity") == 0) {
  		bss->ap_max_inactivity = atoi(pos);
@@ -9,7 +32,7 @@
  	} else if (os_strcmp(buf, "skip_inactivity_poll") == 0) {
  		bss->skip_inactivity_poll = atoi(pos);
  	} else if (os_strcmp(buf, "config_id") == 0) {
-@@ -3128,6 +3130,8 @@ static int hostapd_config_fill(struct ho
+@@ -3128,6 +3130,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  		}
  	} else if (os_strcmp(buf, "acs_exclude_dfs") == 0) {
  		conf->acs_exclude_dfs = atoi(pos);
@@ -18,9 +41,37 @@
  	} else if (os_strcmp(buf, "op_class") == 0) {
  		conf->op_class = atoi(pos);
  	} else if (os_strcmp(buf, "channel") == 0) {
+diff --git a/hostapd/ctrl_iface.c b/hostapd/ctrl_iface.c
+index 924d1bd82..a81e7980e 100644
+--- a/hostapd/ctrl_iface.c
++++ b/hostapd/ctrl_iface.c
+@@ -187,7 +187,7 @@ static int hostapd_ctrl_iface_update(struct hostapd_data *hapd, char *txt)
+ 	iface->interfaces->config_read_cb = hostapd_ctrl_iface_config_read;
+ 	reload_opts = txt;
+ 
+-	hostapd_reload_config(iface);
++	hostapd_reload_config(iface, 0);
+ 
+ 	iface->interfaces->config_read_cb = config_read_cb;
+ 
+diff --git a/hostapd/main.c b/hostapd/main.c
+index 8937b84a3..46aa1513c 100644
+--- a/hostapd/main.c
++++ b/hostapd/main.c
+@@ -410,7 +410,7 @@ static void handle_term(int sig, void *signal_ctx)
+ 
+ static int handle_reload_iface(struct hostapd_iface *iface, void *ctx)
+ {
+-	if (hostapd_reload_config(iface) < 0) {
++	if (hostapd_reload_config(iface, 0) < 0) {
+ 		wpa_printf(MSG_WARNING, "Failed to read new configuration "
+ 			   "file - continuing with old.");
+ 	}
+diff --git a/src/ap/ap_config.c b/src/ap/ap_config.c
+index 298216a47..41c70708d 100644
 --- a/src/ap/ap_config.c
 +++ b/src/ap/ap_config.c
-@@ -997,6 +997,7 @@ void hostapd_config_free(struct hostapd_
+@@ -998,6 +998,7 @@ void hostapd_config_free(struct hostapd_config *conf)
  
  	for (i = 0; i < conf->num_bss; i++)
  		hostapd_config_free_bss(conf->bss[i]);
@@ -28,9 +79,11 @@
  	os_free(conf->bss);
  	os_free(conf->supported_rates);
  	os_free(conf->basic_rates);
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 76f20c3c1..5628da1d0 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -987,6 +987,7 @@ struct eht_phy_capabilities_info {
+@@ -998,6 +998,7 @@ struct eht_phy_capabilities_info {
  struct hostapd_config {
  	struct hostapd_bss_config **bss, *last_bss;
  	size_t num_bss;
@@ -38,9 +91,11 @@
  
  	u16 beacon_int;
  	int rts_threshold;
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index e2cd6e12b..3a89e8c54 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -254,6 +254,10 @@ static int hostapd_iface_conf_changed(st
+@@ -255,6 +255,10 @@ static int hostapd_iface_conf_changed(struct hostapd_config *newconf,
  {
  	size_t i;
  
@@ -51,7 +106,7 @@
  	if (newconf->num_bss != oldconf->num_bss)
  		return 1;
  
-@@ -267,7 +271,7 @@ static int hostapd_iface_conf_changed(st
+@@ -268,7 +272,7 @@ static int hostapd_iface_conf_changed(struct hostapd_config *newconf,
  }
  
  
@@ -60,7 +115,7 @@
  {
  	struct hapd_interfaces *interfaces = iface->interfaces;
  	struct hostapd_data *hapd = iface->bss[0];
-@@ -295,6 +299,9 @@ int hostapd_reload_config(struct hostapd
+@@ -296,6 +300,9 @@ int hostapd_reload_config(struct hostapd_iface *iface)
  		char *fname;
  		int res;
  
@@ -70,7 +125,7 @@
  		hostapd_clear_old(iface);
  
  		wpa_printf(MSG_DEBUG,
-@@ -321,6 +328,24 @@ int hostapd_reload_config(struct hostapd
+@@ -322,6 +329,24 @@ int hostapd_reload_config(struct hostapd_iface *iface)
  			wpa_printf(MSG_ERROR,
  				   "Failed to enable interface on config reload");
  		return res;
@@ -95,7 +150,7 @@
  	}
  	iface->conf = newconf;
  
-@@ -337,6 +362,12 @@ int hostapd_reload_config(struct hostapd
+@@ -338,6 +363,12 @@ int hostapd_reload_config(struct hostapd_iface *iface)
  
  	for (j = 0; j < iface->num_bss; j++) {
  		hapd = iface->bss[j];
@@ -108,7 +163,7 @@
  		if (!hapd->conf->config_id || !newconf->bss[j]->config_id ||
  		    os_strcmp(hapd->conf->config_id,
  			      newconf->bss[j]->config_id) != 0)
-@@ -2514,6 +2545,10 @@ hostapd_alloc_bss_data(struct hostapd_if
+@@ -2700,6 +2731,10 @@ hostapd_alloc_bss_data(struct hostapd_iface *hapd_iface,
  	hapd->iconf = conf;
  	hapd->conf = bss;
  	hapd->iface = hapd_iface;
@@ -119,6 +174,8 @@
  	if (conf)
  		hapd->driver = conf->driver;
  	hapd->ctrl_sock = -1;
+diff --git a/src/ap/hostapd.h b/src/ap/hostapd.h
+index 92c710525..045ace283 100644
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
 @@ -47,7 +47,7 @@ struct mesh_conf;
@@ -130,7 +187,7 @@
  	struct hostapd_config * (*config_read_cb)(const char *config_fname);
  	int (*ctrl_iface_init)(struct hostapd_data *hapd);
  	void (*ctrl_iface_deinit)(struct hostapd_data *hapd);
-@@ -185,6 +185,7 @@ struct hostapd_data {
+@@ -186,6 +186,7 @@ struct hostapd_data {
  	struct hostapd_config *iconf;
  	struct hostapd_bss_config *conf;
  	struct hostapd_ubus_bss ubus;
@@ -138,7 +195,7 @@
  	int interface_added; /* virtual interface added for this BSS */
  	unsigned int started:1;
  	unsigned int disabled:1;
-@@ -676,7 +677,7 @@ struct hostapd_iface {
+@@ -689,7 +690,7 @@ struct hostapd_iface {
  int hostapd_for_each_interface(struct hapd_interfaces *interfaces,
  			       int (*cb)(struct hostapd_iface *iface,
  					 void *ctx), void *ctx);
@@ -147,43 +204,11 @@
  void hostapd_reconfig_encryption(struct hostapd_data *hapd);
  struct hostapd_data *
  hostapd_alloc_bss_data(struct hostapd_iface *hapd_iface,
---- a/src/drivers/driver_nl80211.c
-+++ b/src/drivers/driver_nl80211.c
-@@ -5054,6 +5054,9 @@ static int wpa_driver_nl80211_set_ap(voi
- 	if (ret) {
- 		wpa_printf(MSG_DEBUG, "nl80211: Beacon set failed: %d (%s)",
- 			   ret, strerror(-ret));
-+		if (!bss->flink->beacon_set)
-+			ret = 0;
-+		bss->flink->beacon_set = 0;
- 	} else {
- 		bss->flink->beacon_set = 1;
- 		nl80211_set_bss(bss, params->cts_protect, params->preamble,
---- a/hostapd/ctrl_iface.c
-+++ b/hostapd/ctrl_iface.c
-@@ -187,7 +187,7 @@ static int hostapd_ctrl_iface_update(str
- 	iface->interfaces->config_read_cb = hostapd_ctrl_iface_config_read;
- 	reload_opts = txt;
- 
--	hostapd_reload_config(iface);
-+	hostapd_reload_config(iface, 0);
- 
- 	iface->interfaces->config_read_cb = config_read_cb;
- }
---- a/hostapd/main.c
-+++ b/hostapd/main.c
-@@ -320,7 +320,7 @@ static void handle_term(int sig, void *s
- 
- static int handle_reload_iface(struct hostapd_iface *iface, void *ctx)
- {
--	if (hostapd_reload_config(iface) < 0) {
-+	if (hostapd_reload_config(iface, 0) < 0) {
- 		wpa_printf(MSG_WARNING, "Failed to read new configuration "
- 			   "file - continuing with old.");
- 	}
+diff --git a/src/ap/wps_hostapd.c b/src/ap/wps_hostapd.c
+index 0c351af5f..e4f303bdc 100644
 --- a/src/ap/wps_hostapd.c
 +++ b/src/ap/wps_hostapd.c
-@@ -315,7 +315,7 @@ static void wps_reload_config(void *eloo
+@@ -315,7 +315,7 @@ static void wps_reload_config(void *eloop_data, void *user_ctx)
  
  	wpa_printf(MSG_DEBUG, "WPS: Reload configuration data");
  	if (iface->interfaces == NULL ||
@@ -192,3 +217,20 @@
  		wpa_printf(MSG_WARNING, "WPS: Failed to reload the updated "
  			   "configuration");
  	}
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index 99870a60d..98f5978a3 100644
+--- a/src/drivers/driver_nl80211.c
++++ b/src/drivers/driver_nl80211.c
+@@ -5322,6 +5322,9 @@ static int wpa_driver_nl80211_set_ap(void *priv,
+ 	if (ret) {
+ 		wpa_printf(MSG_DEBUG, "nl80211: Beacon set failed: %d (%s)",
+ 			   ret, strerror(-ret));
++		if (!link->beacon_set)
++			ret = 0;
++		link->beacon_set = 0;
+ 	} else {
+ 		link->beacon_set = 1;
+ 		nl80211_set_bss(bss, params->cts_protect, params->preamble,
+-- 
+2.41.0
+

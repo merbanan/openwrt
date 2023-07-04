@@ -1,3 +1,19 @@
+From 9bae83fd92a572efdc95116b99179184fcac6e38 Mon Sep 17 00:00:00 2001
+Message-ID: <9bae83fd92a572efdc95116b99179184fcac6e38.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:41:21 +0200
+Subject: [PATCH 42/57] lto jobserver support
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/Makefile        |  4 ++--
+ wpa_supplicant/Makefile | 10 +++++-----
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/hostapd/Makefile b/hostapd/Makefile
+index 55cfa35cd..deb813d56 100644
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
 @@ -1396,7 +1396,7 @@ hostapd_multi.a: $(BCHECK) $(OBJS)
@@ -18,9 +34,11 @@
  	@$(E) "  LD " $@
  
  NOBJS = nt_password_hash.o ../src/crypto/ms_funcs.o $(SHA1OBJS)
+diff --git a/wpa_supplicant/Makefile b/wpa_supplicant/Makefile
+index 69b308900..322716f1b 100644
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
-@@ -2039,31 +2039,31 @@ wpa_supplicant_multi.a: .config $(BCHECK
+@@ -2039,31 +2039,31 @@ wpa_supplicant_multi.a: .config $(BCHECK) $(OBJS) $(EXTRA_progs)
  	@$(AR) cr $@ wpa_supplicant_multi.o $(OBJS)
  
  wpa_supplicant: $(BCHECK) $(OBJS) $(EXTRA_progs)
@@ -57,3 +75,6 @@
  	@$(E) "  LD " $@
  
  LIBCTRL += ../src/common/wpa_ctrl.o
+-- 
+2.41.0
+

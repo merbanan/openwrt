@@ -1,25 +1,23 @@
-From: Sven Eckelmann <sven.eckelmann@openmesh.com>
-Date: Thu, 11 May 2017 08:21:45 +0200
-Subject: [PATCH] set mcast_rate in mesh mode
+From 640899ccb51e0cce15ef6d4086741a9083099eaa Mon Sep 17 00:00:00 2001
+Message-ID: <640899ccb51e0cce15ef6d4086741a9083099eaa.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:37:38 +0200
+Subject: [PATCH 38/57] add mcast_rate to 11s
 
-The wpa_supplicant code for IBSS allows to set the mcast rate. It is
-recommended to increase this value from 1 or 6 Mbit/s to something higher
-when using a mesh protocol on top which uses the multicast packet loss as
-indicator for the link quality.
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/drivers/driver.h         |  1 +
+ src/drivers/driver_nl80211.c | 13 +++++++++++++
+ wpa_supplicant/mesh.c        |  1 +
+ 3 files changed, 15 insertions(+)
 
-This setting was unfortunately not applied for mesh mode. But it would be
-beneficial when wpa_supplicant would behave similar to IBSS mode and set
-this argument during mesh join like authsae already does. At least it is
-helpful for companies/projects which are currently switching to 802.11s
-(without mesh_fwding and with mesh_ttl set to 1) as replacement for IBSS
-because newer drivers seem to support 802.11s but not IBSS anymore.
-
-Signed-off-by: Sven Eckelmann <sven.eckelmann@openmesh.com>
-Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
-
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index cc003e9db..969cbda6b 100644
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -1768,6 +1768,7 @@ struct wpa_driver_mesh_join_params {
+@@ -1827,6 +1827,7 @@ struct wpa_driver_mesh_join_params {
  #define WPA_DRIVER_MESH_FLAG_AMPE	0x00000008
  	unsigned int flags;
  	bool handle_dfs;
@@ -27,9 +25,11 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  };
  
  struct wpa_driver_set_key_params {
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index 6c09eb238..99870a60d 100644
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
-@@ -11388,6 +11388,18 @@ static int nl80211_put_mesh_id(struct nl
+@@ -11626,6 +11626,18 @@ static int nl80211_put_mesh_id(struct nl_msg *msg, const u8 *mesh_id,
  }
  
  
@@ -48,7 +48,7 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  static int nl80211_put_mesh_config(struct nl_msg *msg,
  				   struct wpa_driver_mesh_bss_params *params)
  {
-@@ -11449,6 +11461,7 @@ static int nl80211_join_mesh(struct i802
+@@ -11687,6 +11699,7 @@ static int nl80211_join_mesh(struct i802_bss *bss,
  	    nl80211_put_basic_rates(msg, params->basic_rates) ||
  	    nl80211_put_mesh_id(msg, params->meshid, params->meshid_len) ||
  	    nl80211_put_beacon_int(msg, params->beacon_int) ||
@@ -56,9 +56,11 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  	    nl80211_put_dtim_period(msg, params->dtim_period))
  		goto fail;
  
+diff --git a/wpa_supplicant/mesh.c b/wpa_supplicant/mesh.c
+index ed3cfdc09..c0dd6d0b8 100644
 --- a/wpa_supplicant/mesh.c
 +++ b/wpa_supplicant/mesh.c
-@@ -632,6 +632,7 @@ int wpa_supplicant_join_mesh(struct wpa_
+@@ -632,6 +632,7 @@ int wpa_supplicant_join_mesh(struct wpa_supplicant *wpa_s,
  
  	params->meshid = ssid->ssid;
  	params->meshid_len = ssid->ssid_len;
@@ -66,3 +68,6 @@ Tested-by: Simon Wunderlich <simon.wunderlich@openmesh.com>
  	ibss_mesh_setup_freq(wpa_s, ssid, &params->freq);
  	wpa_s->mesh_ht_enabled = !!params->freq.ht_enabled;
  	wpa_s->mesh_vht_enabled = !!params->freq.vht_enabled;
+-- 
+2.41.0
+

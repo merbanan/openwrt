@@ -1,19 +1,21 @@
-From f0e9f5aab52b3eab85d28338cc996972ced4c39c Mon Sep 17 00:00:00 2001
-From: David Bauer <mail@david-bauer.net>
-Date: Tue, 17 May 2022 23:07:59 +0200
-Subject: [PATCH] ctrl: make WNM_AP functions dependant on CONFIG_AP
+From 61f040e4ba4971e3e463ba0c5718677d2c08d195 Mon Sep 17 00:00:00 2001
+Message-ID: <61f040e4ba4971e3e463ba0c5718677d2c08d195.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:11:16 +0200
+Subject: [PATCH 57/57] ctrl make WNM_AP functions dependant on CONFIG_AP
 
-This fixes linking errors found when compiling wpa_supplicant with
-CONFIG_WNM_AP enabled but CONFIG_AP disabled.
-
-Signed-off-by: David Bauer <mail@david-bauer.net>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  wpa_supplicant/ctrl_iface.c | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
 
+diff --git a/wpa_supplicant/ctrl_iface.c b/wpa_supplicant/ctrl_iface.c
+index eb10b3cfd..304ff85f5 100644
 --- a/wpa_supplicant/ctrl_iface.c
 +++ b/wpa_supplicant/ctrl_iface.c
-@@ -12640,7 +12640,7 @@ char * wpa_supplicant_ctrl_iface_process
+@@ -12640,7 +12640,7 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
  		if (wpas_ctrl_iface_coloc_intf_report(wpa_s, buf + 18))
  			reply_len = -1;
  #endif /* CONFIG_WNM */
@@ -22,7 +24,7 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	} else if (os_strncmp(buf, "DISASSOC_IMMINENT ", 18) == 0) {
  		if (ap_ctrl_iface_disassoc_imminent(wpa_s, buf + 18))
  			reply_len = -1;
-@@ -12650,7 +12650,7 @@ char * wpa_supplicant_ctrl_iface_process
+@@ -12650,7 +12650,7 @@ char * wpa_supplicant_ctrl_iface_process(struct wpa_supplicant *wpa_s,
  	} else if (os_strncmp(buf, "BSS_TM_REQ ", 11) == 0) {
  		if (ap_ctrl_iface_bss_tm_req(wpa_s, buf + 11))
  			reply_len = -1;
@@ -31,3 +33,6 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	} else if (os_strcmp(buf, "FLUSH") == 0) {
  		wpa_supplicant_ctrl_iface_flush(wpa_s);
  	} else if (os_strncmp(buf, "RADIO_WORK ", 11) == 0) {
+-- 
+2.41.0
+

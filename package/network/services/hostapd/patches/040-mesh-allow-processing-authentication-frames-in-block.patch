@@ -1,6 +1,11 @@
+From 1bf24662d2cc906869c347a7a149d1b8124e8941 Mon Sep 17 00:00:00 2001
+Message-ID: <1bf24662d2cc906869c347a7a149d1b8124e8941.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Felix Fietkau <nbd@nbd.name>
 Date: Mon, 18 Feb 2019 12:57:11 +0100
-Subject: [PATCH] mesh: allow processing authentication frames in blocked state
+Subject: [PATCH 08/57] mesh: allow processing authentication frames in blocked
+ state
 
 If authentication fails repeatedly e.g. because of a weak signal, the link
 can end up in blocked state. If one of the nodes tries to establish a link
@@ -12,11 +17,16 @@ To fix this, allow restarting authentication even if the link is in blocked
 state, but don't initiate the attempt until the blocked period is over.
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
+ src/ap/ieee802_11.c | 9 ---------
+ 1 file changed, 9 deletions(-)
 
+diff --git a/src/ap/ieee802_11.c b/src/ap/ieee802_11.c
+index d632b33c7..d3c25ccf7 100644
 --- a/src/ap/ieee802_11.c
 +++ b/src/ap/ieee802_11.c
-@@ -2948,15 +2948,6 @@ static void handle_auth(struct hostapd_d
+@@ -3012,15 +3012,6 @@ static void handle_auth(struct hostapd_data *hapd,
  				       seq_ctrl);
  			return;
  		}
@@ -25,10 +35,13 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 -		    sta->plink_state == PLINK_BLOCKED) {
 -			wpa_printf(MSG_DEBUG, "Mesh peer " MACSTR
 -				   " is blocked - drop Authentication frame",
--				   MAC2STR(mgmt->sa));
+-				   MAC2STR(sa));
 -			return;
 -		}
 -#endif /* CONFIG_MESH */
  #ifdef CONFIG_PASN
  		if (auth_alg == WLAN_AUTH_PASN &&
  		    (sta->flags & WLAN_STA_ASSOC)) {
+-- 
+2.41.0
+

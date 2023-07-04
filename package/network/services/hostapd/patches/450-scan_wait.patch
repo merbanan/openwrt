@@ -1,3 +1,18 @@
+From 6443f77eae5d4d417f475d7b7e343742c5d3bdf2 Mon Sep 17 00:00:00 2001
+Message-ID: <6443f77eae5d4d417f475d7b7e343742c5d3bdf2.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:32:28 +0200
+Subject: [PATCH 36/57] scan wait
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/main.c | 29 +++++++++++++----------------
+ 1 file changed, 13 insertions(+), 16 deletions(-)
+
+diff --git a/hostapd/main.c b/hostapd/main.c
+index 01ca73e21..1b1575e04 100644
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
 @@ -39,6 +39,8 @@ struct hapd_global {
@@ -9,7 +24,7 @@
  
  
  #ifndef CONFIG_NO_HOSTAPD_LOGGER
-@@ -146,6 +148,14 @@ static void hostapd_logger_cb(void *ctx,
+@@ -146,6 +148,14 @@ static void hostapd_logger_cb(void *ctx, const u8 *addr, unsigned int module,
  }
  #endif /* CONFIG_NO_HOSTAPD_LOGGER */
  
@@ -24,16 +39,16 @@
  
  /**
   * hostapd_driver_init - Preparate driver interface
-@@ -164,6 +174,8 @@ static int hostapd_driver_init(struct ho
- 		return -1;
+@@ -217,6 +227,8 @@ static int hostapd_driver_init(struct hostapd_iface *iface)
  	}
+ #endif /* CONFIG_IEEE80211BE */
  
 +	hapd->setup_complete_cb = hostapd_setup_complete_cb;
 +
  	/* Initialize the driver interface */
  	if (!(b[0] | b[1] | b[2] | b[3] | b[4] | b[5]))
  		b = NULL;
-@@ -407,8 +419,6 @@ static void hostapd_global_deinit(const
+@@ -497,8 +509,6 @@ static void hostapd_global_deinit(const char *pid_file, int eloop_initialized)
  #endif /* CONFIG_NATIVE_WINDOWS */
  
  	eap_server_unregister_methods();
@@ -42,7 +57,7 @@
  }
  
  
-@@ -434,18 +444,6 @@ static int hostapd_global_run(struct hap
+@@ -524,18 +534,6 @@ static int hostapd_global_run(struct hapd_interfaces *ifaces, int daemonize,
  	}
  #endif /* EAP_SERVER_TNC */
  
@@ -61,7 +76,7 @@
  	eloop_run();
  
  	return 0;
-@@ -649,8 +647,7 @@ int main(int argc, char *argv[])
+@@ -739,8 +737,7 @@ int main(int argc, char *argv[])
  	struct hapd_interfaces interfaces;
  	int ret = 1;
  	size_t i, j;
@@ -71,3 +86,6 @@
  	const char *log_file = NULL;
  	const char *entropy_file = NULL;
  	char **bss_config = NULL, **tmp_bss;
+-- 
+2.41.0
+

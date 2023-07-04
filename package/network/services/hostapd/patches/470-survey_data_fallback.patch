@@ -1,6 +1,21 @@
+From 6172b7be151505cf94da1f85ffd78f3214c42c7f Mon Sep 17 00:00:00 2001
+Message-ID: <6172b7be151505cf94da1f85ffd78f3214c42c7f.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:40:37 +0200
+Subject: [PATCH 41/57] survey data fallback
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/acs.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/src/ap/acs.c b/src/ap/acs.c
+index 877d7d40a..da13d48f5 100644
 --- a/src/ap/acs.c
 +++ b/src/ap/acs.c
-@@ -455,17 +455,17 @@ static int acs_get_bw_center_chan(int fr
+@@ -455,17 +455,17 @@ static int acs_get_bw_center_chan(int freq, enum bw_type bw)
  static int acs_survey_is_sufficient(struct freq_survey *survey)
  {
  	if (!(survey->filled & SURVEY_HAS_NF)) {
@@ -20,7 +35,7 @@
  	}
  
  	if (!(survey->filled & SURVEY_HAS_CHAN_TIME_BUSY) &&
-@@ -473,7 +473,6 @@ static int acs_survey_is_sufficient(stru
+@@ -473,7 +473,6 @@ static int acs_survey_is_sufficient(struct freq_survey *survey)
  		wpa_printf(MSG_INFO,
  			   "ACS: Survey for freq %d is missing RX and busy time (at least one is required)",
  			   survey->freq);
@@ -28,3 +43,6 @@
  	}
  
  	return 1;
+-- 
+2.41.0
+

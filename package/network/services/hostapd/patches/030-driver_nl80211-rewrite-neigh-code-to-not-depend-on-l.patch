@@ -1,13 +1,22 @@
+From bffc93b932ef3f73fa3b58c0d32a6a81ce7c4ea7 Mon Sep 17 00:00:00 2001
+Message-ID: <bffc93b932ef3f73fa3b58c0d32a6a81ce7c4ea7.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Felix Fietkau <nbd@nbd.name>
 Date: Wed, 28 Jul 2021 05:49:46 +0200
-Subject: [PATCH] driver_nl80211: rewrite neigh code to not depend on
+Subject: [PATCH 07/57] driver_nl80211: rewrite neigh code to not depend on
  libnl3-route
 
 Removes an unnecessary dependency and also makes the code smaller
 
 Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
+ src/drivers/driver_nl80211.c | 148 ++++++++++++++---------------------
+ 1 file changed, 58 insertions(+), 90 deletions(-)
 
+diff --git a/src/drivers/driver_nl80211.c b/src/drivers/driver_nl80211.c
+index 657d3795b..d8187e569 100644
 --- a/src/drivers/driver_nl80211.c
 +++ b/src/drivers/driver_nl80211.c
 @@ -16,9 +16,6 @@
@@ -20,7 +29,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #include <linux/rtnetlink.h>
  #include <netpacket/packet.h>
  #include <linux/errqueue.h>
-@@ -5590,26 +5587,29 @@ fail:
+@@ -5783,26 +5780,29 @@ fail:
  
  static void rtnl_neigh_delete_fdb_entry(struct i802_bss *bss, const u8 *addr)
  {
@@ -64,7 +73,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (err < 0) {
  		wpa_printf(MSG_DEBUG, "nl80211: bridge FDB entry delete for "
  			   MACSTR " ifindex=%d failed: %s", MAC2STR(addr),
-@@ -5619,9 +5619,8 @@ static void rtnl_neigh_delete_fdb_entry(
+@@ -5812,9 +5812,8 @@ static void rtnl_neigh_delete_fdb_entry(struct i802_bss *bss, const u8 *addr)
  			   MACSTR, MAC2STR(addr));
  	}
  
@@ -76,7 +85,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
-@@ -8275,7 +8274,6 @@ static void *i802_init(struct hostapd_da
+@@ -8492,7 +8491,6 @@ static void *i802_init(struct hostapd_data *hapd,
  	    (params->num_bridge == 0 || !params->bridge[0]))
  		add_ifidx(drv, br_ifindex, drv->ifindex);
  
@@ -84,7 +93,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	if (bss->added_if_into_bridge || bss->already_in_bridge) {
  		int err;
  
-@@ -8292,7 +8290,6 @@ static void *i802_init(struct hostapd_da
+@@ -8509,7 +8507,6 @@ static void *i802_init(struct hostapd_data *hapd,
  			goto failed;
  		}
  	}
@@ -92,7 +101,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  	if (drv->capa.flags2 & WPA_DRIVER_FLAGS2_CONTROL_PORT_RX) {
  		wpa_printf(MSG_DEBUG,
-@@ -11605,13 +11602,14 @@ static int wpa_driver_br_add_ip_neigh(vo
+@@ -11843,13 +11840,14 @@ static int wpa_driver_br_add_ip_neigh(void *priv, u8 version,
  				      const u8 *ipaddr, int prefixlen,
  				      const u8 *addr)
  {
@@ -112,7 +121,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	int res;
  
  	if (!ipaddr || prefixlen == 0 || !addr)
-@@ -11630,85 +11628,66 @@ static int wpa_driver_br_add_ip_neigh(vo
+@@ -11868,85 +11866,66 @@ static int wpa_driver_br_add_ip_neigh(void *priv, u8 version,
  	}
  
  	if (version == 4) {
@@ -220,7 +229,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		addrsize = 16;
  	} else {
  		return -EINVAL;
-@@ -11726,41 +11705,30 @@ static int wpa_driver_br_delete_ip_neigh
+@@ -11964,41 +11943,30 @@ static int wpa_driver_br_delete_ip_neigh(void *priv, u8 version,
  		return -1;
  	}
  
@@ -273,3 +282,6 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  }
  
  
+-- 
+2.41.0
+

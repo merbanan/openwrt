@@ -1,6 +1,21 @@
+From 294833d71e8224261d4650074e947f4e43c7876c Mon Sep 17 00:00:00 2001
+Message-ID: <294833d71e8224261d4650074e947f4e43c7876c.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:03:45 +0200
+Subject: [PATCH 23/57] reload freq change
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/hostapd.c | 50 +++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 35 insertions(+), 15 deletions(-)
+
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 01a9d4a78..047fee02e 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -142,6 +142,29 @@ static void hostapd_reload_bss(struct ho
+@@ -143,6 +143,29 @@ static void hostapd_reload_bss(struct hostapd_data *hapd)
  #endif /* CONFIG_NO_RADIUS */
  
  	ssid = &hapd->conf->ssid;
@@ -30,7 +45,7 @@
  	if (!ssid->wpa_psk_set && ssid->wpa_psk && !ssid->wpa_psk->next &&
  	    ssid->wpa_passphrase_set && ssid->wpa_passphrase) {
  		/*
-@@ -250,6 +273,7 @@ int hostapd_reload_config(struct hostapd
+@@ -251,6 +274,7 @@ int hostapd_reload_config(struct hostapd_iface *iface)
  	struct hostapd_data *hapd = iface->bss[0];
  	struct hostapd_config *newconf, *oldconf;
  	size_t j;
@@ -38,7 +53,7 @@
  
  	if (iface->config_fname == NULL) {
  		/* Only in-memory config in use - assume it has been updated */
-@@ -300,6 +324,17 @@ int hostapd_reload_config(struct hostapd
+@@ -301,6 +325,17 @@ int hostapd_reload_config(struct hostapd_iface *iface)
  	}
  	iface->conf = newconf;
  
@@ -56,7 +71,7 @@
  	for (j = 0; j < iface->num_bss; j++) {
  		hapd = iface->bss[j];
  		if (!hapd->conf->config_id || !newconf->bss[j]->config_id ||
-@@ -307,21 +342,6 @@ int hostapd_reload_config(struct hostapd
+@@ -308,21 +343,6 @@ int hostapd_reload_config(struct hostapd_iface *iface)
  			      newconf->bss[j]->config_id) != 0)
  			hostapd_clear_old_bss(hapd);
  		hapd->iconf = newconf;
@@ -78,3 +93,6 @@
  		hapd->conf = newconf->bss[j];
  		hostapd_reload_bss(hapd);
  	}
+-- 
+2.41.0
+

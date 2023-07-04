@@ -1,3 +1,19 @@
+From c945eb69c21743990086d0992f40954613fc6d74 Mon Sep 17 00:00:00 2001
+Message-ID: <c945eb69c21743990086d0992f40954613fc6d74.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:29:51 +0200
+Subject: [PATCH 33/57] indicate features
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/main.c        |  6 ++++--
+ wpa_supplicant/main.c | 11 ++++++++---
+ 2 files changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/hostapd/main.c b/hostapd/main.c
+index 0cd8c10ff..01ca73e21 100644
 --- a/hostapd/main.c
 +++ b/hostapd/main.c
 @@ -31,7 +31,7 @@
@@ -9,7 +25,7 @@
  
  struct hapd_global {
  	void **drv_priv;
-@@ -696,7 +696,7 @@ int main(int argc, char *argv[])
+@@ -786,7 +786,7 @@ int main(int argc, char *argv[])
  	wpa_supplicant_event = hostapd_wpa_event;
  	wpa_supplicant_event_global = hostapd_wpa_event_global;
  	for (;;) {
@@ -18,7 +34,7 @@
  		if (c < 0)
  			break;
  		switch (c) {
-@@ -733,6 +733,8 @@ int main(int argc, char *argv[])
+@@ -823,6 +823,8 @@ int main(int argc, char *argv[])
  			break;
  #endif /* CONFIG_DEBUG_LINUX_TRACING */
  		case 'v':
@@ -27,6 +43,8 @@
  			show_version();
  			exit(1);
  		case 'g':
+diff --git a/wpa_supplicant/main.c b/wpa_supplicant/main.c
+index 535923ecd..5ebda5a67 100644
 --- a/wpa_supplicant/main.c
 +++ b/wpa_supplicant/main.c
 @@ -12,6 +12,7 @@
@@ -61,3 +79,6 @@
  			goto out;
  		case 'W':
  			params.wait_for_monitor++;
+-- 
+2.41.0
+

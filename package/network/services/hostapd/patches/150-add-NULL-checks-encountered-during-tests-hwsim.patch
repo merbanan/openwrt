@@ -1,20 +1,26 @@
-From 33afce36c54b0cad38643629ded10ff5d727f077 Mon Sep 17 00:00:00 2001
+From 377fb2e6777994a3df3c6e595cf8c4a6a6ff5b05 Mon Sep 17 00:00:00 2001
+Message-ID: <377fb2e6777994a3df3c6e595cf8c4a6a6ff5b05.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Glenn Strauss <gstrauss@gluelogic.com>
 Date: Fri, 12 Aug 2022 05:34:47 -0400
-Subject: [PATCH 5/7] add NULL checks (encountered during tests/hwsim)
+Subject: [PATCH 15/57] add NULL checks (encountered during tests/hwsim)
 
 sae_derive_commit_element_ecc NULL pwe_ecc check
 dpp_gen_keypair() NULL curve check
 
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  src/common/dpp_crypto.c | 6 ++++++
  src/common/sae.c        | 7 +++++++
  2 files changed, 13 insertions(+)
 
+diff --git a/src/common/dpp_crypto.c b/src/common/dpp_crypto.c
+index f17f95a2c..08143e46a 100644
 --- a/src/common/dpp_crypto.c
 +++ b/src/common/dpp_crypto.c
-@@ -269,6 +269,12 @@ int dpp_get_pubkey_hash(struct crypto_ec
+@@ -269,6 +269,12 @@ int dpp_get_pubkey_hash(struct crypto_ec_key *key, u8 *hash)
  
  struct crypto_ec_key * dpp_gen_keypair(const struct dpp_curve_params *curve)
  {
@@ -27,6 +33,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	struct crypto_ec_key *key;
  
  	wpa_printf(MSG_DEBUG, "DPP: Generating a keypair");
+diff --git a/src/common/sae.c b/src/common/sae.c
+index d4a196f15..a9acb7d16 100644
 --- a/src/common/sae.c
 +++ b/src/common/sae.c
 @@ -1278,6 +1278,13 @@ void sae_deinit_pt(struct sae_pt *pt)
@@ -43,3 +51,6 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	/* COMMIT-ELEMENT = inverse(scalar-op(mask, PWE)) */
  	if (!sae->tmp->own_commit_element_ecc) {
  		sae->tmp->own_commit_element_ecc =
+-- 
+2.41.0
+

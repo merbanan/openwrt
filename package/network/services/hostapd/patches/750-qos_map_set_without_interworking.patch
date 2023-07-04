@@ -1,6 +1,24 @@
+From 1dcb09411cc6338a6b028a90d5148fbfec9332f9 Mon Sep 17 00:00:00 2001
+Message-ID: <1dcb09411cc6338a6b028a90d5148fbfec9332f9.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:08:05 +0200
+Subject: [PATCH 53/57] qos_map set without interworking
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c      | 6 +++---
+ src/ap/hostapd.c           | 2 +-
+ src/ap/ieee802_11_shared.c | 2 --
+ wpa_supplicant/events.c    | 6 ------
+ 4 files changed, 4 insertions(+), 12 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index ba582017f..cad498aff 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -1602,6 +1602,8 @@ static int parse_anqp_elem(struct hostap
+@@ -1602,6 +1602,8 @@ static int parse_anqp_elem(struct hostapd_bss_config *bss, char *buf, int line)
  	return 0;
  }
  
@@ -9,7 +27,7 @@
  
  static int parse_qos_map_set(struct hostapd_bss_config *bss,
  			     char *buf, int line)
-@@ -1643,8 +1645,6 @@ static int parse_qos_map_set(struct host
+@@ -1643,8 +1645,6 @@ static int parse_qos_map_set(struct hostapd_bss_config *bss,
  	return 0;
  }
  
@@ -18,7 +36,7 @@
  
  #ifdef CONFIG_HS20
  static int hs20_parse_conn_capab(struct hostapd_bss_config *bss, char *buf,
-@@ -4064,10 +4064,10 @@ static int hostapd_config_fill(struct ho
+@@ -4064,10 +4064,10 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  		bss->gas_frag_limit = val;
  	} else if (os_strcmp(buf, "gas_comeback_delay") == 0) {
  		bss->gas_comeback_delay = atoi(pos);
@@ -30,9 +48,11 @@
  #ifdef CONFIG_RADIUS_TEST
  	} else if (os_strcmp(buf, "dump_msk_file") == 0) {
  		os_free(bss->dump_msk_file);
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index c3ef1f79c..25911ff87 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -1499,6 +1499,7 @@ static int hostapd_setup_bss(struct host
+@@ -1534,6 +1534,7 @@ static int hostapd_setup_bss(struct hostapd_data *hapd, int first,
  		wpa_printf(MSG_ERROR, "GAS server initialization failed");
  		return -1;
  	}
@@ -40,7 +60,7 @@
  
  	if (conf->qos_map_set_len &&
  	    hostapd_drv_set_qos_map(hapd, conf->qos_map_set,
-@@ -1506,7 +1507,6 @@ static int hostapd_setup_bss(struct host
+@@ -1541,7 +1542,6 @@ static int hostapd_setup_bss(struct hostapd_data *hapd, int first,
  		wpa_printf(MSG_ERROR, "Failed to initialize QoS Map");
  		return -1;
  	}
@@ -48,40 +68,11 @@
  
  	if (conf->bss_load_update_period && bss_load_update_init(hapd)) {
  		wpa_printf(MSG_ERROR, "BSS Load initialization failed");
---- a/wpa_supplicant/events.c
-+++ b/wpa_supplicant/events.c
-@@ -2672,8 +2672,6 @@ void wnm_bss_keep_alive_deinit(struct wp
- }
- 
- 
--#ifdef CONFIG_INTERWORKING
--
- static int wpas_qos_map_set(struct wpa_supplicant *wpa_s, const u8 *qos_map,
- 			    size_t len)
- {
-@@ -2706,8 +2704,6 @@ static void interworking_process_assoc_r
- 	}
- }
- 
--#endif /* CONFIG_INTERWORKING */
--
- 
- static void wpa_supplicant_set_4addr_mode(struct wpa_supplicant *wpa_s)
- {
-@@ -3087,10 +3083,8 @@ static int wpa_supplicant_event_associnf
- 		wnm_process_assoc_resp(wpa_s, data->assoc_info.resp_ies,
- 				       data->assoc_info.resp_ies_len);
- #endif /* CONFIG_WNM */
--#ifdef CONFIG_INTERWORKING
- 		interworking_process_assoc_resp(wpa_s, data->assoc_info.resp_ies,
- 						data->assoc_info.resp_ies_len);
--#endif /* CONFIG_INTERWORKING */
- 		if (wpa_s->hw_capab == CAPAB_VHT &&
- 		    get_ie(data->assoc_info.resp_ies,
- 			   data->assoc_info.resp_ies_len, WLAN_EID_VHT_CAP))
+diff --git a/src/ap/ieee802_11_shared.c b/src/ap/ieee802_11_shared.c
+index 31dfb6254..0f61e584d 100644
 --- a/src/ap/ieee802_11_shared.c
 +++ b/src/ap/ieee802_11_shared.c
-@@ -1116,13 +1116,11 @@ u8 * hostapd_eid_rsnxe(struct hostapd_da
+@@ -1116,13 +1116,11 @@ u8 * hostapd_eid_rsnxe(struct hostapd_data *hapd, u8 *eid, size_t len)
  u16 check_ext_capab(struct hostapd_data *hapd, struct sta_info *sta,
  		    const u8 *ext_capab_ie, size_t ext_capab_ie_len)
  {
@@ -95,3 +86,39 @@
  
  	if (ext_capab_ie_len > 0) {
  		sta->ecsa_supported = !!(ext_capab_ie[0] & BIT(2));
+diff --git a/wpa_supplicant/events.c b/wpa_supplicant/events.c
+index d7acd685b..4d8b0fc11 100644
+--- a/wpa_supplicant/events.c
++++ b/wpa_supplicant/events.c
+@@ -2683,8 +2683,6 @@ void wnm_bss_keep_alive_deinit(struct wpa_supplicant *wpa_s)
+ }
+ 
+ 
+-#ifdef CONFIG_INTERWORKING
+-
+ static int wpas_qos_map_set(struct wpa_supplicant *wpa_s, const u8 *qos_map,
+ 			    size_t len)
+ {
+@@ -2717,8 +2715,6 @@ static void interworking_process_assoc_resp(struct wpa_supplicant *wpa_s,
+ 	}
+ }
+ 
+-#endif /* CONFIG_INTERWORKING */
+-
+ 
+ static void wpa_supplicant_set_4addr_mode(struct wpa_supplicant *wpa_s)
+ {
+@@ -3098,10 +3094,8 @@ static int wpa_supplicant_event_associnfo(struct wpa_supplicant *wpa_s,
+ 		wnm_process_assoc_resp(wpa_s, data->assoc_info.resp_ies,
+ 				       data->assoc_info.resp_ies_len);
+ #endif /* CONFIG_WNM */
+-#ifdef CONFIG_INTERWORKING
+ 		interworking_process_assoc_resp(wpa_s, data->assoc_info.resp_ies,
+ 						data->assoc_info.resp_ies_len);
+-#endif /* CONFIG_INTERWORKING */
+ 		if (wpa_s->hw_capab == CAPAB_VHT &&
+ 		    get_ie(data->assoc_info.resp_ies,
+ 			   data->assoc_info.resp_ies_len, WLAN_EID_VHT_CAP))
+-- 
+2.41.0
+

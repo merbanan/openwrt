@@ -1,7 +1,8 @@
-From 21ce83b4ae2b9563175fdb4fc4312096cc399cf8 Mon Sep 17 00:00:00 2001
+From f09ba6decf76948fbe001a0cf4d4709175dbd4b0 Mon Sep 17 00:00:00 2001
+Message-ID: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: David Bauer <mail@david-bauer.net>
 Date: Wed, 5 May 2021 00:44:34 +0200
-Subject: [PATCH] wolfssl: add RNG to EC key
+Subject: [PATCH 01/57] wolfssl: add RNG to EC key
 
 Since upstream commit 6467de5a8840 ("Randomize z ordinates in
 scalar mult when timing resistant") WolfSSL requires a RNG for
@@ -10,13 +11,16 @@ the EC key when built hardened which is the default.
 Set the RNG for the EC key to fix connections for OWE clients.
 
 Signed-off-by: David Bauer <mail@david-bauer.net>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  src/crypto/crypto_wolfssl.c | 4 ++++
  1 file changed, 4 insertions(+)
 
+diff --git a/src/crypto/crypto_wolfssl.c b/src/crypto/crypto_wolfssl.c
+index f47beebeb..a28349b66 100644
 --- a/src/crypto/crypto_wolfssl.c
 +++ b/src/crypto/crypto_wolfssl.c
-@@ -1340,6 +1340,7 @@ int ecc_projective_add_point(ecc_point *
+@@ -1340,6 +1340,7 @@ int ecc_projective_add_point(ecc_point *P, ecc_point *Q, ecc_point *R,
  
  struct crypto_ec {
  	ecc_key key;
@@ -24,7 +28,7 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	mp_int a;
  	mp_int prime;
  	mp_int order;
-@@ -1394,6 +1395,8 @@ struct crypto_ec * crypto_ec_init(int gr
+@@ -1394,6 +1395,8 @@ struct crypto_ec * crypto_ec_init(int group)
  		return NULL;
  
  	if (wc_ecc_init(&e->key) != 0 ||
@@ -33,7 +37,7 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	    wc_ecc_set_curve(&e->key, 0, curve_id) != 0 ||
  	    mp_init(&e->a) != MP_OKAY ||
  	    mp_init(&e->prime) != MP_OKAY ||
-@@ -1425,6 +1428,7 @@ void crypto_ec_deinit(struct crypto_ec*
+@@ -1425,6 +1428,7 @@ void crypto_ec_deinit(struct crypto_ec* e)
  	mp_clear(&e->order);
  	mp_clear(&e->prime);
  	mp_clear(&e->a);
@@ -41,3 +45,6 @@ Signed-off-by: David Bauer <mail@david-bauer.net>
  	wc_ecc_free(&e->key);
  	os_free(e);
  }
+-- 
+2.41.0
+

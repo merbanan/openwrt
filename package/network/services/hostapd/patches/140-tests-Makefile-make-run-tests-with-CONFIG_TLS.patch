@@ -1,7 +1,10 @@
-From f24933dc175e0faf44a3cce3330c256a59649ca6 Mon Sep 17 00:00:00 2001
+From 25a5e26f9a5fd907d816f78129033c646299fd3c Mon Sep 17 00:00:00 2001
+Message-ID: <25a5e26f9a5fd907d816f78129033c646299fd3c.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Glenn Strauss <gstrauss@gluelogic.com>
 Date: Tue, 19 Jul 2022 23:01:17 -0400
-Subject: [PATCH 4/7] tests/Makefile make run-tests with CONFIG_TLS=...
+Subject: [PATCH 14/57] tests/Makefile make run-tests with CONFIG_TLS=...
 
 add test-crypto_module.c to run crypto_module_tests()
 
@@ -33,6 +36,7 @@ RFE: Makefile logic for crypto objects should be centralized
      tests/Makefile, ...
 
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  hostapd/Makefile                          |   6 +
  src/crypto/Makefile                       | 129 ++++++++++++++++++++-
@@ -59,6 +63,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  22 files changed, 524 insertions(+), 91 deletions(-)
  create mode 100644 tests/test-crypto_module.c
 
+diff --git a/hostapd/Makefile b/hostapd/Makefile
+index a26429eaf..846980a35 100644
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
 @@ -696,6 +696,7 @@ CFLAGS += -DCONFIG_TLSV12
@@ -77,7 +83,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  CFLAGS += -DCRYPTO_RSA_OAEP_SHA256
  CONFIG_CRYPTO=openssl
  ifdef TLS_FUNCS
-@@ -746,6 +748,7 @@ CFLAGS += -DTLS_DEFAULT_CIPHERS=\"$(CONF
+@@ -746,6 +748,7 @@ CFLAGS += -DTLS_DEFAULT_CIPHERS=\"$(CONFIG_TLS_DEFAULT_CIPHERS)\"
  endif
  
  ifeq ($(CONFIG_TLS), mbedtls)
@@ -109,6 +115,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  OBJS += ../src/crypto/crypto_linux.o
  ifdef TLS_FUNCS
  OBJS += ../src/crypto/crypto_internal-rsa.o
+diff --git a/src/crypto/Makefile b/src/crypto/Makefile
+index ce0997091..96bac9476 100644
 --- a/src/crypto/Makefile
 +++ b/src/crypto/Makefile
 @@ -1,10 +1,121 @@
@@ -269,6 +277,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  ifndef TEST_FUZZ
  LIB_OBJS += random.o
  endif
+diff --git a/src/crypto/crypto_module_tests.c b/src/crypto/crypto_module_tests.c
+index 4147f414e..44d0f45b1 100644
 --- a/src/crypto/crypto_module_tests.c
 +++ b/src/crypto/crypto_module_tests.c
 @@ -2469,6 +2469,139 @@ static int test_hpke(void)
@@ -419,6 +429,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  	    test_ms_funcs())
  		ret = -1;
  
+diff --git a/src/tls/Makefile b/src/tls/Makefile
+index c84fbe859..e974a41f0 100644
 --- a/src/tls/Makefile
 +++ b/src/tls/Makefile
 @@ -1,3 +1,10 @@
@@ -442,6 +454,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 +endif
  
  include ../lib.rules
+diff --git a/tests/Makefile b/tests/Makefile
+index 2d2343b64..0b4a145d7 100644
 --- a/tests/Makefile
 +++ b/tests/Makefile
 @@ -1,8 +1,10 @@
@@ -534,7 +548,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  test-base64: $(call BUILDOBJ,test-base64.o) $(LIBS)
  	$(LDO) $(LDFLAGS) -o $@ $^ $(LLIBS)
  
-@@ -83,17 +130,11 @@ test-x509v3: $(call BUILDOBJ,test-x509v3
+@@ -83,17 +130,11 @@ test-x509v3: $(call BUILDOBJ,test-x509v3.o) $(LIBS)
  
  
  run-tests: $(ALL)
@@ -556,6 +570,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 -	rm -f test_x509v3_nist2.out.*
 +
 +.PHONY: run-tests clean-config_tls_internal
+diff --git a/tests/hwsim/example-hostapd.config b/tests/hwsim/example-hostapd.config
+index fbee5eef5..c227625aa 100644
 --- a/tests/hwsim/example-hostapd.config
 +++ b/tests/hwsim/example-hostapd.config
 @@ -34,15 +34,7 @@ CONFIG_EAP_TNC=y
@@ -583,6 +599,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  # AddressSanitizer (ASan) can be enabled by uncommenting the following lines.
  # This can be used as a more efficient memory error detector than valgrind
+diff --git a/tests/hwsim/example-wpa_supplicant.config b/tests/hwsim/example-wpa_supplicant.config
+index 7b281552c..d532942bc 100644
 --- a/tests/hwsim/example-wpa_supplicant.config
 +++ b/tests/hwsim/example-wpa_supplicant.config
 @@ -35,16 +35,7 @@ LIBS += -rdynamic
@@ -611,6 +629,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  # AddressSanitizer (ASan) can be enabled by uncommenting the following lines.
  # This can be used as a more efficient memory error detector than valgrind
+diff --git a/tests/hwsim/test_ap_eap.py b/tests/hwsim/test_ap_eap.py
+index c3b854d1b..b4a97e0bd 100644
 --- a/tests/hwsim/test_ap_eap.py
 +++ b/tests/hwsim/test_ap_eap.py
 @@ -42,20 +42,42 @@ def check_eap_capa(dev, method):
@@ -727,7 +747,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  def check_ec_support(dev):
      tls = dev.request("GET tls_library")
-@@ -1595,7 +1638,7 @@ def test_ap_wpa2_eap_ttls_pap_subject_ma
+@@ -1595,7 +1638,7 @@ def test_ap_wpa2_eap_ttls_pap_subject_match(dev, apdev):
      eap_connect(dev[0], hapd, "TTLS", "pap user",
                  anonymous_identity="ttls", password="password",
                  ca_cert="auth_serv/ca.pem", phase2="auth=PAP",
@@ -736,7 +756,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
                  altsubject_match="EMAIL:noone@example.com;DNS:server.w1.fi;URI:http://example.com/")
      eap_reauth(dev[0], "TTLS")
  
-@@ -2830,6 +2873,7 @@ def test_ap_wpa2_eap_tls_neg_domain_matc
+@@ -2830,6 +2873,7 @@ def test_ap_wpa2_eap_tls_neg_domain_match(dev, apdev):
  
  def test_ap_wpa2_eap_tls_neg_subject_match(dev, apdev):
      """WPA2-Enterprise negative test - subject mismatch"""
@@ -744,7 +764,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      params = hostapd.wpa2_eap_params(ssid="test-wpa2-eap")
      hostapd.add_ap(apdev[0], params)
      dev[0].connect("test-wpa2-eap", key_mgmt="WPA-EAP", eap="TTLS",
-@@ -2890,6 +2934,7 @@ def test_ap_wpa2_eap_tls_neg_subject_mat
+@@ -2890,6 +2934,7 @@ def test_ap_wpa2_eap_tls_neg_subject_match(dev, apdev):
  
  def test_ap_wpa2_eap_tls_neg_altsubject_match(dev, apdev):
      """WPA2-Enterprise negative test - altsubject mismatch"""
@@ -752,7 +772,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      params = hostapd.wpa2_eap_params(ssid="test-wpa2-eap")
      hostapd.add_ap(apdev[0], params)
  
-@@ -3430,7 +3475,7 @@ def test_ap_wpa2_eap_ikev2_oom(dev, apde
+@@ -3430,7 +3475,7 @@ def test_ap_wpa2_eap_ikev2_oom(dev, apdev):
              dev[0].request("REMOVE_NETWORK all")
  
      tls = dev[0].request("GET tls_library")
@@ -761,7 +781,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          tests = [(1, "os_get_random;dh_init")]
      else:
          tests = [(1, "crypto_dh_init;dh_init")]
-@@ -4744,7 +4789,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca
+@@ -4744,7 +4789,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca(dev, apdev, params):
      params["private_key"] = "auth_serv/iCA-server/server.key"
      hostapd.add_ap(apdev[0], params)
      tls = dev[0].request("GET tls_library")
@@ -770,7 +790,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          ca_cert = "auth_serv/iCA-user/ca-and-root.pem"
          client_cert = "auth_serv/iCA-user/user_and_ica.pem"
      else:
-@@ -4810,6 +4855,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca
+@@ -4810,6 +4855,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca_ocsp_sha1(dev, apdev, params):
      run_ap_wpa2_eap_tls_intermediate_ca_ocsp(dev, apdev, params, "-sha1")
  
  def run_ap_wpa2_eap_tls_intermediate_ca_ocsp(dev, apdev, params, md):
@@ -778,7 +798,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      params = int_eap_server_params()
      params["ca_cert"] = "auth_serv/iCA-server/ca-and-root.pem"
      params["server_cert"] = "auth_serv/iCA-server/server.pem"
-@@ -4819,7 +4865,7 @@ def run_ap_wpa2_eap_tls_intermediate_ca_
+@@ -4819,7 +4865,7 @@ def run_ap_wpa2_eap_tls_intermediate_ca_ocsp(dev, apdev, params, md):
      try:
          hostapd.add_ap(apdev[0], params)
          tls = dev[0].request("GET tls_library")
@@ -787,7 +807,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
              ca_cert = "auth_serv/iCA-user/ca-and-root.pem"
              client_cert = "auth_serv/iCA-user/user_and_ica.pem"
          else:
-@@ -4855,7 +4901,7 @@ def run_ap_wpa2_eap_tls_intermediate_ca_
+@@ -4855,7 +4901,7 @@ def run_ap_wpa2_eap_tls_intermediate_ca_ocsp_revoked(dev, apdev, params, md):
      try:
          hostapd.add_ap(apdev[0], params)
          tls = dev[0].request("GET tls_library")
@@ -796,7 +816,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
              ca_cert = "auth_serv/iCA-user/ca-and-root.pem"
              client_cert = "auth_serv/iCA-user/user_and_ica.pem"
          else:
-@@ -4905,7 +4951,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca
+@@ -4905,7 +4951,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca_ocsp_multi_missing_resp(dev, apdev, par
      try:
          hostapd.add_ap(apdev[0], params)
          tls = dev[0].request("GET tls_library")
@@ -805,7 +825,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
              ca_cert = "auth_serv/iCA-user/ca-and-root.pem"
              client_cert = "auth_serv/iCA-user/user_and_ica.pem"
          else:
-@@ -4972,7 +5018,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca
+@@ -4972,7 +5018,7 @@ def test_ap_wpa2_eap_tls_intermediate_ca_ocsp_multi(dev, apdev, params):
  
          hostapd.add_ap(apdev[0], params)
          tls = dev[0].request("GET tls_library")
@@ -814,7 +834,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
              ca_cert = "auth_serv/iCA-user/ca-and-root.pem"
              client_cert = "auth_serv/iCA-user/user_and_ica.pem"
          else:
-@@ -5230,6 +5276,7 @@ def test_ap_wpa2_eap_ttls_server_cert_ek
+@@ -5230,6 +5276,7 @@ def test_ap_wpa2_eap_ttls_server_cert_eku_client_server(dev, apdev):
  
  def test_ap_wpa2_eap_ttls_server_pkcs12(dev, apdev):
      """WPA2-Enterprise using EAP-TTLS and server PKCS#12 file"""
@@ -822,7 +842,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      skip_with_fips(dev[0])
      params = int_eap_server_params()
      del params["server_cert"]
-@@ -5242,6 +5289,7 @@ def test_ap_wpa2_eap_ttls_server_pkcs12(
+@@ -5242,6 +5289,7 @@ def test_ap_wpa2_eap_ttls_server_pkcs12(dev, apdev):
  
  def test_ap_wpa2_eap_ttls_server_pkcs12_extra(dev, apdev):
      """EAP-TTLS and server PKCS#12 file with extra certs"""
@@ -830,7 +850,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      skip_with_fips(dev[0])
      params = int_eap_server_params()
      del params["server_cert"]
-@@ -5264,6 +5312,7 @@ def test_ap_wpa2_eap_ttls_dh_params_serv
+@@ -5264,6 +5312,7 @@ def test_ap_wpa2_eap_ttls_dh_params_server(dev, apdev):
  
  def test_ap_wpa2_eap_ttls_dh_params_dsa_server(dev, apdev):
      """WPA2-Enterprise using EAP-TTLS and alternative server dhparams (DSA)"""
@@ -838,7 +858,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      params = int_eap_server_params()
      params["dh_file"] = "auth_serv/dsaparam.pem"
      hapd = hostapd.add_ap(apdev[0], params)
-@@ -5575,8 +5624,8 @@ def test_ap_wpa2_eap_non_ascii_identity2
+@@ -5575,8 +5624,8 @@ def test_ap_wpa2_eap_non_ascii_identity2(dev, apdev):
  def test_openssl_cipher_suite_config_wpas(dev, apdev):
      """OpenSSL cipher suite configuration on wpa_supplicant"""
      tls = dev[0].request("GET tls_library")
@@ -849,7 +869,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      params = hostapd.wpa2_eap_params(ssid="test-wpa2-eap")
      hapd = hostapd.add_ap(apdev[0], params)
      eap_connect(dev[0], hapd, "TTLS", "pap user",
-@@ -5602,14 +5651,14 @@ def test_openssl_cipher_suite_config_wpa
+@@ -5602,14 +5651,14 @@ def test_openssl_cipher_suite_config_wpas(dev, apdev):
  def test_openssl_cipher_suite_config_hapd(dev, apdev):
      """OpenSSL cipher suite configuration on hostapd"""
      tls = dev[0].request("GET tls_library")
@@ -868,7 +888,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      eap_connect(dev[0], hapd, "TTLS", "pap user",
                  anonymous_identity="ttls", password="password",
                  ca_cert="auth_serv/ca.pem", phase2="auth=PAP")
-@@ -6051,13 +6100,17 @@ def test_ap_wpa2_eap_tls_versions(dev, a
+@@ -6051,13 +6100,17 @@ def test_ap_wpa2_eap_tls_versions(dev, apdev):
              check_tls_ver(dev[0], hapd,
                            "tls_disable_tlsv1_0=1 tls_disable_tlsv1_1=1",
                            "TLSv1.2")
@@ -891,7 +911,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      if "run=OpenSSL 1.1.1" in tls or "run=OpenSSL 3.0" in tls:
          check_tls_ver(dev[0], hapd,
                        "tls_disable_tlsv1_0=1 tls_disable_tlsv1_1=1 tls_disable_tlsv1_2=1 tls_disable_tlsv1_3=0", "TLSv1.3")
-@@ -6079,6 +6132,11 @@ def test_ap_wpa2_eap_tls_versions_server
+@@ -6079,6 +6132,11 @@ def test_ap_wpa2_eap_tls_versions_server(dev, apdev):
      tests = [("TLSv1", "[ENABLE-TLSv1.0][DISABLE-TLSv1.1][DISABLE-TLSv1.2][DISABLE-TLSv1.3]"),
               ("TLSv1.1", "[ENABLE-TLSv1.0][ENABLE-TLSv1.1][DISABLE-TLSv1.2][DISABLE-TLSv1.3]"),
               ("TLSv1.2", "[ENABLE-TLSv1.0][ENABLE-TLSv1.1][ENABLE-TLSv1.2][DISABLE-TLSv1.3]")]
@@ -903,7 +923,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      for exp, flags in tests:
          hapd.disable()
          hapd.set("tls_flags", flags)
-@@ -7115,6 +7173,7 @@ def test_ap_wpa2_eap_assoc_rsn(dev, apde
+@@ -7115,6 +7173,7 @@ def test_ap_wpa2_eap_assoc_rsn(dev, apdev):
  def test_eap_tls_ext_cert_check(dev, apdev):
      """EAP-TLS and external server certification validation"""
      # With internal server certificate chain validation
@@ -911,7 +931,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      id = dev[0].connect("test-wpa2-eap", key_mgmt="WPA-EAP", eap="TLS",
                          identity="tls user",
                          ca_cert="auth_serv/ca.pem",
-@@ -7127,6 +7186,7 @@ def test_eap_tls_ext_cert_check(dev, apd
+@@ -7127,6 +7186,7 @@ def test_eap_tls_ext_cert_check(dev, apdev):
  def test_eap_ttls_ext_cert_check(dev, apdev):
      """EAP-TTLS and external server certification validation"""
      # Without internal server certificate chain validation
@@ -919,7 +939,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      id = dev[0].connect("test-wpa2-eap", key_mgmt="WPA-EAP", eap="TTLS",
                          identity="pap user", anonymous_identity="ttls",
                          password="password", phase2="auth=PAP",
-@@ -7137,6 +7197,7 @@ def test_eap_ttls_ext_cert_check(dev, ap
+@@ -7137,6 +7197,7 @@ def test_eap_ttls_ext_cert_check(dev, apdev):
  def test_eap_peap_ext_cert_check(dev, apdev):
      """EAP-PEAP and external server certification validation"""
      # With internal server certificate chain validation
@@ -927,7 +947,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      id = dev[0].connect("test-wpa2-eap", key_mgmt="WPA-EAP", eap="PEAP",
                          identity="user", anonymous_identity="peap",
                          ca_cert="auth_serv/ca.pem",
-@@ -7147,6 +7208,7 @@ def test_eap_peap_ext_cert_check(dev, ap
+@@ -7147,6 +7208,7 @@ def test_eap_peap_ext_cert_check(dev, apdev):
  
  def test_eap_fast_ext_cert_check(dev, apdev):
      """EAP-FAST and external server certification validation"""
@@ -935,7 +955,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      check_eap_capa(dev[0], "FAST")
      # With internal server certificate chain validation
      dev[0].request("SET blob fast_pac_auth_ext ")
-@@ -7161,10 +7223,6 @@ def test_eap_fast_ext_cert_check(dev, ap
+@@ -7161,10 +7223,6 @@ def test_eap_fast_ext_cert_check(dev, apdev):
      run_ext_cert_check(dev, apdev, id)
  
  def run_ext_cert_check(dev, apdev, net_id):
@@ -946,6 +966,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      params = hostapd.wpa2_eap_params(ssid="test-wpa2-eap")
      hapd = hostapd.add_ap(apdev[0], params)
  
+diff --git a/tests/hwsim/test_ap_ft.py b/tests/hwsim/test_ap_ft.py
+index c30cb8593..2b50a08b4 100644
 --- a/tests/hwsim/test_ap_ft.py
 +++ b/tests/hwsim/test_ap_ft.py
 @@ -2471,11 +2471,11 @@ def test_ap_ft_ap_oom5(dev, apdev):
@@ -962,6 +984,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          # This will fail to roam
          dev[0].roam(bssid1, check_bssid=False)
  
+diff --git a/tests/hwsim/test_authsrv.py b/tests/hwsim/test_authsrv.py
+index e0665bcb2..02ec301e5 100644
 --- a/tests/hwsim/test_authsrv.py
 +++ b/tests/hwsim/test_authsrv.py
 @@ -156,9 +156,12 @@ def test_authsrv_oom(dev, apdev):
@@ -980,9 +1004,11 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
      for count in range(1, 3):
          with alloc_fail(authsrv, count, "eap_sim_db_init;authsrv_init"):
+diff --git a/tests/hwsim/test_dpp.py b/tests/hwsim/test_dpp.py
+index a490f67ee..83e7629ed 100644
 --- a/tests/hwsim/test_dpp.py
 +++ b/tests/hwsim/test_dpp.py
-@@ -39,7 +39,8 @@ def check_dpp_capab(dev, brainpool=False
+@@ -39,7 +39,8 @@ def check_dpp_capab(dev, brainpool=False, min_ver=1):
          raise HwsimSkip("DPP not supported")
      if brainpool:
          tls = dev.request("GET tls_library")
@@ -992,7 +1018,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
              raise HwsimSkip("Crypto library does not support Brainpool curves: " + tls)
      capa = dev.request("GET_CAPABILITY dpp")
      ver = 1
-@@ -3892,6 +3893,9 @@ def test_dpp_proto_auth_req_no_i_proto_k
+@@ -3892,6 +3893,9 @@ def test_dpp_proto_auth_req_no_i_proto_key(dev, apdev):
  
  def test_dpp_proto_auth_req_invalid_i_proto_key(dev, apdev):
      """DPP protocol testing - invalid I-proto key in Auth Req"""
@@ -1002,7 +1028,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      run_dpp_proto_auth_req_missing(dev, 66, "Invalid Initiator Protocol Key")
  
  def test_dpp_proto_auth_req_no_i_nonce(dev, apdev):
-@@ -3987,7 +3991,12 @@ def test_dpp_proto_auth_resp_no_r_proto_
+@@ -3987,7 +3991,12 @@ def test_dpp_proto_auth_resp_no_r_proto_key(dev, apdev):
  
  def test_dpp_proto_auth_resp_invalid_r_proto_key(dev, apdev):
      """DPP protocol testing - invalid R-Proto Key in Auth Resp"""
@@ -1016,7 +1042,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  def test_dpp_proto_auth_resp_no_r_nonce(dev, apdev):
      """DPP protocol testing - no R-nonce in Auth Resp"""
-@@ -4349,11 +4358,17 @@ def test_dpp_proto_pkex_exchange_resp_in
+@@ -4349,11 +4358,17 @@ def test_dpp_proto_pkex_exchange_resp_invalid_status(dev, apdev):
  
  def test_dpp_proto_pkex_cr_req_invalid_bootstrap_key(dev, apdev):
      """DPP protocol testing - invalid Bootstrap Key in PKEX Commit-Reveal Request"""
@@ -1034,6 +1060,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      run_dpp_proto_pkex_resp_missing(dev, 48,
                                      "Peer bootstrapping key is invalid")
  
+diff --git a/tests/hwsim/test_erp.py b/tests/hwsim/test_erp.py
+index d083993e8..262e9f095 100644
 --- a/tests/hwsim/test_erp.py
 +++ b/tests/hwsim/test_erp.py
 @@ -12,7 +12,7 @@ import time
@@ -1045,7 +1073,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  from test_ap_psk import find_wpas_process, read_process_memory, verify_not_present, get_key_locations
  
  def test_erp_initiate_reauth_start(dev, apdev):
-@@ -276,6 +276,7 @@ def test_erp_radius_eap_methods(dev, apd
+@@ -276,6 +276,7 @@ def test_erp_radius_eap_methods(dev, apdev):
      params['erp_domain'] = 'example.com'
      params['disable_pmksa_caching'] = '1'
      hapd = hostapd.add_ap(apdev[0], params)
@@ -1053,7 +1081,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
      erp_test(dev[0], hapd, eap="AKA", identity="0232010000000000@example.com",
               password="90dca4eda45b53cf0f12d7c9c3bc6a89:cb9cccc4b9258e6dca4760379fb82581:000000000123")
-@@ -289,7 +290,7 @@ def test_erp_radius_eap_methods(dev, apd
+@@ -289,7 +290,7 @@ def test_erp_radius_eap_methods(dev, apdev):
               password="5122250214c33e723a5dd523fc145fc0:981d464c7c52eb6e5036234984ad0bcf:000000000123")
      erp_test(dev[0], hapd, eap="EKE", identity="erp-eke@example.com",
               password="hello")
@@ -1062,7 +1090,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          erp_test(dev[0], hapd, eap="FAST", identity="erp-fast@example.com",
                   password="password", ca_cert="auth_serv/ca.pem",
                   phase2="auth=GTC",
-@@ -301,13 +302,14 @@ def test_erp_radius_eap_methods(dev, apd
+@@ -301,13 +302,14 @@ def test_erp_radius_eap_methods(dev, apdev):
               password="password")
      erp_test(dev[0], hapd, eap="PAX", identity="erp-pax@example.com",
               password_hex="0123456789abcdef0123456789abcdef")
@@ -1090,9 +1118,11 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          dev[0].request("ERP_FLUSH")
          with fail_test(dev[0], count, "hmac_sha256_kdf;eap_peer_erp_init"):
              dev[0].connect("test-wpa2-eap", key_mgmt="WPA-EAP", eap="TTLS",
+diff --git a/tests/hwsim/test_fils.py b/tests/hwsim/test_fils.py
+index f7daf1907..39a4d60a0 100644
 --- a/tests/hwsim/test_fils.py
 +++ b/tests/hwsim/test_fils.py
-@@ -1422,7 +1422,10 @@ def run_fils_sk_pfs(dev, apdev, group, p
+@@ -1422,7 +1422,10 @@ def run_fils_sk_pfs(dev, apdev, group, params):
      check_erp_capa(dev[0])
  
      tls = dev[0].request("GET tls_library")
@@ -1104,9 +1134,11 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          if int(group) in [25]:
              if not (tls.startswith("OpenSSL") and ("build=OpenSSL 1.0.2" in tls or "build=OpenSSL 1.1" in tls or "build=OpenSSL 3.0" in tls) and ("run=OpenSSL 1.0.2" in tls or "run=OpenSSL 1.1" in tls or "run=OpenSSL 3.0" in tls)):
                  raise HwsimSkip("EC group not supported")
+diff --git a/tests/hwsim/test_pmksa_cache.py b/tests/hwsim/test_pmksa_cache.py
+index 65ef5d816..c199822ee 100644
 --- a/tests/hwsim/test_pmksa_cache.py
 +++ b/tests/hwsim/test_pmksa_cache.py
-@@ -955,7 +955,7 @@ def test_pmksa_cache_preauth_wpas_oom(de
+@@ -955,7 +955,7 @@ def test_pmksa_cache_preauth_wpas_oom(dev, apdev):
      eap_connect(dev[0], hapd, "PAX", "pax.user@example.com",
                  password_hex="0123456789abcdef0123456789abcdef",
                  bssid=apdev[0]['bssid'])
@@ -1115,7 +1147,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          with alloc_fail(dev[0], i, "rsn_preauth_init"):
              res = dev[0].request("PREAUTH f2:11:22:33:44:55").strip()
              logger.info("Iteration %d - PREAUTH command results: %s" % (i, res))
-@@ -963,7 +963,7 @@ def test_pmksa_cache_preauth_wpas_oom(de
+@@ -963,7 +963,7 @@ def test_pmksa_cache_preauth_wpas_oom(dev, apdev):
                  state = dev[0].request('GET_ALLOC_FAIL')
                  if state.startswith('0:'):
                      break
@@ -1124,6 +1156,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  def test_pmksa_cache_ctrl(dev, apdev):
      """PMKSA cache control interface operations"""
+diff --git a/tests/hwsim/test_sae.py b/tests/hwsim/test_sae.py
+index ff58598b0..fdc92a253 100644
 --- a/tests/hwsim/test_sae.py
 +++ b/tests/hwsim/test_sae.py
 @@ -177,6 +177,11 @@ def test_sae_groups(dev, apdev):
@@ -1138,7 +1172,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      heavy_groups = [14, 15, 16]
      suitable_groups = [15, 16, 17, 18, 19, 20, 21]
      groups = [str(g) for g in sae_groups]
-@@ -2188,6 +2193,8 @@ def run_sae_pwe_group(dev, apdev, group)
+@@ -2188,6 +2193,8 @@ def run_sae_pwe_group(dev, apdev, group):
              logger.info("Add Brainpool EC groups since OpenSSL is new enough")
          elif tls.startswith("wolfSSL"):
              logger.info("Make sure Brainpool EC groups were enabled when compiling wolfSSL")
@@ -1147,9 +1181,11 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          else:
              raise HwsimSkip("Brainpool curve not supported")
      start_sae_pwe_ap(apdev[0], group, 2)
+diff --git a/tests/hwsim/test_suite_b.py b/tests/hwsim/test_suite_b.py
+index f096d4736..87c499826 100644
 --- a/tests/hwsim/test_suite_b.py
 +++ b/tests/hwsim/test_suite_b.py
-@@ -27,6 +27,8 @@ def check_suite_b_tls_lib(dev, dhe=False
+@@ -27,6 +27,8 @@ def check_suite_b_tls_lib(dev, dhe=False, level128=False):
          return
      if tls.startswith("wolfSSL"):
          return
@@ -1158,7 +1194,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      if not tls.startswith("OpenSSL"):
          raise HwsimSkip("TLS library not supported for Suite B: " + tls)
      supported = False
-@@ -520,6 +522,7 @@ def test_suite_b_192_rsa_insufficient_dh
+@@ -520,6 +522,7 @@ def test_suite_b_192_rsa_insufficient_dh(dev, apdev):
  
      dev[0].connect("test-suite-b", key_mgmt="WPA-EAP-SUITE-B-192",
                     ieee80211w="2",
@@ -1166,6 +1202,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
                     phase1="tls_suiteb=1",
                     eap="TLS", identity="tls user",
                     ca_cert="auth_serv/rsa3072-ca.pem",
+diff --git a/tests/hwsim/test_wpas_ctrl.py b/tests/hwsim/test_wpas_ctrl.py
+index e40aecda1..2b7d4ab35 100644
 --- a/tests/hwsim/test_wpas_ctrl.py
 +++ b/tests/hwsim/test_wpas_ctrl.py
 @@ -1842,7 +1842,7 @@ def _test_wpas_ctrl_oom(dev):
@@ -1177,6 +1215,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
      for cmd, exp, count, func in tests:
          with alloc_fail(dev[0], count, func):
              res = dev[0].request(cmd)
+diff --git a/tests/hwsim/utils.py b/tests/hwsim/utils.py
+index 769f824c7..69926e4e5 100644
 --- a/tests/hwsim/utils.py
 +++ b/tests/hwsim/utils.py
 @@ -141,7 +141,13 @@ def check_imsi_privacy_support(dev):
@@ -1194,6 +1234,9 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
          raise HwsimSkip("TLS TOD-TOFU/STRICT not supported with this TLS library: " + tls)
  
  def vht_supported():
+diff --git a/tests/test-crypto_module.c b/tests/test-crypto_module.c
+new file mode 100644
+index 000000000..0f1156142
 --- /dev/null
 +++ b/tests/test-crypto_module.c
 @@ -0,0 +1,16 @@
@@ -1213,9 +1256,11 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 +{
 +	return crypto_module_tests();
 +}
+diff --git a/tests/test-https.c b/tests/test-https.c
+index a72e56f9d..e9df82f1d 100644
 --- a/tests/test-https.c
 +++ b/tests/test-https.c
-@@ -75,7 +75,7 @@ static int https_client(int s, const cha
+@@ -75,7 +75,7 @@ static int https_client(int s, const char *path)
  	struct tls_connection *conn;
  	struct wpabuf *in, *out, *appl;
  	int res = -1;
@@ -1224,7 +1269,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  	os_memset(&conf, 0, sizeof(conf));
  	conf.event_cb = https_tls_event_cb;
-@@ -93,8 +93,12 @@ static int https_client(int s, const cha
+@@ -93,8 +93,12 @@ static int https_client(int s, const char *path)
  
  	for (;;) {
  		appl = NULL;
@@ -1237,7 +1282,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  		wpabuf_free(in);
  		in = NULL;
  		if (out == NULL) {
-@@ -152,11 +156,15 @@ static int https_client(int s, const cha
+@@ -152,11 +156,15 @@ static int https_client(int s, const char *path)
  
  	wpa_printf(MSG_INFO, "Reading HTTP response");
  	for (;;) {
@@ -1254,9 +1299,11 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  		if (need_more_data)
  			wpa_printf(MSG_DEBUG, "HTTP: Need more data");
  		wpabuf_free(in);
+diff --git a/tests/test-https_server.c b/tests/test-https_server.c
+index 33b448682..9dcca5596 100644
 --- a/tests/test-https_server.c
 +++ b/tests/test-https_server.c
-@@ -67,10 +67,12 @@ static struct wpabuf * https_recv(int s,
+@@ -67,10 +67,12 @@ static struct wpabuf * https_recv(int s, int timeout_ms)
  }
  
  
@@ -1306,6 +1353,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  		wpabuf_free(in);
  		in = NULL;
  		if (need_more_data) {
+diff --git a/wpa_supplicant/Makefile b/wpa_supplicant/Makefile
+index a4497a691..b9c488dca 100644
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
 @@ -1122,6 +1122,7 @@ CFLAGS += -DCONFIG_TLSV12
@@ -1324,7 +1373,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  CFLAGS += -DCRYPTO_RSA_OAEP_SHA256
  ifdef TLS_FUNCS
  CFLAGS += -DEAP_TLS_OPENSSL
-@@ -1164,6 +1166,7 @@ CFLAGS += -DTLS_DEFAULT_CIPHERS=\"$(CONF
+@@ -1164,6 +1166,7 @@ CFLAGS += -DTLS_DEFAULT_CIPHERS=\"$(CONFIG_TLS_DEFAULT_CIPHERS)\"
  endif
  
  ifeq ($(CONFIG_TLS), mbedtls)
@@ -1356,3 +1405,6 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  OBJS += ../src/crypto/crypto_linux.o
  OBJS_p += ../src/crypto/crypto_linux.o
  ifdef TLS_FUNCS
+-- 
+2.41.0
+

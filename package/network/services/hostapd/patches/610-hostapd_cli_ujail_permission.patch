@@ -1,3 +1,18 @@
+From 77a9e345b953530c4407c291a8ec9d96c2e5930d Mon Sep 17 00:00:00 2001
+Message-ID: <77a9e345b953530c4407c291a8ec9d96c2e5930d.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:56:59 +0200
+Subject: [PATCH 46/57] hostapd cli ujail permission
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/common/wpa_ctrl.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/src/common/wpa_ctrl.c b/src/common/wpa_ctrl.c
+index 7e197f094..791fdbf93 100644
 --- a/src/common/wpa_ctrl.c
 +++ b/src/common/wpa_ctrl.c
 @@ -135,7 +135,7 @@ try_again:
@@ -31,3 +46,6 @@
  	/* Set group even if we do not have privileges to change owner */
  	lchown(ctrl->local.sun_path, -1, AID_WIFI);
  	lchown(ctrl->local.sun_path, AID_SYSTEM, AID_WIFI);
+-- 
+2.41.0
+

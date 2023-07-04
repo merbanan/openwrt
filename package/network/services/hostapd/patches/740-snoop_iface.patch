@@ -1,3 +1,33 @@
+From 7d101a17117574d8061e2aace8743076ae1dfa81 Mon Sep 17 00:00:00 2001
+Message-ID: <7d101a17117574d8061e2aace8743076ae1dfa81.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:07:10 +0200
+Subject: [PATCH 52/57] snoop iface
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c |  2 ++
+ src/ap/ap_config.h    |  1 +
+ src/ap/x_snoop.c      | 15 +++++++++++----
+ 3 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 7144b0d79..ba582017f 100644
+--- a/hostapd/config_file.c
++++ b/hostapd/config_file.c
+@@ -2320,6 +2320,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+ 			os_strlcpy(bss->wds_bridge, pos, sizeof(bss->wds_bridge));
+ 	} else if (os_strcmp(buf, "bridge_hairpin") == 0) {
+ 		bss->bridge_hairpin = atoi(pos);
++	} else if (os_strcmp(buf, "snoop_iface") == 0) {
++		os_strlcpy(bss->snoop_iface, pos, sizeof(bss->snoop_iface));
+ 	} else if (os_strcmp(buf, "vlan_bridge") == 0) {
+ 		os_strlcpy(bss->vlan_bridge, pos, sizeof(bss->vlan_bridge));
+ 	} else if (os_strcmp(buf, "wds_bridge") == 0) {
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 0348d0774..d124ea7b9 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
 @@ -284,6 +284,7 @@ struct hostapd_bss_config {
@@ -8,9 +38,11 @@
  	char vlan_bridge[IFNAMSIZ + 1];
  	char wds_bridge[IFNAMSIZ + 1];
  	int bridge_hairpin; /* hairpin_mode on bridge members */
+diff --git a/src/ap/x_snoop.c b/src/ap/x_snoop.c
+index 029f4de23..30c990fd2 100644
 --- a/src/ap/x_snoop.c
 +++ b/src/ap/x_snoop.c
-@@ -33,14 +33,16 @@ int x_snoop_init(struct hostapd_data *ha
+@@ -33,14 +33,16 @@ int x_snoop_init(struct hostapd_data *hapd)
  
  	hapd->x_snoop_initialized = true;
  
@@ -29,7 +61,7 @@
  		wpa_printf(MSG_DEBUG,
  			   "x_snoop: Failed to enable proxyarp on the bridge port");
  		return -1;
-@@ -54,7 +56,8 @@ int x_snoop_init(struct hostapd_data *ha
+@@ -54,7 +56,8 @@ int x_snoop_init(struct hostapd_data *hapd)
  	}
  
  #ifdef CONFIG_IPV6
@@ -39,7 +71,7 @@
  		wpa_printf(MSG_DEBUG,
  			   "x_snoop: Failed to enable multicast snooping on the bridge");
  		return -1;
-@@ -73,8 +76,12 @@ x_snoop_get_l2_packet(struct hostapd_dat
+@@ -73,8 +76,12 @@ x_snoop_get_l2_packet(struct hostapd_data *hapd,
  {
  	struct hostapd_bss_config *conf = hapd->conf;
  	struct l2_packet_data *l2;
@@ -53,14 +85,6 @@
  	if (l2 == NULL) {
  		wpa_printf(MSG_DEBUG,
  			   "x_snoop: Failed to initialize L2 packet processing %s",
---- a/hostapd/config_file.c
-+++ b/hostapd/config_file.c
-@@ -2320,6 +2320,8 @@ static int hostapd_config_fill(struct ho
- 			os_strlcpy(bss->wds_bridge, pos, sizeof(bss->wds_bridge));
- 	} else if (os_strcmp(buf, "bridge_hairpin") == 0) {
- 		bss->bridge_hairpin = atoi(pos);
-+	} else if (os_strcmp(buf, "snoop_iface") == 0) {
-+		os_strlcpy(bss->snoop_iface, pos, sizeof(bss->snoop_iface));
- 	} else if (os_strcmp(buf, "vlan_bridge") == 0) {
- 		os_strlcpy(bss->vlan_bridge, pos, sizeof(bss->vlan_bridge));
- 	} else if (os_strcmp(buf, "wds_bridge") == 0) {
+-- 
+2.41.0
+

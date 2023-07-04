@@ -1,15 +1,21 @@
-From c8dba4bd750269bcc80fed3d546e2077cb4cdf0e Mon Sep 17 00:00:00 2001
+From e3e8bc648c235d207931f77f66a17ff394bda8e5 Mon Sep 17 00:00:00 2001
+Message-ID: <e3e8bc648c235d207931f77f66a17ff394bda8e5.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Glenn Strauss <gstrauss@gluelogic.com>
 Date: Tue, 19 Jul 2022 20:02:21 -0400
-Subject: [PATCH 2/7] mbedtls: fips186_2_prf()
+Subject: [PATCH 12/57] mbedtls: fips186_2_prf()
 
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  hostapd/Makefile            |  4 ---
  src/crypto/crypto_mbedtls.c | 60 +++++++++++++++++++++++++++++++++++++
  wpa_supplicant/Makefile     |  4 ---
  3 files changed, 60 insertions(+), 8 deletions(-)
 
+diff --git a/hostapd/Makefile b/hostapd/Makefile
+index ebc946518..a26429eaf 100644
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
 @@ -759,10 +759,6 @@ endif
@@ -23,6 +29,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  ifeq ($(CONFIG_CRYPTO), mbedtls)
  ifdef CONFIG_DPP
  LIBS += -lmbedx509
+diff --git a/src/crypto/crypto_mbedtls.c b/src/crypto/crypto_mbedtls.c
+index 1cf36a071..0110e18e3 100644
 --- a/src/crypto/crypto_mbedtls.c
 +++ b/src/crypto/crypto_mbedtls.c
 @@ -132,6 +132,12 @@
@@ -38,7 +46,7 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  #if defined(EAP_FAST) || defined(EAP_FAST_DYNAMIC) || defined(EAP_SERVER_FAST) \
   || defined(EAP_TEAP) || defined(EAP_TEAP_DYNAMIC) || defined(EAP_SERVER_FAST)
  #define CRYPTO_MBEDTLS_SHA1_T_PRF
-@@ -813,6 +819,60 @@ int sha1_t_prf(const u8 *key, size_t key
+@@ -813,6 +819,60 @@ int sha1_t_prf(const u8 *key, size_t key_len, const char *label,
  
  #endif /* CRYPTO_MBEDTLS_SHA1_T_PRF */
  
@@ -99,6 +107,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  #endif /* MBEDTLS_SHA1_C */
  
  
+diff --git a/wpa_supplicant/Makefile b/wpa_supplicant/Makefile
+index 58dde7dd6..a4497a691 100644
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
 @@ -1174,10 +1174,6 @@ endif
@@ -112,3 +122,6 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  ifeq ($(CONFIG_CRYPTO), mbedtls)
  LIBS += -lmbedcrypto
  LIBS_p += -lmbedcrypto
+-- 
+2.41.0
+

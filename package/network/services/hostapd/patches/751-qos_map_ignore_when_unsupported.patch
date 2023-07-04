@@ -1,6 +1,21 @@
+From 97ab7b225c4defbb96bde983b408b55556bbae96 Mon Sep 17 00:00:00 2001
+Message-ID: <97ab7b225c4defbb96bde983b408b55556bbae96.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:08:42 +0200
+Subject: [PATCH 54/57] qos_map ignore when usupported
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/ap_drv_ops.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/ap/ap_drv_ops.c b/src/ap/ap_drv_ops.c
+index 3ad4a822f..75ddfa15c 100644
 --- a/src/ap/ap_drv_ops.c
 +++ b/src/ap/ap_drv_ops.c
-@@ -874,7 +874,8 @@ int hostapd_start_dfs_cac(struct hostapd
+@@ -927,7 +927,8 @@ int hostapd_start_dfs_cac(struct hostapd_iface *iface,
  int hostapd_drv_set_qos_map(struct hostapd_data *hapd,
  			    const u8 *qos_map_set, u8 qos_map_set_len)
  {
@@ -10,3 +25,6 @@
  		return 0;
  	return hapd->driver->set_qos_map(hapd->drv_priv, qos_map_set,
  					 qos_map_set_len);
+-- 
+2.41.0
+

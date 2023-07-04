@@ -1,6 +1,24 @@
+From 21039daa553c94d35cbba5edb61827c792a2c143 Mon Sep 17 00:00:00 2001
+Message-ID: <21039daa553c94d35cbba5edb61827c792a2c143.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 18:56:22 +0200
+Subject: [PATCH 18/57] noscan
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c  | 4 ++++
+ src/ap/ap_config.h     | 2 ++
+ src/ap/hw_features.c   | 3 ++-
+ src/ap/ieee802_11_ht.c | 6 ++++++
+ 4 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 412ca8a9f..27b2f3b93 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3446,6 +3446,10 @@ static int hostapd_config_fill(struct ho
+@@ -3446,6 +3446,10 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  		if (bss->ocv && !bss->ieee80211w)
  			bss->ieee80211w = 1;
  #endif /* CONFIG_OCV */
@@ -11,9 +29,11 @@
  	} else if (os_strcmp(buf, "ieee80211n") == 0) {
  		conf->ieee80211n = atoi(pos);
  	} else if (os_strcmp(buf, "ht_capab") == 0) {
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 777aa5af0..76f20c3c1 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1061,6 +1061,8 @@ struct hostapd_config {
+@@ -1072,6 +1072,8 @@ struct hostapd_config {
  
  	int ht_op_mode_fixed;
  	u16 ht_capab;
@@ -22,9 +42,11 @@
  	int ieee80211n;
  	int secondary_channel;
  	int no_pri_sec_switch;
+diff --git a/src/ap/hw_features.c b/src/ap/hw_features.c
+index 7d899f50d..828b9261b 100644
 --- a/src/ap/hw_features.c
 +++ b/src/ap/hw_features.c
-@@ -517,7 +517,8 @@ static int ieee80211n_check_40mhz(struct
+@@ -517,7 +517,8 @@ static int ieee80211n_check_40mhz(struct hostapd_iface *iface)
  	int ret;
  
  	/* Check that HT40 is used and PRI / SEC switch is allowed */
@@ -34,9 +56,11 @@
  		return 0;
  
  	hostapd_set_state(iface, HAPD_IFACE_HT_SCAN);
+diff --git a/src/ap/ieee802_11_ht.c b/src/ap/ieee802_11_ht.c
+index 59ecbdce7..ebe2e5acd 100644
 --- a/src/ap/ieee802_11_ht.c
 +++ b/src/ap/ieee802_11_ht.c
-@@ -230,6 +230,9 @@ void hostapd_2040_coex_action(struct hos
+@@ -230,6 +230,9 @@ void hostapd_2040_coex_action(struct hostapd_data *hapd,
  		return;
  	}
  
@@ -46,7 +70,7 @@
  	if (len < IEEE80211_HDRLEN + 2 + sizeof(*bc_ie)) {
  		wpa_printf(MSG_DEBUG,
  			   "Ignore too short 20/40 BSS Coexistence Management frame");
-@@ -390,6 +393,9 @@ void ht40_intolerant_add(struct hostapd_
+@@ -390,6 +393,9 @@ void ht40_intolerant_add(struct hostapd_iface *iface, struct sta_info *sta)
  	if (iface->current_mode->mode != HOSTAPD_MODE_IEEE80211G)
  		return;
  
@@ -56,3 +80,6 @@
  	wpa_printf(MSG_INFO, "HT: Forty MHz Intolerant is set by STA " MACSTR
  		   " in Association Request", MAC2STR(sta->addr));
  
+-- 
+2.41.0
+

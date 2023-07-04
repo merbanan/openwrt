@@ -1,3 +1,18 @@
+From 76436b189401765f5045dfee6afe9065cff00873 Mon Sep 17 00:00:00 2001
+Message-ID: <76436b189401765f5045dfee6afe9065cff00873.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 18:47:45 +0200
+Subject: [PATCH 10/57] daemonize fix
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/utils/os_unix.c | 68 +++++++++++++++++++--------------------------
+ 1 file changed, 28 insertions(+), 40 deletions(-)
+
+diff --git a/src/utils/os_unix.c b/src/utils/os_unix.c
+index 258deef9d..5b026f8f6 100644
 --- a/src/utils/os_unix.c
 +++ b/src/utils/os_unix.c
 @@ -10,6 +10,7 @@
@@ -8,7 +23,7 @@
  
  #ifdef ANDROID
  #include <sys/capability.h>
-@@ -188,59 +189,46 @@ int os_gmtime(os_time_t t, struct os_tm
+@@ -188,59 +189,46 @@ int os_gmtime(os_time_t t, struct os_tm *tm)
  	return 0;
  }
  
@@ -66,8 +81,8 @@
 -#else /* __APPLE__ */
 -#define os_daemon daemon
 -#endif /* __APPLE__ */
- 
 -
+ 
 -int os_daemonize(const char *pid_file)
 -{
 -#if defined(__uClinux__) || defined(__sun__)
@@ -95,3 +110,6 @@
  
  	return -0;
  #endif /* defined(__uClinux__) || defined(__sun__) */
+-- 
+2.41.0
+

@@ -1,9 +1,27 @@
+From 00e75cbef0a46cc305b5a7a16b80e3c06167930a Mon Sep 17 00:00:00 2001
+Message-ID: <00e75cbef0a46cc305b5a7a16b80e3c06167930a.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:43:26 +0200
+Subject: [PATCH 43/57] rrm wnm statistics
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/hostapd.h | 18 ++++++++++++++++++
+ src/ap/rrm.c     |  2 ++
+ src/ap/wnm_ap.c  |  6 ++++++
+ 3 files changed, 26 insertions(+)
+
+diff --git a/src/ap/hostapd.h b/src/ap/hostapd.h
+index 6e0ce3dea..e9075e9f0 100644
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
 @@ -162,6 +162,21 @@ struct hostapd_sae_commit_queue {
+ 	u8 msg[];
  };
  
- /**
++/**
 + * struct hostapd_openwrt_stats - OpenWrt custom STA/AP statistics
 + */
 +struct hostapd_openwrt_stats {
@@ -18,13 +36,12 @@
 +	} wnm;
 +};
 +
-+/**
+ /**
   * struct hostapd_data - hostapd per-BSS data structure
   */
- struct hostapd_data {
-@@ -175,6 +190,9 @@ struct hostapd_data {
+@@ -182,6 +197,9 @@ struct hostapd_data {
  
- 	u8 own_addr[ETH_ALEN];
+ 	struct hostapd_data *mld_first_bss;
  
 +	/* OpenWrt specific statistics */
 +	struct hostapd_openwrt_stats openwrt_stats;
@@ -32,9 +49,24 @@
  	int num_sta; /* number of entries in sta_list */
  	struct sta_info *sta_list; /* STA info list head */
  #define STA_HASH_SIZE 256
+diff --git a/src/ap/rrm.c b/src/ap/rrm.c
+index f2d5cd16e..1aa9aa89f 100644
+--- a/src/ap/rrm.c
++++ b/src/ap/rrm.c
+@@ -269,6 +269,8 @@ static void hostapd_send_nei_report_resp(struct hostapd_data *hapd,
+ 		}
+ 	}
+ 
++	hapd->openwrt_stats.rrm.neighbor_report_tx++;
++
+ 	hostapd_drv_send_action(hapd, hapd->iface->freq, 0, addr,
+ 				wpabuf_head(buf), wpabuf_len(buf));
+ 	wpabuf_free(buf);
+diff --git a/src/ap/wnm_ap.c b/src/ap/wnm_ap.c
+index 153ee4033..0ed7c9ead 100644
 --- a/src/ap/wnm_ap.c
 +++ b/src/ap/wnm_ap.c
-@@ -386,6 +386,7 @@ static int ieee802_11_send_bss_trans_mgm
+@@ -386,6 +386,7 @@ static int ieee802_11_send_bss_trans_mgmt_request(struct hostapd_data *hapd,
  	mgmt->u.action.u.bss_tm_req.validity_interval = 1;
  	pos = mgmt->u.action.u.bss_tm_req.variable;
  
@@ -42,7 +74,7 @@
  	wpa_printf(MSG_DEBUG, "WNM: Send BSS Transition Management Request to "
  		   MACSTR " dialog_token=%u req_mode=0x%x disassoc_timer=%u "
  		   "validity_interval=%u",
-@@ -790,10 +791,12 @@ int ieee802_11_rx_wnm_action_ap(struct h
+@@ -790,10 +791,12 @@ int ieee802_11_rx_wnm_action_ap(struct hostapd_data *hapd,
  					       plen);
  		return 0;
  	case WNM_BSS_TRANS_MGMT_QUERY:
@@ -55,7 +87,7 @@
  		ieee802_11_rx_bss_trans_mgmt_resp(hapd, mgmt->sa, payload,
  						  plen);
  		return 0;
-@@ -840,6 +843,7 @@ int wnm_send_disassoc_imminent(struct ho
+@@ -840,6 +843,7 @@ int wnm_send_disassoc_imminent(struct hostapd_data *hapd,
  
  	pos = mgmt->u.action.u.bss_tm_req.variable;
  
@@ -63,7 +95,7 @@
  	wpa_printf(MSG_DEBUG, "WNM: Send BSS Transition Management Request frame to indicate imminent disassociation (disassoc_timer=%d) to "
  		   MACSTR, disassoc_timer, MAC2STR(sta->addr));
  	if (hostapd_drv_send_mlme(hapd, buf, pos - buf, 0, NULL, 0, 0) < 0) {
-@@ -921,6 +925,7 @@ int wnm_send_ess_disassoc_imminent(struc
+@@ -921,6 +925,7 @@ int wnm_send_ess_disassoc_imminent(struct hostapd_data *hapd,
  		return -1;
  	}
  
@@ -71,7 +103,7 @@
  	if (disassoc_timer) {
  		/* send disassociation frame after time-out */
  		set_disassoc_timer(hapd, sta, disassoc_timer);
-@@ -1001,6 +1006,7 @@ int wnm_send_bss_tm_req(struct hostapd_d
+@@ -1001,6 +1006,7 @@ int wnm_send_bss_tm_req(struct hostapd_data *hapd, struct sta_info *sta,
  	}
  	os_free(buf);
  
@@ -79,14 +111,6 @@
  	if (disassoc_timer) {
  		/* send disassociation frame after time-out */
  		set_disassoc_timer(hapd, sta, disassoc_timer);
---- a/src/ap/rrm.c
-+++ b/src/ap/rrm.c
-@@ -269,6 +269,8 @@ static void hostapd_send_nei_report_resp
- 		}
- 	}
- 
-+	hapd->openwrt_stats.rrm.neighbor_report_tx++;
-+
- 	hostapd_drv_send_action(hapd, hapd->iface->freq, 0, addr,
- 				wpabuf_head(buf), wpabuf_len(buf));
- 	wpabuf_free(buf);
+-- 
+2.41.0
+

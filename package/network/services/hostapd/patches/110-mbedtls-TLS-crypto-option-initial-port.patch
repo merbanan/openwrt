@@ -1,9 +1,13 @@
-From e16f200dc1d2f69efc78c7c55af0d7b410a981f9 Mon Sep 17 00:00:00 2001
+From cbef0dba8765632e26645876a27dce837c3380cf Mon Sep 17 00:00:00 2001
+Message-ID: <cbef0dba8765632e26645876a27dce837c3380cf.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
 From: Glenn Strauss <gstrauss@gluelogic.com>
 Date: Tue, 5 Jul 2022 02:49:50 -0400
-Subject: [PATCH 1/7] mbedtls: TLS/crypto option (initial port)
+Subject: [PATCH 11/57] mbedtls: TLS/crypto option (initial port)
 
 Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  hostapd/Makefile                              |   91 +
  hostapd/defconfig                             |   15 +-
@@ -19,6 +23,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  create mode 100644 src/crypto/tls_mbedtls.c
  create mode 100644 tests/build/build-wpa_supplicant-mbedtls.config
 
+diff --git a/hostapd/Makefile b/hostapd/Makefile
+index bc046d6e5..ebc946518 100644
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
 @@ -745,6 +745,40 @@ endif
@@ -301,6 +307,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  _OBJS_VAR := NOBJS
  include ../src/objs.mk
+diff --git a/hostapd/defconfig b/hostapd/defconfig
+index a9eab4d9c..bf185c5b4 100644
 --- a/hostapd/defconfig
 +++ b/hostapd/defconfig
 @@ -6,9 +6,21 @@
@@ -334,6 +342,9 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  # linux = Linux kernel AF_ALG and internal TLSv1 implementation (experimental)
  # none = Empty template
  #CONFIG_TLS=openssl
+diff --git a/src/crypto/crypto_mbedtls.c b/src/crypto/crypto_mbedtls.c
+new file mode 100644
+index 000000000..1cf36a071
 --- /dev/null
 +++ b/src/crypto/crypto_mbedtls.c
 @@ -0,0 +1,4043 @@
@@ -4380,6 +4391,9 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 +}
 +
 +#endif
+diff --git a/src/crypto/tls_mbedtls.c b/src/crypto/tls_mbedtls.c
+new file mode 100644
+index 000000000..2580a3a27
 --- /dev/null
 +++ b/src/crypto/tls_mbedtls.c
 @@ -0,0 +1,3313 @@
@@ -7696,6 +7710,9 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 +
 +	return 0;
 +}
+diff --git a/tests/build/build-wpa_supplicant-mbedtls.config b/tests/build/build-wpa_supplicant-mbedtls.config
+new file mode 100644
+index 000000000..896d3d78b
 --- /dev/null
 +++ b/tests/build/build-wpa_supplicant-mbedtls.config
 @@ -0,0 +1,24 @@
@@ -7723,6 +7740,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
 +CONFIG_SUITEB192=y
 +
 +CFLAGS += -Werror
+diff --git a/tests/hwsim/example-hostapd.config b/tests/hwsim/example-hostapd.config
+index e6f91fe38..fbee5eef5 100644
 --- a/tests/hwsim/example-hostapd.config
 +++ b/tests/hwsim/example-hostapd.config
 @@ -4,6 +4,7 @@ CONFIG_DRIVER_NONE=y
@@ -7743,6 +7762,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  CONFIG_EAP_EKE=y
  CONFIG_PKCS12=y
  CONFIG_RADIUS_SERVER=y
+diff --git a/tests/hwsim/example-wpa_supplicant.config b/tests/hwsim/example-wpa_supplicant.config
+index ea6ef7d27..7b281552c 100644
 --- a/tests/hwsim/example-wpa_supplicant.config
 +++ b/tests/hwsim/example-wpa_supplicant.config
 @@ -2,6 +2,7 @@
@@ -7763,6 +7784,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  CONFIG_USIM_SIMULATOR=y
  CONFIG_SIM_SIMULATOR=y
+diff --git a/wpa_supplicant/Makefile b/wpa_supplicant/Makefile
+index 1fbf9368d..58dde7dd6 100644
 --- a/wpa_supplicant/Makefile
 +++ b/wpa_supplicant/Makefile
 @@ -1163,6 +1163,29 @@ endif
@@ -8020,6 +8043,8 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  
  OBJS += $(SHA1OBJS) $(DESOBJS)
  
+diff --git a/wpa_supplicant/defconfig b/wpa_supplicant/defconfig
+index a4f20d439..2adc776b0 100644
 --- a/wpa_supplicant/defconfig
 +++ b/wpa_supplicant/defconfig
 @@ -10,8 +10,8 @@
@@ -8049,3 +8074,6 @@ Signed-off-by: Glenn Strauss <gstrauss@gluelogic.com>
  # linux = Linux kernel AF_ALG and internal TLSv1 implementation (experimental)
  # none = Empty template
  #CONFIG_TLS=openssl
+-- 
+2.41.0
+

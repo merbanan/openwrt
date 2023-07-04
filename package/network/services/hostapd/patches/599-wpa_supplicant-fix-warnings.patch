@@ -1,3 +1,18 @@
+From 8afaf5ceba313cacf25c9c20f2da4d5c76e4d0b7 Mon Sep 17 00:00:00 2001
+Message-ID: <8afaf5ceba313cacf25c9c20f2da4d5c76e4d0b7.1688418711.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 22:44:33 +0200
+Subject: [PATCH 44/57] wpa_supplicant fix warnings
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ wpa_supplicant/wps_supplicant.h | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/wpa_supplicant/wps_supplicant.h b/wpa_supplicant/wps_supplicant.h
+index aae3f7cb5..30b4e9105 100644
 --- a/wpa_supplicant/wps_supplicant.h
 +++ b/wpa_supplicant/wps_supplicant.h
 @@ -9,6 +9,7 @@
@@ -17,3 +32,6 @@
  struct wps_new_ap_settings {
  	const char *ssid_hex;
  	const char *auth;
+-- 
+2.41.0
+

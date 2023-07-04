@@ -1,6 +1,23 @@
+From 7c9de5f32bb0148556201e9c25bffa8a7982e411 Mon Sep 17 00:00:00 2001
+Message-ID: <7c9de5f32bb0148556201e9c25bffa8a7982e411.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:06:46 +0200
+Subject: [PATCH 51/57] ft iface
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c  | 2 ++
+ src/ap/ap_config.h     | 1 +
+ src/ap/wpa_auth_glue.c | 8 ++++++--
+ 3 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index 1dc15cf0f..7144b0d79 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -3007,6 +3007,8 @@ static int hostapd_config_fill(struct ho
+@@ -3007,6 +3007,8 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  		wpa_printf(MSG_INFO,
  			   "Line %d: Obsolete peerkey parameter ignored", line);
  #ifdef CONFIG_IEEE80211R_AP
@@ -9,6 +26,8 @@
  	} else if (os_strcmp(buf, "mobility_domain") == 0) {
  		if (os_strlen(pos) != 2 * MOBILITY_DOMAIN_ID_LEN ||
  		    hexstr2bin(pos, bss->mobility_domain,
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 23c49083a..0348d0774 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
 @@ -283,6 +283,7 @@ struct airtime_sta_weight {
@@ -19,9 +38,11 @@
  	char vlan_bridge[IFNAMSIZ + 1];
  	char wds_bridge[IFNAMSIZ + 1];
  	int bridge_hairpin; /* hairpin_mode on bridge members */
+diff --git a/src/ap/wpa_auth_glue.c b/src/ap/wpa_auth_glue.c
+index d95ec4eb0..17186bf4b 100644
 --- a/src/ap/wpa_auth_glue.c
 +++ b/src/ap/wpa_auth_glue.c
-@@ -1616,8 +1616,12 @@ int hostapd_setup_wpa(struct hostapd_dat
+@@ -1727,8 +1727,12 @@ int hostapd_setup_wpa(struct hostapd_data *hapd)
  	    wpa_key_mgmt_ft(hapd->conf->wpa_key_mgmt)) {
  		const char *ft_iface;
  
@@ -36,3 +57,6 @@
  		hapd->l2 = l2_packet_init(ft_iface, NULL, ETH_P_RRB,
  					  hostapd_rrb_receive, hapd, 1);
  		if (!hapd->l2) {
+-- 
+2.41.0
+

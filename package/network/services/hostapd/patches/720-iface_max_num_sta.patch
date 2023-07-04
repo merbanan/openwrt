@@ -1,6 +1,25 @@
+From f38bb4b0151b4a3f8df7b7e70ec62a05966afe03 Mon Sep 17 00:00:00 2001
+Message-ID: <f38bb4b0151b4a3f8df7b7e70ec62a05966afe03.1688418712.git.lorenzo@kernel.org>
+In-Reply-To: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+References: <f09ba6decf76948fbe001a0cf4d4709175dbd4b0.1688418711.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 3 Jul 2023 23:06:11 +0200
+Subject: [PATCH 50/57] iface max num sta
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ hostapd/config_file.c |  8 ++++++++
+ src/ap/ap_config.h    |  2 ++
+ src/ap/beacon.c       |  2 +-
+ src/ap/hostapd.c      | 24 ++++++++++++++++++++++++
+ src/ap/hostapd.h      |  1 +
+ 5 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/hostapd/config_file.c b/hostapd/config_file.c
+index c1236a60a..1dc15cf0f 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -2848,6 +2848,14 @@ static int hostapd_config_fill(struct ho
+@@ -2848,6 +2848,14 @@ static int hostapd_config_fill(struct hostapd_config *conf,
  				   line, bss->max_num_sta, MAX_STA_COUNT);
  			return 1;
  		}
@@ -15,19 +34,37 @@
  	} else if (os_strcmp(buf, "wpa") == 0) {
  		bss->wpa = atoi(pos);
  	} else if (os_strcmp(buf, "extended_key_id") == 0) {
---- a/src/ap/hostapd.h
-+++ b/src/ap/hostapd.h
-@@ -721,6 +721,7 @@ void hostapd_cleanup_cs_params(struct ho
- void hostapd_periodic_iface(struct hostapd_iface *iface);
- int hostapd_owe_trans_get_info(struct hostapd_data *hapd);
- void hostapd_ocv_check_csa_sa_query(void *eloop_ctx, void *timeout_ctx);
-+int hostapd_check_max_sta(struct hostapd_data *hapd);
+diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
+index 336fe3386..23c49083a 100644
+--- a/src/ap/ap_config.h
++++ b/src/ap/ap_config.h
+@@ -1037,6 +1037,8 @@ struct hostapd_config {
+ 	unsigned int track_sta_max_num;
+ 	unsigned int track_sta_max_age;
  
- void hostapd_switch_color(struct hostapd_data *hapd, u64 bitmap);
- void hostapd_cleanup_cca_params(struct hostapd_data *hapd);
++	int max_num_sta;
++
+ 	char country[3]; /* first two octets: country code as described in
+ 			  * ISO/IEC 3166-1. Third octet:
+ 			  * ' ' (ascii 32): all environments
+diff --git a/src/ap/beacon.c b/src/ap/beacon.c
+index 230a37e6d..78b347618 100644
+--- a/src/ap/beacon.c
++++ b/src/ap/beacon.c
+@@ -1252,7 +1252,7 @@ void handle_probe_req(struct hostapd_data *hapd,
+ 	if (hapd->conf->no_probe_resp_if_max_sta &&
+ 	    is_multicast_ether_addr(mgmt->da) &&
+ 	    is_multicast_ether_addr(mgmt->bssid) &&
+-	    hapd->num_sta >= hapd->conf->max_num_sta &&
++	    hostapd_check_max_sta(hapd) &&
+ 	    !ap_get_sta(hapd, mgmt->sa)) {
+ 		wpa_printf(MSG_MSGDUMP, "%s: Ignore Probe Request from " MACSTR
+ 			   " since no room for additional STA",
+diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
+index 3a89e8c54..c3ef1f79c 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -271,6 +271,30 @@ static int hostapd_iface_conf_changed(st
+@@ -272,6 +272,30 @@ static int hostapd_iface_conf_changed(struct hostapd_config *newconf,
  }
  
  
@@ -58,25 +95,18 @@
  int hostapd_reload_config(struct hostapd_iface *iface, int reconf)
  {
  	struct hapd_interfaces *interfaces = iface->interfaces;
---- a/src/ap/beacon.c
-+++ b/src/ap/beacon.c
-@@ -1222,7 +1222,7 @@ void handle_probe_req(struct hostapd_dat
- 	if (hapd->conf->no_probe_resp_if_max_sta &&
- 	    is_multicast_ether_addr(mgmt->da) &&
- 	    is_multicast_ether_addr(mgmt->bssid) &&
--	    hapd->num_sta >= hapd->conf->max_num_sta &&
-+	    hostapd_check_max_sta(hapd) &&
- 	    !ap_get_sta(hapd, mgmt->sa)) {
- 		wpa_printf(MSG_MSGDUMP, "%s: Ignore Probe Request from " MACSTR
- 			   " since no room for additional STA",
---- a/src/ap/ap_config.h
-+++ b/src/ap/ap_config.h
-@@ -1026,6 +1026,8 @@ struct hostapd_config {
- 	unsigned int track_sta_max_num;
- 	unsigned int track_sta_max_age;
+diff --git a/src/ap/hostapd.h b/src/ap/hostapd.h
+index 045ace283..072205c3c 100644
+--- a/src/ap/hostapd.h
++++ b/src/ap/hostapd.h
+@@ -734,6 +734,7 @@ void hostapd_cleanup_cs_params(struct hostapd_data *hapd);
+ void hostapd_periodic_iface(struct hostapd_iface *iface);
+ int hostapd_owe_trans_get_info(struct hostapd_data *hapd);
+ void hostapd_ocv_check_csa_sa_query(void *eloop_ctx, void *timeout_ctx);
++int hostapd_check_max_sta(struct hostapd_data *hapd);
  
-+	int max_num_sta;
-+
- 	char country[3]; /* first two octets: country code as described in
- 			  * ISO/IEC 3166-1. Third octet:
- 			  * ' ' (ascii 32): all environments
+ void hostapd_switch_color(struct hostapd_data *hapd, u64 bitmap);
+ void hostapd_cleanup_cca_params(struct hostapd_data *hapd);
+-- 
+2.41.0
+
