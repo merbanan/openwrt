@@ -140,6 +140,83 @@
 		method      = "smc";
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		/* 320 KiB reserved for ARM Trusted Firmware (BL31 and BL32) */
+		secmon_reserved: secmon@43000000 {
+			reg = <0 0x43000000 0 0x50000>;
+			no-map;
+		};
+
+		wo_emi0: wo-emi@4f600000 {
+			reg = <0 0x4f600000 0 0x40000>;
+			no-map;
+		};
+
+		wo_emi1: wo-emi@4f640000 {
+			reg = <0 0x4f640000 0 0x40000>;
+			no-map;
+		};
+
+		wo_emi2: wo-emi@4f680000 {
+			reg = <0 0x4f680000 0 0x40000>;
+			no-map;
+		};
+
+		wo_ilm0: wo-ilm@151e0000 {
+			reg = <0 0x151e0000 0 0x8000>;
+			no-map;
+		};
+
+		wo_ilm1: wo-ilm@152e0000 {
+			reg = <0 0x152e0000 0 0x8000>;
+			no-map;
+		};
+
+		wo_ilm2: wo-ilm@153e0000 {
+			reg = <0 0x153e0000 0 0x8000>;
+			no-map;
+		};
+
+		wo_dlm0: wo-dlm@151e8000 {
+			reg = <0 0x151e8000 0 0x2000>;
+			no-map;
+		};
+
+		wo_dlm1: wo-dlm@152e8000 {
+			reg = <0 0x152e8000 0 0x2000>;
+			no-map;
+		};
+
+		wo_dlm2: wo-dlm@153e8000 {
+			reg = <0 0x153e8000 0 0x2000>;
+			no-map;
+		};
+
+		wo_data: wo-data@4f700000 {
+			reg = <0 0x4f700000 0 0x240000>;
+			no-map;
+		};
+
+		wo_boot0: wo-boot@15194000 {
+			reg = <0 0x15194000 0 0x1000>;
+			no-map;
+		};
+
+		wo_boot1: wo-boot@15294000 {
+			reg = <0 0x15294000 0 0x1000>;
+			no-map;
+		};
+
+		wo_boot2: wo-boot@15394000 {
+			reg = <0 0x15394000 0 0x1000>;
+			no-map;
+		};
+	};
+
 	reg_1p8v: regulator-1p8v {
 		compatible = "regulator-fixed";
 		regulator-name = "fixed-1.8V";
@@ -156,18 +233,6 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-boot-on;
 		regulator-always-on;
-	};
-
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		/* 320 KiB reserved for ARM Trusted Firmware (BL31 and BL32) */
-		secmon_reserved: secmon@43000000 {
-			reg = <0 0x43000000 0 0x50000>;
-			no-map;
-		};
 	};
 
 	soc {
@@ -624,6 +689,11 @@
 			status = "disabled";
 		};
 
+		wed_pcie: wed_pcie@10003000 {
+			compatible = "mediatek,wed_pcie";
+			reg = <0 0x10003000 0 0x10>;
+		};
+
 		spi0: spi@11007000 {
 			compatible = "mediatek,ipm-spi-quad", "mediatek,spi-ipm";
 			reg = <0 0x11007000 0 0x100>;
@@ -1064,6 +1134,63 @@
 			#reset-cells = <1>;
 		};
 
+		wed0: wed@15010000 {
+			compatible = "mediatek,mt7988-wed", "syscon";
+			reg = <0 0x15010000 0 0x2000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>;
+			memory-region = <&wo_emi0>, <&wo_ilm0>, <&wo_dlm0>,
+					<&wo_data>, <&wo_boot0>;
+			memory-region-names = "wo-emi", "wo-ilm", "wo-dlm",
+					      "wo-data", "wo-boot";
+			mediatek,wo-ccif = <&wo_ccif0>;
+		};
+
+		wed1: wed@15012000 {
+			compatible = "mediatek,mt7988-wed", "syscon";
+			reg = <0 0x15012000 0 0x2000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>;
+			memory-region = <&wo_emi1>, <&wo_ilm1>, <&wo_dlm1>,
+					<&wo_data>, <&wo_boot1>;
+			memory-region-names = "wo-emi", "wo-ilm", "wo-dlm",
+					      "wo-data", "wo-boot";
+			mediatek,wo-ccif = <&wo_ccif1>;
+		};
+
+		wed2: wed@15014000 {
+			compatible = "mediatek,mt7988-wed", "syscon";
+			reg = <0 0x15014000 0 0x2000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 207 IRQ_TYPE_LEVEL_HIGH>;
+			memory-region = <&wo_emi2>, <&wo_ilm2>, <&wo_dlm2>,
+					<&wo_data>, <&wo_boot2>;
+			memory-region-names = "wo-emi", "wo-ilm", "wo-dlm",
+					      "wo-data", "wo-boot";
+			mediatek,wo-ccif = <&wo_ccif2>;
+		};
+
+		wo_ccif0: syscon@151a5000 {
+			compatible = "mediatek,mt7988-wo-ccif", "syscon";
+			reg = <0 0x151a5000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 211 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		wo_ccif1: syscon@152a5000 {
+			compatible = "mediatek,mt7988-wo-ccif", "syscon";
+			reg = <0 0x152a5000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		wo_ccif2: syscon@153a5000 {
+			compatible = "mediatek,mt7988-wo-ccif", "syscon";
+			reg = <0 0x153a5000 0 0x1000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 272 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
 		switch: switch@15020000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -1315,6 +1442,8 @@
 			mediatek,usxgmiisys = <&usxgmiisys0>, <&usxgmiisys1>;
 			mediatek,xfi-pextp = <&xfi_pextp0>, <&xfi_pextp1>;
 			mediatek,xfi-pll = <&xfi_pll>;
+			mediatek,wed-pcie = <&wed_pcie>;
+			mediatek,wed = <&wed0>, <&wed1>, <&wed2>;
 			mediatek,infracfg = <&topmisc>;
 			mediatek,toprgu = <&watchdog>;
 			#reset-cells = <1>;
