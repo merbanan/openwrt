@@ -1,0 +1,59 @@
+From 6d8a82ad8415d6870b9ad75d8737ea234b3d1c5a Mon Sep 17 00:00:00 2001
+Message-ID: <6d8a82ad8415d6870b9ad75d8737ea234b3d1c5a.1690550063.git.lorenzo@kernel.org>
+In-Reply-To: <d172d6d8d68a2abd1f4f7d25360fcd6fc6f8f6b0.1690550063.git.lorenzo@kernel.org>
+References: <d172d6d8d68a2abd1f4f7d25360fcd6fc6f8f6b0.1690550063.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 23 Jul 2023 15:14:03 +0200
+Subject: [PATCH net-next 2/6] net: ethernet: mtk_wed: rename mtk_rxbm_desc in
+ mtk_wed_bm_desc
+
+Rename mtk_rxbm_desc structure in mtk_wed_bm_desc since it will be used
+on tx side as well by MT7988 SoC.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_wed.c          | 4 ++--
+ drivers/net/wireless/mediatek/mt76/mt7915/mmio.c | 2 +-
+ include/linux/soc/mediatek/mtk_wed.h             | 4 ++--
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+--- a/drivers/net/ethernet/mediatek/mtk_wed.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed.c
+@@ -421,7 +421,7 @@ free_pagelist:
+ static int
+ mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
+ {
+-	struct mtk_rxbm_desc *desc;
++	struct mtk_wed_bm_desc *desc;
+ 	dma_addr_t desc_phys;
+ 
+ 	dev->rx_buf_ring.size = dev->wlan.rx_nbuf;
+@@ -441,7 +441,7 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_d
+ static void
+ mtk_wed_free_rx_buffer(struct mtk_wed_device *dev)
+ {
+-	struct mtk_rxbm_desc *desc = dev->rx_buf_ring.desc;
++	struct mtk_wed_bm_desc *desc = dev->rx_buf_ring.desc;
+ 
+ 	if (!desc)
+ 		return;
+--- a/include/linux/soc/mediatek/mtk_wed.h
++++ b/include/linux/soc/mediatek/mtk_wed.h
+@@ -45,7 +45,7 @@ enum mtk_wed_wo_cmd {
+ 	MTK_WED_WO_CMD_WED_END
+ };
+ 
+-struct mtk_rxbm_desc {
++struct mtk_wed_bm_desc {
+ 	__le32 buf0;
+ 	__le32 token;
+ } __packed __aligned(4);
+@@ -105,7 +105,7 @@ struct mtk_wed_device {
+ 	struct {
+ 		int size;
+ 		struct page_frag_cache rx_page;
+-		struct mtk_rxbm_desc *desc;
++		struct mtk_wed_bm_desc *desc;
+ 		dma_addr_t desc_phys;
+ 	} rx_buf_ring;
+ 
