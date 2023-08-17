@@ -1,0 +1,24 @@
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+index b42329ba5e85..15ec8b2ed1a7 100644
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+@@ -447,9 +447,6 @@ mtk_flow_offload_replace(struct mtk_eth *eth, struct flow_cls_offload *f,
+ 	if (err)
+ 		return err;
+ 
+-	if (wed_index >= 0 && (err = mtk_wed_flow_add(wed_index)) < 0)
+-		return err;
+-
+ 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+ 	if (!entry)
+ 		return -ENOMEM;
+@@ -474,8 +471,7 @@ mtk_flow_offload_replace(struct mtk_eth *eth, struct flow_cls_offload *f,
+ 	mtk_foe_entry_clear(eth->ppe[entry->ppe_index], entry);
+ free:
+ 	kfree(entry);
+-	if (wed_index >= 0)
+-	    mtk_wed_flow_remove(wed_index);
++
+ 	return err;
+ }
+ 
