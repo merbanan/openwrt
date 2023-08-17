@@ -1,0 +1,10 @@
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -4900,6 +4900,7 @@ static const struct mtk_soc_data mt7986_
+ 	.hw_features = MTK_HW_FEATURES,
+ 	.required_clks = MT7986_CLKS_BITMAP,
+ 	.required_pctl = false,
++	.offload_version = 2,
+ 	.hash_offset = 4,
+ 	.foe_entry_size = sizeof(struct mtk_foe_entry),
+ 	.has_accounting = true,
