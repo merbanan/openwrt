@@ -1,10 +1,10 @@
-From c0ea82b7c0299d5dff255b8523b24137179d17de Mon Sep 17 00:00:00 2001
-Message-ID: <c0ea82b7c0299d5dff255b8523b24137179d17de.1692295361.git.lorenzo@kernel.org>
-In-Reply-To: <0cfd5e90f0fb354413510cd0ca35d862fb8fc077.1692295361.git.lorenzo@kernel.org>
-References: <0cfd5e90f0fb354413510cd0ca35d862fb8fc077.1692295361.git.lorenzo@kernel.org>
+From c0a688d6a794fc1ee8f70a4c7aafcf5072486835 Mon Sep 17 00:00:00 2001
+Message-ID: <c0a688d6a794fc1ee8f70a4c7aafcf5072486835.1692377512.git.lorenzo@kernel.org>
+In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Mon, 24 Jul 2023 11:26:18 +0200
-Subject: [PATCH net-next 2/2] net: ethernet: mtk_wed: introduce hw_rro support
+Subject: [PATCH net-next 9/9] net: ethernet: mtk_wed: introduce hw_rro support
  for MT7988 (WIP)
 
 Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
@@ -12,11 +12,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 ---
  drivers/net/ethernet/mediatek/mtk_wed.c | 293 +++++++++++++++++++++++-
- include/linux/soc/mediatek/mtk_wed.h    |  42 ++++
- 2 files changed, 334 insertions(+), 1 deletion(-)
+ include/linux/soc/mediatek/mtk_wed.h    |  44 ++++
+ 2 files changed, 336 insertions(+), 1 deletion(-)
 
-diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index 64e88c0867f3..0b5f6cc4f533 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
 @@ -26,7 +26,7 @@
@@ -27,8 +25,8 @@ index 64e88c0867f3..0b5f6cc4f533 100644
 +#define MTK_WED_RX_BUF_PER_PAGE		(PAGE_SIZE / MTK_WED_PAGE_BUF_SIZE)
  #define MTK_WED_RX_RING_SIZE		1536
  #define MTK_WED_RX_PG_BM_CNT		8192
- #define MTK_WED_PAO_BUF_SIZE		(PAGE_SIZE << 4)
-@@ -564,8 +564,11 @@ mtk_wed_free_tx_buffer(struct mtk_wed_device *dev)
+ #define MTK_WED_AMSDU_BUF_SIZE		(PAGE_SIZE << 4)
+@@ -564,8 +564,11 @@ free_pagelist:
  static int
  mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
  {
@@ -40,7 +38,7 @@ index 64e88c0867f3..0b5f6cc4f533 100644
  
  	dev->rx_buf_ring.size = dev->wlan.rx_nbuf;
  	desc = dma_alloc_coherent(dev->hw->dev,
-@@ -578,13 +581,72 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
+@@ -578,13 +581,72 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_d
  	dev->rx_buf_ring.desc_phys = desc_phys;
  	dev->wlan.init_rx_buf(dev, dev->wlan.rx_npkt);
  
@@ -113,7 +111,7 @@ index 64e88c0867f3..0b5f6cc4f533 100644
  
  	if (!desc)
  		return;
-@@ -592,6 +654,36 @@ mtk_wed_free_rx_buffer(struct mtk_wed_device *dev)
+@@ -592,6 +654,36 @@ mtk_wed_free_rx_buffer(struct mtk_wed_de
  	dev->wlan.release_rx_buf(dev);
  	dma_free_coherent(dev->hw->dev, dev->rx_buf_ring.size * sizeof(*desc),
  			  desc, dev->rx_buf_ring.desc_phys);
@@ -150,7 +148,7 @@ index 64e88c0867f3..0b5f6cc4f533 100644
  }
  
  static void
-@@ -605,6 +697,23 @@ mtk_wed_rx_buffer_hw_init(struct mtk_wed_device *dev)
+@@ -605,6 +697,23 @@ mtk_wed_rx_buffer_hw_init(struct mtk_wed
  	wed_w32(dev, MTK_WED_RX_BM_DYN_ALLOC_TH,
  		FIELD_PREP(MTK_WED_RX_BM_DYN_ALLOC_TH_H, 0xffff));
  	wed_set(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_RX_BM_EN);
@@ -174,36 +172,35 @@ index 64e88c0867f3..0b5f6cc4f533 100644
  }
  
  static void
-@@ -900,6 +1009,8 @@ mtk_wed_set_wpdma(struct mtk_wed_device *dev)
- 	if (dev->hw->version == 1) {
+@@ -897,6 +1006,8 @@ mtk_wed_bus_init(struct mtk_wed_device *
+ static void
+ mtk_wed_set_wpdma(struct mtk_wed_device *dev)
+ {
++	int i;
++
+ 	if (mtk_wed_is_v1(dev->hw)) {
  		wed_w32(dev, MTK_WED_WPDMA_CFG_BASE,  dev->wlan.wpdma_phys);
- 	} else {
-+		int i;
+ 		return;
+@@ -917,6 +1028,15 @@ mtk_wed_set_wpdma(struct mtk_wed_device
+ 		wed_w32(dev, MTK_WED_WPDMA_RX_RING0_V3, dev->wlan.wpdma_rx);
+ 	else
+ 		wed_w32(dev, MTK_WED_WPDMA_RX_RING0, dev->wlan.wpdma_rx);
 +
- 		mtk_wed_bus_init(dev);
- 		wed_w32(dev, MTK_WED_WPDMA_CFG_BASE, dev->wlan.wpdma_int);
- 		wed_w32(dev, MTK_WED_WPDMA_CFG_INT_MASK, dev->wlan.wpdma_mask);
-@@ -916,6 +1027,15 @@ mtk_wed_set_wpdma(struct mtk_wed_device *dev)
- 		else
- 			wed_w32(dev, MTK_WED_WPDMA_RX_RING0,
- 				dev->wlan.wpdma_rx);
++	if (!dev->wlan.hw_rro)
++		return;
 +
-+		if (!dev->wlan.hw_rro)
-+			return;
-+
-+		wed_w32(dev, MTK_WED_RRO_RX_D_CFG(0), dev->wlan.wpdma_rx_rro[0]);
-+		wed_w32(dev, MTK_WED_RRO_RX_D_CFG(1), dev->wlan.wpdma_rx_rro[1]);
-+		for (i = 0; i < MTK_WED_RX_PAGE_QUEUES; i++)
-+			wed_w32(dev, MTK_WED_RRO_MSDU_PG_RING_CFG(i),
-+				dev->wlan.wpdma_rx_pg + i * 0x10);
- 	}
++	wed_w32(dev, MTK_WED_RRO_RX_D_CFG(0), dev->wlan.wpdma_rx_rro[0]);
++	wed_w32(dev, MTK_WED_RRO_RX_D_CFG(1), dev->wlan.wpdma_rx_rro[1]);
++	for (i = 0; i < MTK_WED_RX_PAGE_QUEUES; i++)
++		wed_w32(dev, MTK_WED_RRO_MSDU_PG_RING_CFG(i),
++			dev->wlan.wpdma_rx_pg + i * 0x10);
  }
  
-@@ -1746,6 +1866,173 @@ mtk_wed_dma_enable(struct mtk_wed_device *dev)
- 	}
+ static void
+@@ -1772,6 +1892,173 @@ mtk_wed_dma_enable(struct mtk_wed_device
  }
  
-+static void
+ static void
 +mtk_wed_start_hw_rro(struct mtk_wed_device *dev, u32 irq_mask)
 +{
 +	int i;
@@ -370,10 +367,11 @@ index 64e88c0867f3..0b5f6cc4f533 100644
 +	return 0;
 +}
 +
- static void
++static void
  mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
  {
-@@ -2209,6 +2496,10 @@ void mtk_wed_add_hw(struct device_node *np, struct mtk_eth *eth,
+ 	int i;
+@@ -2234,6 +2521,10 @@ void mtk_wed_add_hw(struct device_node *
  		.detach = mtk_wed_detach,
  		.ppe_check = mtk_wed_ppe_check,
  		.setup_tc = mtk_wed_setup_tc,
@@ -384,8 +382,6 @@ index 64e88c0867f3..0b5f6cc4f533 100644
  	};
  	struct device_node *eth_np = eth->dev->of_node;
  	struct platform_device *pdev;
-diff --git a/include/linux/soc/mediatek/mtk_wed.h b/include/linux/soc/mediatek/mtk_wed.h
-index b9f2aeeeada1..e73c1b3b1205 100644
 --- a/include/linux/soc/mediatek/mtk_wed.h
 +++ b/include/linux/soc/mediatek/mtk_wed.h
 @@ -10,6 +10,7 @@
@@ -406,8 +402,8 @@ index b9f2aeeeada1..e73c1b3b1205 100644
  
  	struct {
  		int size;
-@@ -112,6 +116,13 @@ struct mtk_wed_device {
- 		int size;
+@@ -113,6 +117,13 @@ struct mtk_wed_device {
+ 		struct page_frag_cache rx_page;
  		struct mtk_wed_bm_desc *desc;
  		dma_addr_t desc_phys;
 +		struct {
@@ -420,7 +416,16 @@ index b9f2aeeeada1..e73c1b3b1205 100644
  	} rx_buf_ring;
  
  	struct {
-@@ -154,9 +165,20 @@ struct mtk_wed_device {
+@@ -139,6 +150,8 @@ struct mtk_wed_device {
+ 		u32 wpdma_txfree;
+ 		u32 wpdma_rx_glo;
+ 		u32 wpdma_rx;
++		u32 wpdma_rx_rro[MTK_WED_RX_QUEUES];
++		u32 wpdma_rx_pg;
+ 
+ 		bool wcid_512;
+ 		bool hw_rro;
+@@ -153,9 +166,20 @@ struct mtk_wed_device {
  
  		u8 tx_tbit[MTK_WED_TX_QUEUES];
  		u8 rx_tbit[MTK_WED_RX_QUEUES];
@@ -441,7 +446,7 @@ index b9f2aeeeada1..e73c1b3b1205 100644
  		u32 (*init_buf)(void *ptr, dma_addr_t phys, int token_id);
  		int (*offload_enable)(struct mtk_wed_device *wed);
  		void (*offload_disable)(struct mtk_wed_device *wed);
-@@ -195,6 +217,13 @@ struct mtk_wed_ops {
+@@ -194,6 +218,13 @@ struct mtk_wed_ops {
  	void (*irq_set_mask)(struct mtk_wed_device *dev, u32 mask);
  	int (*setup_tc)(struct mtk_wed_device *wed, struct net_device *dev,
  			enum tc_setup_type type, void *type_data);
@@ -455,7 +460,7 @@ index b9f2aeeeada1..e73c1b3b1205 100644
  };
  
  extern const struct mtk_wed_ops __rcu *mtk_soc_wed_ops;
-@@ -258,6 +287,15 @@ mtk_wed_get_rx_capa(struct mtk_wed_device *dev)
+@@ -257,6 +288,15 @@ mtk_wed_get_rx_capa(struct mtk_wed_devic
  #define mtk_wed_device_dma_reset(_dev) (_dev)->ops->reset_dma(_dev)
  #define mtk_wed_device_setup_tc(_dev, _netdev, _type, _type_data) \
  	(_dev)->ops->setup_tc(_dev, _netdev, _type, _type_data)
@@ -471,7 +476,7 @@ index b9f2aeeeada1..e73c1b3b1205 100644
  #else
  static inline bool mtk_wed_device_active(struct mtk_wed_device *dev)
  {
-@@ -277,6 +315,10 @@ static inline bool mtk_wed_device_active(struct mtk_wed_device *dev)
+@@ -276,6 +316,10 @@ static inline bool mtk_wed_device_active
  #define mtk_wed_device_stop(_dev) do {} while (0)
  #define mtk_wed_device_dma_reset(_dev) do {} while (0)
  #define mtk_wed_device_setup_tc(_dev, _netdev, _type, _type_data) -EOPNOTSUPP
@@ -482,6 +487,3 @@ index b9f2aeeeada1..e73c1b3b1205 100644
  #endif
  
  #endif
--- 
-2.41.0
-

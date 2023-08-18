@@ -1,10 +1,10 @@
-From ce82ad0b3e96b63b9f19330cda5eb05acd598f53 Mon Sep 17 00:00:00 2001
-Message-ID: <ce82ad0b3e96b63b9f19330cda5eb05acd598f53.1690550064.git.lorenzo@kernel.org>
-In-Reply-To: <d172d6d8d68a2abd1f4f7d25360fcd6fc6f8f6b0.1690550063.git.lorenzo@kernel.org>
-References: <d172d6d8d68a2abd1f4f7d25360fcd6fc6f8f6b0.1690550063.git.lorenzo@kernel.org>
+From dc0fe1ff11931e39cbdbc4175ab954966cd917c4 Mon Sep 17 00:00:00 2001
+Message-ID: <dc0fe1ff11931e39cbdbc4175ab954966cd917c4.1692377512.git.lorenzo@kernel.org>
+In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 23 Jul 2023 15:59:04 +0200
-Subject: [PATCH net-next 3/6] net: ethernet: mtk_wed: introduce mtk_wed_buf
+Subject: [PATCH net-next 5/9] net: ethernet: mtk_wed: introduce mtk_wed_buf
  structure
 
 Introduce mtk_wed_buf structure to store both virtual and physical
@@ -20,11 +20,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  include/linux/soc/mediatek/mtk_wed.h    |  7 ++++++-
  2 files changed, 12 insertions(+), 7 deletions(-)
 
-diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index 2dbbacae893a..56a5f95cef56 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -299,9 +299,9 @@ mtk_wed_assign(struct mtk_wed_device *dev)
+@@ -299,9 +299,9 @@ out:
  static int
  mtk_wed_tx_buffer_alloc(struct mtk_wed_device *dev)
  {
@@ -35,7 +33,7 @@ index 2dbbacae893a..56a5f95cef56 100644
  	int token = dev->wlan.token_start;
  	int ring_size;
  	int n_pages;
-@@ -342,7 +342,8 @@ mtk_wed_tx_buffer_alloc(struct mtk_wed_device *dev)
+@@ -342,7 +342,8 @@ mtk_wed_tx_buffer_alloc(struct mtk_wed_d
  			return -ENOMEM;
  		}
  
@@ -45,7 +43,7 @@ index 2dbbacae893a..56a5f95cef56 100644
  		dma_sync_single_for_cpu(dev->hw->dev, page_phys, PAGE_SIZE,
  					DMA_BIDIRECTIONAL);
  
-@@ -386,8 +387,8 @@ mtk_wed_tx_buffer_alloc(struct mtk_wed_device *dev)
+@@ -386,8 +387,8 @@ mtk_wed_tx_buffer_alloc(struct mtk_wed_d
  static void
  mtk_wed_free_tx_buffer(struct mtk_wed_device *dev)
  {
@@ -55,7 +53,7 @@ index 2dbbacae893a..56a5f95cef56 100644
  	int page_idx;
  	int i;
  
-@@ -399,13 +400,12 @@ mtk_wed_free_tx_buffer(struct mtk_wed_device *dev)
+@@ -399,13 +400,12 @@ mtk_wed_free_tx_buffer(struct mtk_wed_de
  
  	for (i = 0, page_idx = 0; i < dev->tx_buf_ring.size;
  	     i += MTK_WED_BUF_PER_PAGE) {
@@ -71,8 +69,6 @@ index 2dbbacae893a..56a5f95cef56 100644
  		dma_unmap_page(dev->hw->dev, buf_addr, PAGE_SIZE,
  			       DMA_BIDIRECTIONAL);
  		__free_page(page);
-diff --git a/include/linux/soc/mediatek/mtk_wed.h b/include/linux/soc/mediatek/mtk_wed.h
-index c6512c216b27..5f00dc26582b 100644
 --- a/include/linux/soc/mediatek/mtk_wed.h
 +++ b/include/linux/soc/mediatek/mtk_wed.h
 @@ -76,6 +76,11 @@ struct mtk_wed_wo_rx_stats {
@@ -96,6 +92,3 @@ index c6512c216b27..5f00dc26582b 100644
  		struct mtk_wdma_desc *desc;
  		dma_addr_t desc_phys;
  	} tx_buf_ring;
--- 
-2.41.0
-
