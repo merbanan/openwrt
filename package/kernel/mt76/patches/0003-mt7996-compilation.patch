@@ -1,0 +1,29 @@
+diff --git a/mt7996/mcu.c b/mt7996/mcu.c
+index 4a30db49..c924a7c3 100644
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -1116,7 +1116,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
+ 	tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_MURU, sizeof(*muru));
+ 
+ 	muru = (struct sta_rec_muru *)tlv;
+-	muru->cfg.mimo_dl_en = vif->bss_conf.eht_mu_beamformer ||
++	muru->cfg.mimo_dl_en = /* vif->bss_conf.eht_mu_beamformer || */
+ 			       vif->bss_conf.he_mu_beamformer ||
+ 			       vif->bss_conf.vht_mu_beamformer ||
+ 			       vif->bss_conf.vht_mu_beamformee;
+@@ -1167,6 +1167,7 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
+ 	if (!bfee && sts < 2)
+ 		return false;
+ 
++#if 0
+ 	if (sta->deflink.eht_cap.has_eht) {
+ 		struct ieee80211_sta_eht_cap *pc = &sta->deflink.eht_cap;
+ 		struct ieee80211_eht_cap_elem_fixed *pe = &pc->eht_cap_elem;
+@@ -1178,6 +1179,7 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
+ 			return vif->bss_conf.eht_su_beamformer &&
+ 			       EHT_PHY(CAP0_SU_BEAMFORMER, pe->phy_cap_info[0]);
+ 	}
++#endif
+ 
+ 	if (sta->deflink.he_cap.has_he) {
+ 		struct ieee80211_he_cap_elem *pe = &sta->deflink.he_cap.he_cap_elem;
