@@ -1,0 +1,27 @@
+From bcb6412e0ca47d1084d39533fca437f3b7a8fadd Mon Sep 17 00:00:00 2001
+Message-ID: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692555803.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 20 Aug 2023 20:20:49 +0200
+Subject: [PATCH 1/4] mt76: fix wed compilation
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt7915/mmio.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mt7915/mmio.c b/mt7915/mmio.c
+index fc7ace63..e7d8e03f 100644
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -591,7 +591,7 @@ static void mt7915_mmio_wed_release_rx_buf(struct mtk_wed_device *wed)
+ 
+ static u32 mt7915_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
+ {
+-	struct mtk_rxbm_desc *desc = wed->rx_buf_ring.desc;
++	struct mtk_wed_bm_desc *desc = wed->rx_buf_ring.desc;
+ 	struct mt76_txwi_cache *t = NULL;
+ 	struct mt7915_dev *dev;
+ 	struct mt76_queue *q;
+-- 
+2.41.0
+

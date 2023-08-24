@@ -1,3 +1,16 @@
+From 725bda81bbf12a36dd4b088f5c9146b789b092f1 Mon Sep 17 00:00:00 2001
+Message-ID: <725bda81bbf12a36dd4b088f5c9146b789b092f1.1692555803.git.lorenzo@kernel.org>
+In-Reply-To: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692555803.git.lorenzo@kernel.org>
+References: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692555803.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 20 Aug 2023 10:35:10 +0200
+Subject: [PATCH 4/4] mt7996: hack for compilation
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt7996/mcu.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
 diff --git a/mt7996/mcu.c b/mt7996/mcu.c
 index 4a30db49..c924a7c3 100644
 --- a/mt7996/mcu.c
@@ -27,3 +40,6 @@ index 4a30db49..c924a7c3 100644
  
  	if (sta->deflink.he_cap.has_he) {
  		struct ieee80211_he_cap_elem *pe = &sta->deflink.he_cap.he_cap_elem;
+-- 
+2.41.0
+
