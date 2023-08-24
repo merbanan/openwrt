@@ -1,10 +1,10 @@
-From 2a421d98aa1fb00c96cddb9a299ec97557c3b9fe Mon Sep 17 00:00:00 2001
-Message-ID: <2a421d98aa1fb00c96cddb9a299ec97557c3b9fe.1692377512.git.lorenzo@kernel.org>
-In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
-References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+From bb04525e8a981cf5279fc4004d48a94f41512283 Mon Sep 17 00:00:00 2001
+Message-ID: <bb04525e8a981cf5279fc4004d48a94f41512283.1692432958.git.lorenzo@kernel.org>
+In-Reply-To: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
+References: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 18 Aug 2023 16:24:36 +0200
-Subject: [PATCH net-next 7/9] net: ethernet: mtk_wed: refactor
+Subject: [PATCH net-next 2/4] net: ethernet: mtk_wed: refactor
  mtk_wed_check_wfdma_rx_fill routine
 
 Refactor mtk_wed_check_wfdma_rx_fill() in order to be reused adding HW
@@ -19,7 +19,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -548,22 +548,15 @@ mtk_wed_set_512_support(struct mtk_wed_d
+@@ -550,22 +550,15 @@ mtk_wed_set_512_support(struct mtk_wed_d
  	}
  }
  
@@ -46,7 +46,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  		if (cur_idx == MTK_WED_RX_RING_SIZE - 1)
  			break;
  
-@@ -572,12 +565,10 @@ mtk_wed_check_wfdma_rx_fill(struct mtk_w
+@@ -574,12 +567,10 @@ mtk_wed_check_wfdma_rx_fill(struct mtk_w
  
  	if (i == 3) {
  		dev_err(dev->hw->dev, "rx dma enable failed\n");
@@ -61,7 +61,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  }
  
  static void
-@@ -1551,6 +1542,7 @@ mtk_wed_configure_irq(struct mtk_wed_dev
+@@ -1553,6 +1544,7 @@ mtk_wed_configure_irq(struct mtk_wed_dev
  	wed_w32(dev, MTK_WED_INT_MASK, irq_mask);
  }
  
@@ -69,7 +69,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  static void
  mtk_wed_dma_enable(struct mtk_wed_device *dev)
  {
-@@ -1640,8 +1632,28 @@ mtk_wed_dma_enable(struct mtk_wed_device
+@@ -1642,8 +1634,28 @@ mtk_wed_dma_enable(struct mtk_wed_device
  		wdma_set(dev, MTK_WDMA_WRBK_TX_CFG, MTK_WDMA_WRBK_TX_CFG_WRBK_EN);
  	}
  

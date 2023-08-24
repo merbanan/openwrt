@@ -1,19 +1,22 @@
-From c0a688d6a794fc1ee8f70a4c7aafcf5072486835 Mon Sep 17 00:00:00 2001
-Message-ID: <c0a688d6a794fc1ee8f70a4c7aafcf5072486835.1692377512.git.lorenzo@kernel.org>
-In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
-References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+From 4d6639515a30fd485f032ed1ca1ee98847d6c743 Mon Sep 17 00:00:00 2001
+Message-ID: <4d6639515a30fd485f032ed1ca1ee98847d6c743.1692432958.git.lorenzo@kernel.org>
+In-Reply-To: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
+References: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Mon, 24 Jul 2023 11:26:18 +0200
-Subject: [PATCH net-next 9/9] net: ethernet: mtk_wed: introduce hw_rro support
- for MT7988 (WIP)
+Subject: [PATCH net-next 4/4] net: ethernet: mtk_wed: introduce hw_rro support
+ for MT7988
+
+MT7988 SoC support 802.11 receive reordering offload in hw while
+MT7986 SoC implements it through firmware mcu.
 
 Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 ---
- drivers/net/ethernet/mediatek/mtk_wed.c | 293 +++++++++++++++++++++++-
+ drivers/net/ethernet/mediatek/mtk_wed.c | 312 +++++++++++++++++++++++-
  include/linux/soc/mediatek/mtk_wed.h    |  44 ++++
- 2 files changed, 336 insertions(+), 1 deletion(-)
+ 2 files changed, 354 insertions(+), 2 deletions(-)
 
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
@@ -26,43 +29,37 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  #define MTK_WED_RX_RING_SIZE		1536
  #define MTK_WED_RX_PG_BM_CNT		8192
  #define MTK_WED_AMSDU_BUF_SIZE		(PAGE_SIZE << 4)
-@@ -564,8 +564,11 @@ free_pagelist:
+@@ -564,6 +564,73 @@ free_pagelist:
+ }
+ 
  static int
- mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
- {
++mtk_wed_hwrro_buffer_alloc(struct mtk_wed_device *dev)
++{
++	int n_pages = MTK_WED_RX_PG_BM_CNT / MTK_WED_RX_BUF_PER_PAGE;
 +	struct mtk_wed_buf *page_list;
- 	struct mtk_wed_bm_desc *desc;
- 	dma_addr_t desc_phys;
-+	int i, page_idx;
-+	int n_pages;
- 
- 	dev->rx_buf_ring.size = dev->wlan.rx_nbuf;
- 	desc = dma_alloc_coherent(dev->hw->dev,
-@@ -578,13 +581,72 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_d
- 	dev->rx_buf_ring.desc_phys = desc_phys;
- 	dev->wlan.init_rx_buf(dev, dev->wlan.rx_npkt);
- 
++	struct mtk_wed_bm_desc *desc;
++	dma_addr_t desc_phys;
++	int i, page_idx = 0;
++
 +	if (!dev->wlan.hw_rro)
 +		return 0;
 +
-+	n_pages =  MTK_WED_RX_PG_BM_CNT / MTK_WED_RX_BUF_PER_PAGE;
 +	page_list = kcalloc(n_pages, sizeof(*page_list), GFP_KERNEL);
 +	if (!page_list)
 +		return -ENOMEM;
 +
-+	dev->rx_buf_ring.hw_rro.size = MTK_WED_RX_PG_BM_CNT;
-+	dev->rx_buf_ring.hw_rro.pages = page_list;
++	dev->hw_rro.size = dev->wlan.rx_nbuf & ~(MTK_WED_BUF_PER_PAGE - 1);
++	dev->hw_rro.pages = page_list;
 +	desc = dma_alloc_coherent(dev->hw->dev,
-+				  dev->rx_buf_ring.hw_rro.size * sizeof(*desc),
++				  dev->hw_rro.size * sizeof(*desc),
 +				  &desc_phys, GFP_KERNEL);
 +	if (!desc)
 +		return -ENOMEM;
 +
-+	dev->rx_buf_ring.hw_rro.desc = desc;
-+	dev->rx_buf_ring.hw_rro.desc_phys = desc_phys;
++	dev->hw_rro.desc = desc;
++	dev->hw_rro.desc_phys = desc_phys;
 +
-+	for (i = 0, page_idx = 0; i < dev->rx_buf_ring.hw_rro.size;
-+	     i += MTK_WED_RX_BUF_PER_PAGE) {
++	for (i = 0; i < MTK_WED_RX_PG_BM_CNT; i += MTK_WED_RX_BUF_PER_PAGE) {
 +		dma_addr_t page_phys, buf_phys;
 +		struct page *page;
 +		void *buf;
@@ -99,22 +96,27 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 +					   DMA_BIDIRECTIONAL);
 +	}
 +
- 	return 0;
- }
- 
- static void
- mtk_wed_free_rx_buffer(struct mtk_wed_device *dev)
++	return 0;
++}
++
++static int
+ mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
  {
-+	struct mtk_wed_buf *page_list = dev->rx_buf_ring.hw_rro.pages;
- 	struct mtk_wed_bm_desc *desc = dev->rx_buf_ring.desc;
-+	int i, page_idx;
+ 	struct mtk_wed_bm_desc *desc;
+@@ -580,7 +647,42 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_d
+ 	dev->rx_buf_ring.desc_phys = desc_phys;
+ 	dev->wlan.init_rx_buf(dev, dev->wlan.rx_npkt);
  
- 	if (!desc)
- 		return;
-@@ -592,6 +654,36 @@ mtk_wed_free_rx_buffer(struct mtk_wed_de
- 	dev->wlan.release_rx_buf(dev);
- 	dma_free_coherent(dev->hw->dev, dev->rx_buf_ring.size * sizeof(*desc),
- 			  desc, dev->rx_buf_ring.desc_phys);
+-	return 0;
++	return mtk_wed_hwrro_buffer_alloc(dev);
++}
++
++static void
++mtk_wed_hwrro_free_buffer(struct mtk_wed_device *dev)
++{
++	struct mtk_wed_buf *page_list = dev->hw_rro.pages;
++	struct mtk_wed_bm_desc *desc = dev->hw_rro.desc;
++	int i, page_idx = 0;
 +
 +	if (!dev->wlan.hw_rro)
 +		return;
@@ -122,12 +124,10 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 +	if (!page_list)
 +		return;
 +
-+	desc = dev->rx_buf_ring.hw_rro.desc;
 +	if (!desc)
 +		goto free_pagelist;
 +
-+	for (i = 0, page_idx = 0; i < dev->rx_buf_ring.hw_rro.size;
-+	     i += MTK_WED_RX_BUF_PER_PAGE) {
++	for (i = 0; i < MTK_WED_RX_PG_BM_CNT; i += MTK_WED_RX_BUF_PER_PAGE) {
 +		dma_addr_t buf_addr = page_list[page_idx].phy_addr;
 +		void *page = page_list[page_idx++].p;
 +
@@ -139,28 +139,32 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 +		__free_page(page);
 +	}
 +
-+	dma_free_coherent(dev->hw->dev,
-+			  dev->rx_buf_ring.hw_rro.size * sizeof(*desc),
-+			  desc, dev->rx_buf_ring.hw_rro.desc_phys);
++	dma_free_coherent(dev->hw->dev, dev->hw_rro.size * sizeof(*desc),
++			  desc, dev->hw_rro.desc_phys);
 +
 +free_pagelist:
 +	kfree(page_list);
  }
  
  static void
-@@ -605,6 +697,23 @@ mtk_wed_rx_buffer_hw_init(struct mtk_wed
- 	wed_w32(dev, MTK_WED_RX_BM_DYN_ALLOC_TH,
- 		FIELD_PREP(MTK_WED_RX_BM_DYN_ALLOC_TH_H, 0xffff));
- 	wed_set(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_RX_BM_EN);
+@@ -594,6 +696,28 @@ mtk_wed_free_rx_buffer(struct mtk_wed_de
+ 	dev->wlan.release_rx_buf(dev);
+ 	dma_free_coherent(dev->hw->dev, dev->rx_buf_ring.size * sizeof(*desc),
+ 			  desc, dev->rx_buf_ring.desc_phys);
 +
++	mtk_wed_hwrro_free_buffer(dev);
++}
++
++static void
++mtk_wed_hwrro_init(struct mtk_wed_device *dev)
++{
 +	if (!mtk_wed_get_rx_capa(dev) || !dev->wlan.hw_rro)
 +		return;
 +
 +	wed_set(dev, MTK_WED_RRO_PG_BM_RX_DMAM,
 +		FIELD_PREP(MTK_WED_RRO_PG_BM_RX_SDL0, 128));
 +
-+	wed_w32(dev, MTK_WED_RRO_PG_BM_BASE,
-+		dev->rx_buf_ring.hw_rro.desc_phys);
++	wed_w32(dev, MTK_WED_RRO_PG_BM_BASE, dev->hw_rro.desc_phys);
 +
 +	wed_w32(dev, MTK_WED_RRO_PG_BM_INIT_PTR,
 +		MTK_WED_RRO_PG_BM_INIT_SW_TAIL_IDX |
@@ -172,7 +176,16 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  }
  
  static void
-@@ -897,6 +1006,8 @@ mtk_wed_bus_init(struct mtk_wed_device *
+@@ -607,6 +731,8 @@ mtk_wed_rx_buffer_hw_init(struct mtk_wed
+ 	wed_w32(dev, MTK_WED_RX_BM_DYN_ALLOC_TH,
+ 		FIELD_PREP(MTK_WED_RX_BM_DYN_ALLOC_TH_H, 0xffff));
+ 	wed_set(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_RX_BM_EN);
++
++	mtk_wed_hwrro_init(dev);
+ }
+ 
+ static void
+@@ -899,6 +1025,8 @@ mtk_wed_bus_init(struct mtk_wed_device *
  static void
  mtk_wed_set_wpdma(struct mtk_wed_device *dev)
  {
@@ -181,7 +194,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  	if (mtk_wed_is_v1(dev->hw)) {
  		wed_w32(dev, MTK_WED_WPDMA_CFG_BASE,  dev->wlan.wpdma_phys);
  		return;
-@@ -917,6 +1028,15 @@ mtk_wed_set_wpdma(struct mtk_wed_device
+@@ -919,6 +1047,15 @@ mtk_wed_set_wpdma(struct mtk_wed_device
  		wed_w32(dev, MTK_WED_WPDMA_RX_RING0_V3, dev->wlan.wpdma_rx);
  	else
  		wed_w32(dev, MTK_WED_WPDMA_RX_RING0, dev->wlan.wpdma_rx);
@@ -197,7 +210,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  }
  
  static void
-@@ -1772,6 +1892,173 @@ mtk_wed_dma_enable(struct mtk_wed_device
+@@ -1774,6 +1911,173 @@ mtk_wed_dma_enable(struct mtk_wed_device
  }
  
  static void
@@ -371,7 +384,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
  {
  	int i;
-@@ -2234,6 +2521,10 @@ void mtk_wed_add_hw(struct device_node *
+@@ -2236,6 +2540,10 @@ void mtk_wed_add_hw(struct device_node *
  		.detach = mtk_wed_detach,
  		.ppe_check = mtk_wed_ppe_check,
  		.setup_tc = mtk_wed_setup_tc,
@@ -402,20 +415,20 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  	struct {
  		int size;
-@@ -113,6 +117,13 @@ struct mtk_wed_device {
- 		struct page_frag_cache rx_page;
- 		struct mtk_wed_bm_desc *desc;
- 		dma_addr_t desc_phys;
-+		struct {
-+			int size;
-+			int desc_size;
-+			struct mtk_wed_buf *pages;
-+			struct mtk_wed_bm_desc *desc;
-+			dma_addr_t desc_phys;
-+		} hw_rro;
- 	} rx_buf_ring;
+@@ -121,6 +125,13 @@ struct mtk_wed_device {
+ 		dma_addr_t fdbk_phys;
+ 	} rro;
  
++	struct {
++		int size;
++		struct mtk_wed_buf *pages;
++		struct mtk_wed_bm_desc *desc;
++		dma_addr_t desc_phys;
++	} hw_rro;
++
+ 	/* filled by driver: */
  	struct {
+ 		union {
 @@ -139,6 +150,8 @@ struct mtk_wed_device {
  		u32 wpdma_txfree;
  		u32 wpdma_rx_glo;
