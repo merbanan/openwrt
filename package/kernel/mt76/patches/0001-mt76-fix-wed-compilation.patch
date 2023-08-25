@@ -1,8 +1,8 @@
 From bcb6412e0ca47d1084d39533fca437f3b7a8fadd Mon Sep 17 00:00:00 2001
-Message-ID: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692555803.git.lorenzo@kernel.org>
+Message-ID: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 20:20:49 +0200
-Subject: [PATCH 1/4] mt76: fix wed compilation
+Subject: [PATCH 1/8] mt76: fix wed compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---

@@ -1,10 +1,10 @@
-From 725bda81bbf12a36dd4b088f5c9146b789b092f1 Mon Sep 17 00:00:00 2001
-Message-ID: <725bda81bbf12a36dd4b088f5c9146b789b092f1.1692555803.git.lorenzo@kernel.org>
-In-Reply-To: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692555803.git.lorenzo@kernel.org>
-References: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692555803.git.lorenzo@kernel.org>
+From 218735cd37e1c7a16f77f975013deb710d0b0498 Mon Sep 17 00:00:00 2001
+Message-ID: <218735cd37e1c7a16f77f975013deb710d0b0498.1692953845.git.lorenzo@kernel.org>
+In-Reply-To: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
+References: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 10:35:10 +0200
-Subject: [PATCH 4/4] mt7996: hack for compilation
+Subject: [PATCH 7/8] mt7996: hack for compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -12,10 +12,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/mt7996/mcu.c b/mt7996/mcu.c
-index 4a30db49..c924a7c3 100644
+index 21951831..52b3b1ac 100644
 --- a/mt7996/mcu.c
 +++ b/mt7996/mcu.c
-@@ -1116,7 +1116,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
+@@ -1117,7 +1117,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
  	tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_MURU, sizeof(*muru));
  
  	muru = (struct sta_rec_muru *)tlv;
@@ -24,7 +24,7 @@ index 4a30db49..c924a7c3 100644
  			       vif->bss_conf.he_mu_beamformer ||
  			       vif->bss_conf.vht_mu_beamformer ||
  			       vif->bss_conf.vht_mu_beamformee;
-@@ -1167,6 +1167,7 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
+@@ -1168,6 +1168,7 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
  	if (!bfee && sts < 2)
  		return false;
  
@@ -32,7 +32,7 @@ index 4a30db49..c924a7c3 100644
  	if (sta->deflink.eht_cap.has_eht) {
  		struct ieee80211_sta_eht_cap *pc = &sta->deflink.eht_cap;
  		struct ieee80211_eht_cap_elem_fixed *pe = &pc->eht_cap_elem;
-@@ -1178,6 +1179,7 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
+@@ -1179,6 +1180,7 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
  			return vif->bss_conf.eht_su_beamformer &&
  			       EHT_PHY(CAP0_SU_BEAMFORMER, pe->phy_cap_info[0]);
  	}

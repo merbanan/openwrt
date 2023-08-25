@@ -1,10 +1,10 @@
-From a3e1f5f8e4f00d2b5f654e773b07a276bce9a8fb Mon Sep 17 00:00:00 2001
-Message-ID: <a3e1f5f8e4f00d2b5f654e773b07a276bce9a8fb.1692626361.git.lorenzo@kernel.org>
-In-Reply-To: <e7f4fa8dd341c39381ecabf3ee4ad189e965ccc5.1692626361.git.lorenzo@kernel.org>
-References: <e7f4fa8dd341c39381ecabf3ee4ad189e965ccc5.1692626361.git.lorenzo@kernel.org>
+From 5729ba174994254bf53aa85d71dc2da1ff455a46 Mon Sep 17 00:00:00 2001
+Message-ID: <5729ba174994254bf53aa85d71dc2da1ff455a46.1692953845.git.lorenzo@kernel.org>
+In-Reply-To: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
+References: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Mon, 21 Aug 2023 10:47:54 +0200
-Subject: [PATCH 4/4] mt76: mt7996: add WED tx support
+Subject: [PATCH 5/8] mt76: mt7996: add WED tx support
 
 Similar to MT7915 driver, introduce Wireless Ethernet Distpactcher
 support for MT7996 device.
@@ -13,15 +13,15 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  dma.c           |   2 +
  mt76.h          |   1 +
- mt7996/dma.c    |  66 +++++++++++++++++--
+ mt7996/dma.c    |  68 +++++++++++++++++--
  mt7996/init.c   |  21 ++++--
  mt7996/mac.c    |  23 +++++++
  mt7996/main.c   |  42 ++++++++++++
- mt7996/mmio.c   | 168 ++++++++++++++++++++++++++++++++++++++++++------
+ mt7996/mmio.c   | 174 +++++++++++++++++++++++++++++++++++++++++++-----
  mt7996/mt7996.h |   7 ++
  mt7996/pci.c    |  71 +++++++++++++++-----
  mt7996/regs.h   |   5 ++
- 10 files changed, 362 insertions(+), 44 deletions(-)
+ 10 files changed, 370 insertions(+), 44 deletions(-)
 
 diff --git a/dma.c b/dma.c
 index 12eb0284..26446cc2 100644
@@ -48,7 +48,7 @@ index 4534fdc1..1c35ecb1 100644
  	struct completion wed_reset_complete;
  };
 diff --git a/mt7996/dma.c b/mt7996/dma.c
-index b3334636..c62d2221 100644
+index b3334636..c206f601 100644
 --- a/mt7996/dma.c
 +++ b/mt7996/dma.c
 @@ -20,6 +20,26 @@ static int mt7996_poll_tx(struct napi_struct *napi, int budget)
@@ -142,7 +142,7 @@ index b3334636..c62d2221 100644
  	ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN_WA],
  			       MT_RXQ_ID(MT_RXQ_MAIN_WA),
  			       MT7996_RX_MCU_RING_SIZE,
-@@ -334,17 +382,23 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -334,17 +382,25 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  
  	if (dev->tbtc_support || dev->mphy.band_idx == MT_BAND2) {
  		/* rx data queue for band2 */
@@ -162,8 +162,10 @@ index b3334636..c62d2221 100644
  		/* tx free notify event from WA for band2
  		 * use pcie0's rx ring3, but, redirect pcie0 rx ring3 interrupt to pcie1
  		 */
-+		if (mtk_wed_device_active(&dev->mt76.mmio.wed_hif2))
++		if (mtk_wed_device_active(&dev->mt76.mmio.wed_hif2)) {
 +			dev->mt76.q_rx[MT_RXQ_BAND2_WA].flags = MT_WED_Q_TXFREE;
++			dev->mt76.q_rx[MT_RXQ_BAND2_WA].wed = &dev->mt76.mmio.wed_hif2;
++		}
 +
  		ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_BAND2_WA],
  				       MT_RXQ_ID(MT_RXQ_BAND2_WA),
@@ -315,7 +317,7 @@ index c3a479dc..da89ef16 100644
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
  };
 diff --git a/mt7996/mmio.c b/mt7996/mmio.c
-index 3a591a7b..b13cbd5e 100644
+index 3a591a7b..d465f32f 100644
 --- a/mt7996/mmio.c
 +++ b/mt7996/mmio.c
 @@ -10,6 +10,10 @@
@@ -329,7 +331,7 @@ index 3a591a7b..b13cbd5e 100644
  
  static const struct __base mt7996_reg_base[] = {
  	[WF_AGG_BASE]		= { { 0x820e2000, 0x820f2000, 0x830e2000 } },
-@@ -191,6 +195,103 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
+@@ -191,6 +195,109 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
  	return dev->bus_ops->rmw(mdev, __mt7996_reg_addr(dev, offset), mask, val);
  }
  
@@ -368,6 +370,12 @@ index 3a591a7b..b13cbd5e 100644
 +					 hif1_ofs + MT_RXQ_RING_BASE(0) +
 +					 MT7996_RXQ_MCU_WA_TRI * MT_RING_SIZE;
 +		wed->wlan.txfree_tbit = ffs(MT_INT_RX_DONE_WA_TRI) - 1;
++
++		wed->wlan.wpdma_rx_glo = wed->wlan.phy_base + hif1_ofs +
++					 MT_WFDMA0_GLO_CFG;
++		wed->wlan.wpdma_rx = wed->wlan.phy_base + hif1_ofs +
++				     MT_RXQ_RING_BASE(MT7996_RXQ_BAND0) +
++				     MT7996_RXQ_BAND0 * MT_RING_SIZE;
 +		wed->wlan.id = 0x7991;
 +		wed->wlan.tx_tbit[0] = ffs(MT_INT_TX_DONE_BAND2) - 1;
 +	} else {
@@ -433,7 +441,7 @@ index 3a591a7b..b13cbd5e 100644
  static int mt7996_mmio_init(struct mt76_dev *mdev,
  			    void __iomem *mem_base,
  			    u32 device_id)
-@@ -241,8 +342,16 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
+@@ -241,8 +348,16 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
  	mdev->mmio.irqmask |= set;
  
  	if (write_reg) {
@@ -452,7 +460,7 @@ index 3a591a7b..b13cbd5e 100644
  	}
  
  	spin_unlock_irqrestore(&mdev->mmio.irq_lock, flags);
-@@ -260,22 +369,35 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
+@@ -260,22 +375,35 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
  static void mt7996_irq_tasklet(struct tasklet_struct *t)
  {
  	struct mt7996_dev *dev = from_tasklet(dev, t, mt76.irq_tasklet);
@@ -501,7 +509,7 @@ index 3a591a7b..b13cbd5e 100644
  	}
  
  	trace_dev_irq(&dev->mt76, intr, dev->mt76.mmio.irqmask);
-@@ -307,10 +429,20 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
+@@ -307,10 +435,20 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
  irqreturn_t mt7996_irq_handler(int irq, void *dev_instance)
  {
  	struct mt7996_dev *dev = dev_instance;

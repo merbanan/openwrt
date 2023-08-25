@@ -1,8 +1,10 @@
 From e7f4fa8dd341c39381ecabf3ee4ad189e965ccc5 Mon Sep 17 00:00:00 2001
-Message-ID: <e7f4fa8dd341c39381ecabf3ee4ad189e965ccc5.1692626361.git.lorenzo@kernel.org>
+Message-ID: <e7f4fa8dd341c39381ecabf3ee4ad189e965ccc5.1692953845.git.lorenzo@kernel.org>
+In-Reply-To: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
+References: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
-Subject: [PATCH 1/4] mt76: introduce wed pointer in mt76_queue
+Subject: [PATCH 2/8] mt76: introduce wed pointer in mt76_queue
 
 Introduce mtk_wed_device pointer in mt76_queue structure in order to
 configure WED chip.
