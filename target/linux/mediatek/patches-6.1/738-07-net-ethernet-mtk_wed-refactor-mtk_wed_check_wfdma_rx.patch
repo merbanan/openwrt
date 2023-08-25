@@ -1,10 +1,10 @@
-From bb04525e8a981cf5279fc4004d48a94f41512283 Mon Sep 17 00:00:00 2001
-Message-ID: <bb04525e8a981cf5279fc4004d48a94f41512283.1692432958.git.lorenzo@kernel.org>
-In-Reply-To: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
-References: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
+From 96a67fe4a5b9ee29ce396be21bf07bab5c73432e Mon Sep 17 00:00:00 2001
+Message-ID: <96a67fe4a5b9ee29ce396be21bf07bab5c73432e.1692949942.git.lorenzo@kernel.org>
+In-Reply-To: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
+References: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 18 Aug 2023 16:24:36 +0200
-Subject: [PATCH net-next 2/4] net: ethernet: mtk_wed: refactor
+Subject: [PATCH net-next 7/9] net: ethernet: mtk_wed: refactor
  mtk_wed_check_wfdma_rx_fill routine
 
 Refactor mtk_wed_check_wfdma_rx_fill() in order to be reused adding HW

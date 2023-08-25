@@ -1,8 +1,10 @@
-From 4b1728f90cbfc09d7954796889201116c1742f2b Mon Sep 17 00:00:00 2001
-Message-ID: <4b1728f90cbfc09d7954796889201116c1742f2b.1692432958.git.lorenzo@kernel.org>
+From e43749a75a65655de6bb057ab2ab0a431f253f70 Mon Sep 17 00:00:00 2001
+Message-ID: <e43749a75a65655de6bb057ab2ab0a431f253f70.1692949942.git.lorenzo@kernel.org>
+In-Reply-To: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
+References: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sat, 22 Jul 2023 23:06:25 +0200
-Subject: [PATCH net-next 1/4] net: ethernet: mtk_wed: introduce WED support
+Subject: [PATCH net-next 6/9] net: ethernet: mtk_wed: introduce WED support
  for MT7988
 
 Similar to MT7986 and MT7622, enable Wireless Ethernet Distpatcher for
@@ -15,12 +17,12 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  drivers/net/ethernet/mediatek/mtk_eth_soc.c   |   1 +
  drivers/net/ethernet/mediatek/mtk_eth_soc.h   |   2 +-
  .../net/ethernet/mediatek/mtk_ppe_offload.c   |   3 +
- drivers/net/ethernet/mediatek/mtk_wed.c       | 413 +++++++++++++-----
+ drivers/net/ethernet/mediatek/mtk_wed.c       | 415 +++++++++++++-----
  drivers/net/ethernet/mediatek/mtk_wed.h       |  28 ++
  drivers/net/ethernet/mediatek/mtk_wed_mcu.c   |  11 +-
  drivers/net/ethernet/mediatek/mtk_wed_regs.h  | 228 +++++++++-
- include/linux/soc/mediatek/mtk_wed.h          |   6 +
- 8 files changed, 570 insertions(+), 122 deletions(-)
+ include/linux/soc/mediatek/mtk_wed.h          |   9 +-
+ 8 files changed, 572 insertions(+), 125 deletions(-)
 
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
@@ -1202,8 +1204,13 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  		u16 token_start;
  		unsigned int nbuf;
-@@ -216,6 +219,9 @@ static inline bool
- mtk_wed_get_rx_capa(struct mtk_wed_device *dev)
+@@ -212,10 +215,12 @@ mtk_wed_device_attach(struct mtk_wed_dev
+ 	return ret;
+ }
+ 
+-static inline bool
+-mtk_wed_get_rx_capa(struct mtk_wed_device *dev)
++static inline bool mtk_wed_get_rx_capa(struct mtk_wed_device *dev)
  {
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
 +	if (dev->version == 3)

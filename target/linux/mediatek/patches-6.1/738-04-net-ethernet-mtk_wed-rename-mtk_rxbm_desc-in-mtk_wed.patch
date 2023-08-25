@@ -1,7 +1,7 @@
-From ec150358dffb9a2ebe8a3d5cf56b51a33d4bafaf Mon Sep 17 00:00:00 2001
-Message-ID: <ec150358dffb9a2ebe8a3d5cf56b51a33d4bafaf.1692377512.git.lorenzo@kernel.org>
-In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
-References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+From 5906e1f9bcb3c9dea307bad5334aab6908744fc2 Mon Sep 17 00:00:00 2001
+Message-ID: <5906e1f9bcb3c9dea307bad5334aab6908744fc2.1692949942.git.lorenzo@kernel.org>
+In-Reply-To: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
+References: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 23 Jul 2023 15:14:03 +0200
 Subject: [PATCH net-next 4/9] net: ethernet: mtk_wed: rename mtk_rxbm_desc in

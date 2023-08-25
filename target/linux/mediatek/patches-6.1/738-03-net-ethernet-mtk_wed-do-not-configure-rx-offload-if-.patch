@@ -1,7 +1,7 @@
-From bb85960ec2129dae400909b262223917089d9c64 Mon Sep 17 00:00:00 2001
-Message-ID: <bb85960ec2129dae400909b262223917089d9c64.1692377512.git.lorenzo@kernel.org>
-In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
-References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+From b1bd63a0d48db0f1b29c0d8420afd5255bfa2023 Mon Sep 17 00:00:00 2001
+Message-ID: <b1bd63a0d48db0f1b29c0d8420afd5255bfa2023.1692949942.git.lorenzo@kernel.org>
+In-Reply-To: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
+References: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 18 Aug 2023 15:57:10 +0200
 Subject: [PATCH net-next 3/9] net: ethernet: mtk_wed: do not configure rx
@@ -20,10 +20,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  2 files changed, 70 insertions(+), 58 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index f428e8145a68..2551a4a7ed93 100644
+index af86de923b14..0afe662c8710 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -606,7 +606,7 @@ mtk_wed_stop(struct mtk_wed_device *dev)
+@@ -598,7 +598,7 @@ mtk_wed_stop(struct mtk_wed_device *dev)
  	wdma_w32(dev, MTK_WDMA_INT_GRP2, 0);
  	wed_w32(dev, MTK_WED_WPDMA_INT_MASK, 0);
  
@@ -32,7 +32,7 @@ index f428e8145a68..2551a4a7ed93 100644
  		return;
  
  	wed_w32(dev, MTK_WED_EXT_INT_MASK1, 0);
-@@ -733,16 +733,21 @@ mtk_wed_set_wpdma(struct mtk_wed_device *dev)
+@@ -725,16 +725,21 @@ mtk_wed_set_wpdma(struct mtk_wed_device *dev)
  {
  	if (mtk_wed_is_v1(dev->hw)) {
  		wed_w32(dev, MTK_WED_WPDMA_CFG_BASE,  dev->wlan.wpdma_phys);
@@ -63,7 +63,7 @@ index f428e8145a68..2551a4a7ed93 100644
  }
  
  static void
-@@ -974,15 +979,17 @@ mtk_wed_hw_init(struct mtk_wed_device *dev)
+@@ -966,15 +971,17 @@ mtk_wed_hw_init(struct mtk_wed_device *dev)
  			MTK_WED_CTRL_WED_TX_FREE_AGENT_EN);
  	} else {
  		wed_clr(dev, MTK_WED_TX_TKID_CTRL, MTK_WED_TX_TKID_CTRL_PAUSE);
@@ -90,7 +90,7 @@ index f428e8145a68..2551a4a7ed93 100644
  	}
  
  	wed_clr(dev, MTK_WED_TX_BM_CTRL, MTK_WED_TX_BM_CTRL_PAUSE);
-@@ -1363,8 +1370,6 @@ mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
+@@ -1355,8 +1362,6 @@ mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
  
  		wed_clr(dev, MTK_WED_WDMA_INT_CTRL, wdma_mask);
  	} else {
@@ -99,7 +99,7 @@ index f428e8145a68..2551a4a7ed93 100644
  		/* initail tx interrupt trigger */
  		wed_w32(dev, MTK_WED_WPDMA_INT_CTRL_TX,
  			MTK_WED_WPDMA_INT_CTRL_TX0_DONE_EN |
-@@ -1383,15 +1388,20 @@ mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
+@@ -1375,15 +1380,20 @@ mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
  			FIELD_PREP(MTK_WED_WPDMA_INT_CTRL_TX_FREE_DONE_TRIG,
  				   dev->wlan.txfree_tbit));
  
@@ -129,7 +129,7 @@ index f428e8145a68..2551a4a7ed93 100644
  
  		wed_w32(dev, MTK_WED_WDMA_INT_CLR, wdma_mask);
  		wed_set(dev, MTK_WED_WDMA_INT_CTRL,
-@@ -1410,6 +1420,8 @@ mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
+@@ -1402,6 +1412,8 @@ mtk_wed_configure_irq(struct mtk_wed_device *dev, u32 irq_mask)
  static void
  mtk_wed_dma_enable(struct mtk_wed_device *dev)
  {
@@ -138,7 +138,7 @@ index f428e8145a68..2551a4a7ed93 100644
  	wed_set(dev, MTK_WED_WPDMA_INT_CTRL, MTK_WED_WPDMA_INT_CTRL_SUBRT_ADV);
  
  	wed_set(dev, MTK_WED_GLO_CFG,
-@@ -1429,33 +1441,33 @@ mtk_wed_dma_enable(struct mtk_wed_device *dev)
+@@ -1421,33 +1433,33 @@ mtk_wed_dma_enable(struct mtk_wed_device *dev)
  	if (mtk_wed_is_v1(dev->hw)) {
  		wdma_set(dev, MTK_WDMA_GLO_CFG,
  			 MTK_WDMA_GLO_CFG_RX_INFO3_PRERES);
@@ -194,7 +194,7 @@ index f428e8145a68..2551a4a7ed93 100644
  }
  
  static void
-@@ -1482,7 +1494,7 @@ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
+@@ -1474,7 +1486,7 @@ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
  
  		val |= BIT(0) | (BIT(1) * !!dev->hw->index);
  		regmap_write(dev->hw->mirror, dev->hw->index * 4, val);
@@ -203,7 +203,7 @@ index f428e8145a68..2551a4a7ed93 100644
  		/* driver set mid ready and only once */
  		wed_w32(dev, MTK_WED_EXT_INT_MASK1,
  			MTK_WED_EXT_INT_STATUS_WPDMA_MID_RDY);
-@@ -1494,7 +1506,6 @@ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
+@@ -1486,7 +1498,6 @@ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
  
  		if (mtk_wed_rro_cfg(dev))
  			return;
@@ -211,7 +211,7 @@ index f428e8145a68..2551a4a7ed93 100644
  	}
  
  	mtk_wed_set_512_support(dev, dev->wlan.wcid_512);
-@@ -1560,13 +1571,14 @@ mtk_wed_attach(struct mtk_wed_device *dev)
+@@ -1552,13 +1563,14 @@ mtk_wed_attach(struct mtk_wed_device *dev)
  	}
  
  	mtk_wed_hw_init_early(dev);

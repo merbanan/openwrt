@@ -1,7 +1,7 @@
-From 57441d87d740b358a1cf91fff4807f2c2574a775 Mon Sep 17 00:00:00 2001
-Message-ID: <57441d87d740b358a1cf91fff4807f2c2574a775.1692377512.git.lorenzo@kernel.org>
-In-Reply-To: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
-References: <c955de8e51e2cc9e6eb4299eb7d66f3865dc86c0.1692377512.git.lorenzo@kernel.org>
+From 832d757111f7f9eced616379ed28aa2a1ae46571 Mon Sep 17 00:00:00 2001
+Message-ID: <832d757111f7f9eced616379ed28aa2a1ae46571.1692949942.git.lorenzo@kernel.org>
+In-Reply-To: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
+References: <8a08783cbe2de39c15345478e4f2382da58f2adf.1692949942.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 18 Aug 2023 18:24:41 +0200
 Subject: [PATCH net-next 2/9] net: ethernet: mtk_wed: introduce
@@ -15,10 +15,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 11 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index 466be0ae477a..f428e8145a68 100644
+index 14f02e1d6bd1..af86de923b14 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -1245,11 +1245,20 @@ mtk_wed_ring_alloc(struct mtk_wed_device *dev, struct mtk_wed_ring *ring,
+@@ -1237,11 +1237,20 @@ mtk_wed_ring_alloc(struct mtk_wed_device *dev, struct mtk_wed_ring *ring,
  	return 0;
  }
  
@@ -40,7 +40,7 @@ index 466be0ae477a..f428e8145a68 100644
  	struct mtk_wed_ring *wdma;
  
  	if (idx >= ARRAY_SIZE(dev->rx_wdma))
-@@ -1278,7 +1287,7 @@ static int
+@@ -1270,7 +1279,7 @@ static int
  mtk_wed_wdma_tx_ring_setup(struct mtk_wed_device *dev, int idx, int size,
  			   bool reset)
  {
