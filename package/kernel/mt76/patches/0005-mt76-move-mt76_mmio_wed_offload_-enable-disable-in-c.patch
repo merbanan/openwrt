@@ -1,8 +1,10 @@
-From c13615c8712c9411849e7f1a7ef9c07fccafdc91 Mon Sep 17 00:00:00 2001
-Message-ID: <c13615c8712c9411849e7f1a7ef9c07fccafdc91.1692959536.git.lorenzo@kernel.org>
+From 4bfcf6c841bcafa0dd78f16c29709f094db3ae76 Mon Sep 17 00:00:00 2001
+Message-ID: <4bfcf6c841bcafa0dd78f16c29709f094db3ae76.1693061153.git.lorenzo@kernel.org>
+In-Reply-To: <d8c085cc30cce37a28dfa0d52016ca151b34d2d8.1693061153.git.lorenzo@kernel.org>
+References: <d8c085cc30cce37a28dfa0d52016ca151b34d2d8.1693061153.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 25 Aug 2023 12:29:41 +0200
-Subject: [PATCH 1/2] mt76: move mt76_mmio_wed_offload_{enable,disable} in
+Subject: [PATCH 4/5] mt76: move mt76_mmio_wed_offload_{enable,disable} in
  common code
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>

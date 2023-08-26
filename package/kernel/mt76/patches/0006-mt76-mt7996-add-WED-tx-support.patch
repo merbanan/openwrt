@@ -1,5 +1,5 @@
-From dda7fb7f944fa07d7af701ef982a96883eedd748 Mon Sep 17 00:00:00 2001
-Message-ID: <dda7fb7f944fa07d7af701ef982a96883eedd748.1693058210.git.lorenzo@kernel.org>
+From e477bd1b7884887ec81d96b5d6b8a825493b7671 Mon Sep 17 00:00:00 2001
+Message-ID: <e477bd1b7884887ec81d96b5d6b8a825493b7671.1693065753.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Mon, 21 Aug 2023 10:47:54 +0200
 Subject: [PATCH] mt76: mt7996: add WED tx support
@@ -11,21 +11,21 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  dma.c           |   2 +
  mt76.h          |   1 +
- mt7996/dma.c    |  68 +++++++++++++++++--
+ mt7996/dma.c    |  61 +++++++++++++++--
  mt7996/init.c   |  21 ++++--
  mt7996/mac.c    |  23 +++++++
  mt7996/main.c   |  42 ++++++++++++
- mt7996/mmio.c   | 173 +++++++++++++++++++++++++++++++++++++++++++-----
+ mt7996/mmio.c   | 174 +++++++++++++++++++++++++++++++++++++++++++-----
  mt7996/mt7996.h |   7 ++
- mt7996/pci.c    |  71 +++++++++++++++-----
+ mt7996/pci.c    |  70 ++++++++++++++-----
  mt7996/regs.h   |   5 ++
- 10 files changed, 369 insertions(+), 44 deletions(-)
+ 10 files changed, 364 insertions(+), 42 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index 12eb0284..26446cc2 100644
+index d64824ab..14d964e2 100644
 --- a/dma.c
 +++ b/dma.c
-@@ -988,5 +988,7 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
+@@ -989,5 +989,7 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
  
  	if (mtk_wed_device_active(&dev->mmio.wed))
  		mtk_wed_device_detach(&dev->mmio.wed);
@@ -46,7 +46,7 @@ index 7f56827c..6abd0a72 100644
  	struct completion wed_reset_complete;
  };
 diff --git a/mt7996/dma.c b/mt7996/dma.c
-index b3334636..c206f601 100644
+index b3334636..a0454e82 100644
 --- a/mt7996/dma.c
 +++ b/mt7996/dma.c
 @@ -20,6 +20,26 @@ static int mt7996_poll_tx(struct napi_struct *napi, int budget)
@@ -106,14 +106,14 @@ index b3334636..c206f601 100644
  void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
  {
  	u32 hif1_ofs = 0;
-@@ -169,6 +212,7 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
- 		irq_mask |= MT_INT_BAND2_RX_DONE;
+@@ -247,6 +290,7 @@ static void mt7996_dma_enable(struct mt7996_dev *dev, bool reset)
+ 		/* TODO: redirect rx ring6 interrupt to pcie0 for wed function */
+ 	}
  
- done:
 +	mt7996_dma_wed_start(dev);
- 	mt7996_irq_enable(dev, irq_mask);
- 	mt7996_irq_disable(dev, 0);
+ 	mt7996_dma_start(dev, reset);
  }
+ 
 @@ -265,10 +309,9 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  	mt7996_dma_disable(dev, true);
  
@@ -140,23 +140,7 @@ index b3334636..c206f601 100644
  	ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN_WA],
  			       MT_RXQ_ID(MT_RXQ_MAIN_WA),
  			       MT7996_RX_MCU_RING_SIZE,
-@@ -334,17 +382,25 @@ int mt7996_dma_init(struct mt7996_dev *dev)
- 
- 	if (dev->tbtc_support || dev->mphy.band_idx == MT_BAND2) {
- 		/* rx data queue for band2 */
-+		u32 ring_base = MT_RXQ_RING_BASE(MT_RXQ_BAND2);
-+
-+		if (!mtk_wed_device_active(&dev->mt76.mmio.wed))
-+			ring_base += hif1_ofs;
- 		ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_BAND2],
- 				       MT_RXQ_ID(MT_RXQ_BAND2),
- 				       MT7996_RX_RING_SIZE,
--				       MT_RX_BUF_SIZE,
--				       MT_RXQ_RING_BASE(MT_RXQ_BAND2) + hif1_ofs);
-+				       MT_RX_BUF_SIZE, ring_base);
- 		if (ret)
- 			return ret;
- 
+@@ -345,6 +393,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  		/* tx free notify event from WA for band2
  		 * use pcie0's rx ring3, but, redirect pcie0 rx ring3 interrupt to pcie1
  		 */
@@ -294,7 +278,7 @@ index c3a479dc..da89ef16 100644
 +	path->mtk_wdma.queue = 0;
 +	path->mtk_wdma.wcid = msta->wcid.idx;
 +	/* partial amsdu offload */
-+	path->mtk_wdma.amsdu = mtk_wed_is_amsdu_supported(wed);
++	//path->mtk_wdma.amsdu = mtk_wed_is_amsdu_supported(wed);
 +
 +	ctx->dev = NULL;
 +
@@ -315,7 +299,7 @@ index c3a479dc..da89ef16 100644
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
  };
 diff --git a/mt7996/mmio.c b/mt7996/mmio.c
-index 3a591a7b..a44882b9 100644
+index 3a591a7b..bd3801bd 100644
 --- a/mt7996/mmio.c
 +++ b/mt7996/mmio.c
 @@ -10,6 +10,10 @@
@@ -329,7 +313,7 @@ index 3a591a7b..a44882b9 100644
  
  static const struct __base mt7996_reg_base[] = {
  	[WF_AGG_BASE]		= { { 0x820e2000, 0x820f2000, 0x830e2000 } },
-@@ -191,6 +195,108 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
+@@ -191,6 +195,109 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
  	return dev->bus_ops->rmw(mdev, __mt7996_reg_addr(dev, offset), mask, val);
  }
  
@@ -361,8 +345,8 @@ index 3a591a7b..a44882b9 100644
 +				      MT_INT_PCIE1_SOURCE_CSR_EXT;
 +		wed->wlan.wpdma_mask = wed->wlan.phy_base +
 +				       MT_INT_PCIE1_MASK_CSR;
-+		wed->wlan.wpdma_tx = wed->wlan.phy_base + hif1_ofs +
-+				     MT_TXQ_RING_BASE(0) +
++		wed->wlan.wpdma_tx = wed->wlan.phy_base +
++				     hif1_ofs + MT_TXQ_RING_BASE(0) +
 +				     MT7996_TXQ_BAND2 * MT_RING_SIZE;
 +		wed->wlan.wpdma_txfree = wed->wlan.phy_base +
 +					 hif1_ofs + MT_RXQ_RING_BASE(0) +
@@ -396,9 +380,10 @@ index 3a591a7b..a44882b9 100644
 +
 +		wed->wlan.tx_tbit[0] = ffs(MT_INT_TX_DONE_BAND0) - 1;
 +		wed->wlan.tx_tbit[1] = ffs(MT_INT_TX_DONE_BAND1) - 1;
-+		wed->wlan.txfree_tbit = ffs(MT_INT_RX_DONE_WA_MAIN) - 1;
++
 +		wed->wlan.wpdma_txfree = wed->wlan.phy_base + MT_RXQ_RING_BASE(0) +
 +					  MT7996_RXQ_MCU_WA_MAIN * MT_RING_SIZE;
++		wed->wlan.txfree_tbit = ffs(MT_INT_RX_DONE_WA_MAIN) - 1;
 +	}
 +	wed->wlan.nbuf = MT7996_HW_TOKEN_SIZE;
 +	wed->wlan.token_start = MT7996_TOKEN_SIZE - wed->wlan.nbuf;
@@ -438,7 +423,7 @@ index 3a591a7b..a44882b9 100644
  static int mt7996_mmio_init(struct mt76_dev *mdev,
  			    void __iomem *mem_base,
  			    u32 device_id)
-@@ -241,8 +347,16 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
+@@ -241,8 +348,16 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
  	mdev->mmio.irqmask |= set;
  
  	if (write_reg) {
@@ -457,7 +442,7 @@ index 3a591a7b..a44882b9 100644
  	}
  
  	spin_unlock_irqrestore(&mdev->mmio.irq_lock, flags);
-@@ -260,22 +374,35 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
+@@ -260,22 +375,35 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
  static void mt7996_irq_tasklet(struct tasklet_struct *t)
  {
  	struct mt7996_dev *dev = from_tasklet(dev, t, mt76.irq_tasklet);
@@ -506,7 +491,7 @@ index 3a591a7b..a44882b9 100644
  	}
  
  	trace_dev_irq(&dev->mt76, intr, dev->mt76.mmio.irqmask);
-@@ -307,10 +434,20 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
+@@ -307,10 +435,20 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
  irqreturn_t mt7996_irq_handler(int irq, void *dev_instance)
  {
  	struct mt7996_dev *dev = dev_instance;
@@ -561,10 +546,10 @@ index 7354e5cf..9756a9ad 100644
 +
  #endif
 diff --git a/mt7996/pci.c b/mt7996/pci.c
-index c5301050..4894e28d 100644
+index c5301050..6ca371c8 100644
 --- a/mt7996/pci.c
 +++ b/mt7996/pci.c
-@@ -125,15 +125,29 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
+@@ -125,15 +125,27 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
  	mt7996_wfsys_reset(dev);
  	hif2 = mt7996_pci_init_hif2(pdev);
  
@@ -580,8 +565,6 @@ index c5301050..4894e28d 100644
 +		ret = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_ALL_TYPES);
 +		if (ret < 0)
 +			goto free_device;
-+
-+		irq = pdev->irq;
 +	}
 +
 +	ret = devm_request_irq(mdev->dev, pdev->irq, mt7996_irq_handler,
@@ -599,7 +582,7 @@ index c5301050..4894e28d 100644
  
  	mt76_wr(dev, MT_INT_MASK_CSR, 0);
  	/* master switch of PCIe tnterrupt enable */
-@@ -143,16 +157,31 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
+@@ -143,16 +155,32 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
  		hif2_dev = container_of(hif2->dev, struct pci_dev, dev);
  		dev->hif2 = hif2;
  
@@ -608,14 +591,15 @@ index c5301050..4894e28d 100644
  		if (ret < 0)
 -			goto free_hif2;
 +			goto free_irq;
-+
-+		if (!ret) {
-+			ret = pci_alloc_irq_vectors(hif2_dev, 1, 1, PCI_IRQ_ALL_TYPES);
-+			if (ret < 0)
-+				goto free_hif2;
  
 -		dev->hif2->irq = hif2_dev->irq;
 -		ret = devm_request_irq(mdev->dev, dev->hif2->irq,
++		if (!ret) {
++			ret = pci_alloc_irq_vectors(hif2_dev, 1, 1,
++						    PCI_IRQ_ALL_TYPES);
++			if (ret < 0)
++				goto free_hif2;
++
 +			dev->hif2->irq = hif2_dev->irq;
 +		}
 +
@@ -636,7 +620,7 @@ index c5301050..4894e28d 100644
  
  		mt76_wr(dev, MT_INT1_MASK_CSR, 0);
  		/* master switch of PCIe tnterrupt enable */
-@@ -168,15 +197,27 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
+@@ -168,15 +196,27 @@ static int mt7996_pci_probe(struct pci_dev *pdev,
  free_hif2_irq:
  	if (dev->hif2)
  		devm_free_irq(mdev->dev, dev->hif2->irq, dev);
