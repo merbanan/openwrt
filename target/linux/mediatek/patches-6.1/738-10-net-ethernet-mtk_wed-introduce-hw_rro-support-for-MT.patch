@@ -376,7 +376,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
  {
  	int i;
-@@ -2240,6 +2536,10 @@ void mtk_wed_add_hw(struct device_node *
+@@ -2246,6 +2542,10 @@ void mtk_wed_add_hw(struct device_node *
  		.detach = mtk_wed_detach,
  		.ppe_check = mtk_wed_ppe_check,
  		.setup_tc = mtk_wed_setup_tc,

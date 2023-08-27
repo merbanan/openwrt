@@ -1,8 +1,10 @@
-From 537b973c952546b3b94d4c93664f7df6bb0e9262 Mon Sep 17 00:00:00 2001
-Message-ID: <537b973c952546b3b94d4c93664f7df6bb0e9262.1693052350.git.lorenzo@kernel.org>
+From 4ae5f44258f20a1b18b12958095082c5910c97c6 Mon Sep 17 00:00:00 2001
+Message-ID: <4ae5f44258f20a1b18b12958095082c5910c97c6.1693142992.git.lorenzo@kernel.org>
+In-Reply-To: <324d80be3f883229ce414dfec1c32fa64e7338c4.1693142992.git.lorenzo@kernel.org>
+References: <324d80be3f883229ce414dfec1c32fa64e7338c4.1693142992.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sat, 22 Jul 2023 23:06:25 +0200
-Subject: [PATCH net-next 1/4] net: ethernet: mtk_wed: introduce WED support
+Subject: [PATCH net-next 2/2] net: ethernet: mtk_wed: introduce WED support
  for MT7988
 
 Similar to MT7986 and MT7622, enable Wireless Ethernet Distpatcher for
@@ -737,14 +739,14 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 -		ext_mask |= MTK_WED_EXT_INT_STATUS_RX_FBUF_LO_TH |
 -			    MTK_WED_EXT_INT_STATUS_RX_FBUF_HI_TH |
 +		break;
-+	case 3:
-+		ext_mask = MTK_WED_EXT_INT_STATUS_RX_DRV_COHERENT;
-+		break;
 +	case 2:
 +		ext_mask |= MTK_WED_EXT_INT_STATUS_RX_FBUF_LO_TH_V2 |
 +			    MTK_WED_EXT_INT_STATUS_RX_FBUF_HI_TH_V2 |
  			    MTK_WED_EXT_INT_STATUS_RX_DRV_COHERENT |
  			    MTK_WED_EXT_INT_STATUS_TX_DMA_W_RESP_ERR;
++		break;
++	case 3:
++		ext_mask = MTK_WED_EXT_INT_STATUS_RX_DRV_COHERENT;
 +		break;
 +	default:
 +		break;

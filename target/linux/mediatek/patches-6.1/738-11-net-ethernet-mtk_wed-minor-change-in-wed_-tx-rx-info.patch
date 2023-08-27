@@ -1,0 +1,55 @@
+From f557e870f4ba8e5673dca35fda4a8d45a17023c4 Mon Sep 17 00:00:00 2001
+Message-ID: <f557e870f4ba8e5673dca35fda4a8d45a17023c4.1693153819.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 27 Aug 2023 18:19:06 +0200
+Subject: [PATCH net-next 1/4] net: ethernet: mtk_wed: minor change in
+ wed_{tx,rx}info_show
+
+No functional changes, just cosmetic changes.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_wed_debugfs.c | 13 ++++---------
+ 1 file changed, 4 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c b/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
+index f3a1c5e253cb..982d4a219e73 100644
+--- a/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
+@@ -84,7 +84,6 @@ dump_wed_regs(struct seq_file *s, struct mtk_wed_device *dev,
+ 	}
+ }
+ 
+-
+ static int
+ wed_txinfo_show(struct seq_file *s, void *data)
+ {
+@@ -133,10 +132,8 @@ wed_txinfo_show(struct seq_file *s, void *data)
+ 	struct mtk_wed_hw *hw = s->private;
+ 	struct mtk_wed_device *dev = hw->wed_dev;
+ 
+-	if (!dev)
+-		return 0;
+-
+-	dump_wed_regs(s, dev, regs, ARRAY_SIZE(regs));
++	if (dev)
++		dump_wed_regs(s, dev, regs, ARRAY_SIZE(regs));
+ 
+ 	return 0;
+ }
+@@ -208,10 +205,8 @@ wed_rxinfo_show(struct seq_file *s, void *data)
+ 	struct mtk_wed_hw *hw = s->private;
+ 	struct mtk_wed_device *dev = hw->wed_dev;
+ 
+-	if (!dev)
+-		return 0;
+-
+-	dump_wed_regs(s, dev, regs, ARRAY_SIZE(regs));
++	if (dev)
++		dump_wed_regs(s, dev, regs, ARRAY_SIZE(regs));
+ 
+ 	return 0;
+ }
+-- 
+2.41.0
+
