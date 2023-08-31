@@ -1,5 +1,5 @@
-From 543a67a1cca40b7f9797febd3d0db2caccf75460 Mon Sep 17 00:00:00 2001
-Message-ID: <543a67a1cca40b7f9797febd3d0db2caccf75460.1693478221.git.lorenzo@kernel.org>
+From a6331d7fb4e4d8624d3a0e818ff5a45fcead3e11 Mon Sep 17 00:00:00 2001
+Message-ID: <a6331d7fb4e4d8624d3a0e818ff5a45fcead3e11.1693486696.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sat, 22 Jul 2023 23:06:25 +0200
 Subject: [PATCH net-next] net: ethernet: mtk_wed: introduce WED support for
@@ -15,12 +15,12 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  drivers/net/ethernet/mediatek/mtk_eth_soc.c   |   1 +
  drivers/net/ethernet/mediatek/mtk_eth_soc.h   |   2 +-
  .../net/ethernet/mediatek/mtk_ppe_offload.c   |   3 +
- drivers/net/ethernet/mediatek/mtk_wed.c       | 440 +++++++++++++-----
+ drivers/net/ethernet/mediatek/mtk_wed.c       | 458 +++++++++++++-----
  drivers/net/ethernet/mediatek/mtk_wed.h       |  28 ++
  drivers/net/ethernet/mediatek/mtk_wed_mcu.c   |  11 +-
  drivers/net/ethernet/mediatek/mtk_wed_regs.h  | 228 ++++++++-
  include/linux/soc/mediatek/mtk_wed.h          |   9 +-
- 8 files changed, 589 insertions(+), 133 deletions(-)
+ 8 files changed, 598 insertions(+), 142 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 index 6ad42e3b488f..a8a258a23332 100644
@@ -62,7 +62,7 @@ index a70a5417c173..23f4cdc3844d 100644
  				return -EINVAL;
  			}
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index 2cf615a0cb1f..128fb9cc7af0 100644
+index 2cf615a0cb1f..431ffb53e677 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
 @@ -17,17 +17,19 @@
@@ -539,34 +539,43 @@ index 2cf615a0cb1f..128fb9cc7af0 100644
 -	} else {
 -		wed_clr(dev, MTK_WED_TX_TKID_CTRL, MTK_WED_TX_TKID_CTRL_PAUSE);
 -		if (mtk_wed_get_rx_capa(dev)) {
-+	} else if (mtk_wed_get_rx_capa(dev)) {
- 			/* rx hw init */
- 			wed_w32(dev, MTK_WED_WPDMA_RX_D_RST_IDX,
- 				MTK_WED_WPDMA_RX_D_RST_CRX_IDX |
- 				MTK_WED_WPDMA_RX_D_RST_DRV_IDX);
- 			wed_w32(dev, MTK_WED_WPDMA_RX_D_RST_IDX, 0);
- 
-+			/* reset prefetch index of ring */
-+			wed_set(dev, MTK_WED_WPDMA_RX_D_PREF_RX0_SIDX,
-+				MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
-+			wed_clr(dev, MTK_WED_WPDMA_RX_D_PREF_RX0_SIDX,
-+				MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
-+
-+			wed_set(dev, MTK_WED_WPDMA_RX_D_PREF_RX1_SIDX,
-+				MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
-+			wed_clr(dev, MTK_WED_WPDMA_RX_D_PREF_RX1_SIDX,
-+				MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
-+
-+			/* reset prefetch FIFO of ring */
-+			wed_set(dev, MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG,
-+				MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG_R0_CLR |
-+				MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG_R1_CLR);
-+			wed_w32(dev, MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG, 0);
-+
- 			mtk_wed_rx_buffer_hw_init(dev);
- 			mtk_wed_rro_hw_init(dev);
- 			mtk_wed_route_qm_hw_init(dev);
+-			/* rx hw init */
+-			wed_w32(dev, MTK_WED_WPDMA_RX_D_RST_IDX,
+-				MTK_WED_WPDMA_RX_D_RST_CRX_IDX |
+-				MTK_WED_WPDMA_RX_D_RST_DRV_IDX);
+-			wed_w32(dev, MTK_WED_WPDMA_RX_D_RST_IDX, 0);
+-
+-			mtk_wed_rx_buffer_hw_init(dev);
+-			mtk_wed_rro_hw_init(dev);
+-			mtk_wed_route_qm_hw_init(dev);
 -		}
++	} else if (mtk_wed_get_rx_capa(dev)) {
++		/* rx hw init */
++		wed_w32(dev, MTK_WED_WPDMA_RX_D_RST_IDX,
++			MTK_WED_WPDMA_RX_D_RST_CRX_IDX |
++			MTK_WED_WPDMA_RX_D_RST_DRV_IDX);
++		wed_w32(dev, MTK_WED_WPDMA_RX_D_RST_IDX, 0);
++
++		/* reset prefetch index of ring */
++		wed_set(dev, MTK_WED_WPDMA_RX_D_PREF_RX0_SIDX,
++			MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
++		wed_clr(dev, MTK_WED_WPDMA_RX_D_PREF_RX0_SIDX,
++			MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
++
++		wed_set(dev, MTK_WED_WPDMA_RX_D_PREF_RX1_SIDX,
++			MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
++		wed_clr(dev, MTK_WED_WPDMA_RX_D_PREF_RX1_SIDX,
++			MTK_WED_WPDMA_RX_D_PREF_SIDX_IDX_CLR);
++
++		/* reset prefetch FIFO of ring */
++		wed_set(dev, MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG,
++			MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG_R0_CLR |
++			MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG_R1_CLR);
++		wed_w32(dev, MTK_WED_WPDMA_RX_D_PREF_FIFO_CFG, 0);
++
++		mtk_wed_rx_buffer_hw_init(dev);
++		mtk_wed_rro_hw_init(dev);
++		mtk_wed_route_qm_hw_init(dev);
  	}
  
  	wed_clr(dev, MTK_WED_TX_BM_CTRL, MTK_WED_TX_BM_CTRL_PAUSE);
