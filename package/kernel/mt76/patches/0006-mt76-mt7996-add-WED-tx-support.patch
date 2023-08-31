@@ -1,5 +1,5 @@
-From 0129582302e58337a313eeb2bb5a644ccb9a9a4e Mon Sep 17 00:00:00 2001
-Message-ID: <0129582302e58337a313eeb2bb5a644ccb9a9a4e.1693144161.git.lorenzo@kernel.org>
+From 14e324099a11d41070923770bce0cc168530e1d3 Mon Sep 17 00:00:00 2001
+Message-ID: <14e324099a11d41070923770bce0cc168530e1d3.1693477299.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Mon, 21 Aug 2023 10:47:54 +0200
 Subject: [PATCH] mt76: mt7996: add WED tx support
@@ -11,7 +11,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  dma.c           |   2 +
  mt76.h          |   1 +
- mt7996/dma.c    |  82 +++++++++++++++++++----
+ mt7996/dma.c    |  59 ++++++++++++----
  mt7996/init.c   |  21 ++++--
  mt7996/mac.c    |  25 ++++++-
  mt7996/main.c   |  42 ++++++++++++
@@ -20,7 +20,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  mt7996/pci.c    |  70 ++++++++++++++-----
  mt7996/regs.h   |   5 ++
  tx.c            |   4 +-
- 11 files changed, 381 insertions(+), 53 deletions(-)
+ 11 files changed, 358 insertions(+), 53 deletions(-)
 
 diff --git a/dma.c b/dma.c
 index d64824ab..14d964e2 100644
@@ -47,7 +47,7 @@ index 4534fdc1..1c35ecb1 100644
  	struct completion wed_reset_complete;
  };
 diff --git a/mt7996/dma.c b/mt7996/dma.c
-index b3334636..f2d88d58 100644
+index b3334636..df491494 100644
 --- a/mt7996/dma.c
 +++ b/mt7996/dma.c
 @@ -20,6 +20,26 @@ static int mt7996_poll_tx(struct napi_struct *napi, int budget)
@@ -77,39 +77,16 @@ index b3334636..f2d88d58 100644
  static void mt7996_dma_config(struct mt7996_dev *dev)
  {
  #define Q_CONFIG(q, wfdma, int, id) do {		\
-@@ -128,7 +148,30 @@ static void mt7996_dma_disable(struct mt7996_dev *dev, bool reset)
+@@ -128,7 +148,7 @@ static void mt7996_dma_disable(struct mt7996_dev *dev, bool reset)
  	}
  }
  
 -void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
-+static void
-+mt7996_dma_wed_start(struct mt7996_dev *dev)
-+{
-+	u32 irq_mask = MT_INT_TX_DONE_BAND0 | MT_INT_TX_DONE_BAND1 |
-+		       MT_INT_MCU_CMD | MT_INT_RX_DONE_MCU |
-+		       MT_INT_TX_DONE_MCU;
-+
-+	if (!mtk_wed_device_active(&dev->mt76.mmio.wed))
-+		return;
-+
-+	if (!dev->mphy.band_idx)
-+		irq_mask |= MT_INT_BAND0_RX_DONE;
-+
-+	if (dev->dbdc_support)
-+		irq_mask |= MT_INT_BAND1_RX_DONE;
-+
-+	if (dev->tbtc_support)
-+		irq_mask |= MT_INT_BAND2_RX_DONE;
-+
-+	mt76_wr(dev, MT_INT_MASK_CSR, irq_mask);
-+	mtk_wed_device_start(&dev->mt76.mmio.wed, irq_mask);
-+}
-+
 +void mt7996_dma_start(struct mt7996_dev *dev, bool reset, bool wed_reset)
  {
  	u32 hif1_ofs = 0;
  	u32 irq_mask;
-@@ -153,11 +196,7 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
+@@ -153,11 +173,7 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
  	}
  
  	/* enable interrupts for TX/RX rings */
@@ -122,7 +99,7 @@ index b3334636..f2d88d58 100644
  
  	if (!dev->mphy.band_idx)
  		irq_mask |= MT_INT_BAND0_RX_DONE;
-@@ -168,7 +207,17 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
+@@ -168,7 +184,17 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
  	if (dev->tbtc_support)
  		irq_mask |= MT_INT_BAND2_RX_DONE;
  
@@ -141,7 +118,7 @@ index b3334636..f2d88d58 100644
  	mt7996_irq_enable(dev, irq_mask);
  	mt7996_irq_disable(dev, 0);
  }
-@@ -247,7 +296,7 @@ static void mt7996_dma_enable(struct mt7996_dev *dev, bool reset)
+@@ -247,7 +273,7 @@ static void mt7996_dma_enable(struct mt7996_dev *dev, bool reset)
  		/* TODO: redirect rx ring6 interrupt to pcie0 for wed function */
  	}
  
@@ -150,7 +127,7 @@ index b3334636..f2d88d58 100644
  }
  
  int mt7996_dma_init(struct mt7996_dev *dev)
-@@ -265,10 +314,9 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -265,10 +291,9 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  	mt7996_dma_disable(dev, true);
  
  	/* init tx queue */
@@ -164,7 +141,7 @@ index b3334636..f2d88d58 100644
  	if (ret)
  		return ret;
  
-@@ -324,6 +372,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -324,6 +349,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  		return ret;
  
  	/* tx free notify event from WA for band0 */
@@ -176,7 +153,7 @@ index b3334636..f2d88d58 100644
  	ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN_WA],
  			       MT_RXQ_ID(MT_RXQ_MAIN_WA),
  			       MT7996_RX_MCU_RING_SIZE,
-@@ -345,6 +398,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -345,6 +375,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  		/* tx free notify event from WA for band2
  		 * use pcie0's rx ring3, but, redirect pcie0 rx ring3 interrupt to pcie1
  		 */
