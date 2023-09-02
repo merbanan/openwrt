@@ -1,5 +1,5 @@
-From a6331d7fb4e4d8624d3a0e818ff5a45fcead3e11 Mon Sep 17 00:00:00 2001
-Message-ID: <a6331d7fb4e4d8624d3a0e818ff5a45fcead3e11.1693486696.git.lorenzo@kernel.org>
+From 94da4d9f3e730b5fae8ab504ecd01babe692bcfb Mon Sep 17 00:00:00 2001
+Message-ID: <94da4d9f3e730b5fae8ab504ecd01babe692bcfb.1693652934.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sat, 22 Jul 2023 23:06:25 +0200
 Subject: [PATCH net-next] net: ethernet: mtk_wed: introduce WED support for
@@ -17,10 +17,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  .../net/ethernet/mediatek/mtk_ppe_offload.c   |   3 +
  drivers/net/ethernet/mediatek/mtk_wed.c       | 458 +++++++++++++-----
  drivers/net/ethernet/mediatek/mtk_wed.h       |  28 ++
- drivers/net/ethernet/mediatek/mtk_wed_mcu.c   |  11 +-
+ drivers/net/ethernet/mediatek/mtk_wed_mcu.c   |  33 +-
  drivers/net/ethernet/mediatek/mtk_wed_regs.h  | 228 ++++++++-
+ drivers/net/ethernet/mediatek/mtk_wed_wo.h    |   2 +
  include/linux/soc/mediatek/mtk_wed.h          |   9 +-
- 8 files changed, 598 insertions(+), 142 deletions(-)
+ 9 files changed, 618 insertions(+), 146 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 index 6ad42e3b488f..a8a258a23332 100644
@@ -849,10 +850,37 @@ index 6f5db891a6b9..224ff00bdd8b 100644
  		    void __iomem *wdma, phys_addr_t wdma_phy,
  		    int index);
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
-index 57a8f28d50da..7428568d5dee 100644
+index 57a8f28d50da..12f2e72da9eb 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
-@@ -350,15 +350,16 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
+@@ -326,10 +326,22 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
+ 		wo->hw->index + 1);
+ 
+ 	/* load firmware */
+-	if (of_device_is_compatible(wo->hw->node, "mediatek,mt7981-wed"))
+-		fw_name = MT7981_FIRMWARE_WO;
+-	else
+-		fw_name = wo->hw->index ? MT7986_FIRMWARE_WO1 : MT7986_FIRMWARE_WO0;
++	switch (wo->hw->version) {
++	case 2:
++		if (of_device_is_compatible(wo->hw->node,
++					    "mediatek,mt7981-wed"))
++			fw_name = MT7981_FIRMWARE_WO;
++		else
++			fw_name = wo->hw->index ? MT7986_FIRMWARE_WO1
++						: MT7986_FIRMWARE_WO0;
++		break;
++	case 3:
++		fw_name = wo->hw->index ? MT7988_FIRMWARE_WO1
++					: MT7988_FIRMWARE_WO0;
++		break;
++	default:
++		return -EINVAL;
++	}
+ 
+ 	ret = request_firmware(&fw, fw_name, wo->hw->dev);
+ 	if (ret)
+@@ -350,15 +362,16 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
  	}
  
  	/* set the start address */
@@ -874,6 +902,12 @@ index 57a8f28d50da..7428568d5dee 100644
  	wo_w32(wo, MTK_WO_MCU_CFG_LS_WF_MCU_CFG_WM_WA_ADDR, val);
  out:
  	release_firmware(fw);
+@@ -393,3 +406,5 @@ int mtk_wed_mcu_init(struct mtk_wed_wo *wo)
+ MODULE_FIRMWARE(MT7981_FIRMWARE_WO);
+ MODULE_FIRMWARE(MT7986_FIRMWARE_WO0);
+ MODULE_FIRMWARE(MT7986_FIRMWARE_WO1);
++MODULE_FIRMWARE(MT7988_FIRMWARE_WO0);
++MODULE_FIRMWARE(MT7988_FIRMWARE_WO1);
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_regs.h b/drivers/net/ethernet/mediatek/mtk_wed_regs.h
 index 47ea69feb3b2..cd232f6b958d 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_regs.h
@@ -1242,6 +1276,19 @@ index 47ea69feb3b2..cd232f6b958d 100644
 +#define MTK_WED_PCIE_BASE1			0x11310000
 +#define MTK_WED_PCIE_BASE2			0x11290000
  #endif
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed_wo.h b/drivers/net/ethernet/mediatek/mtk_wed_wo.h
+index 7a1a2a28f1ac..fa4432a43ee0 100644
+--- a/drivers/net/ethernet/mediatek/mtk_wed_wo.h
++++ b/drivers/net/ethernet/mediatek/mtk_wed_wo.h
+@@ -91,6 +91,8 @@ enum mtk_wed_dummy_cr_idx {
+ #define MT7981_FIRMWARE_WO	"mediatek/mt7981_wo.bin"
+ #define MT7986_FIRMWARE_WO0	"mediatek/mt7986_wo_0.bin"
+ #define MT7986_FIRMWARE_WO1	"mediatek/mt7986_wo_1.bin"
++#define MT7988_FIRMWARE_WO0	"mediatek/mt7988_wo_0.bin"
++#define MT7988_FIRMWARE_WO1	"mediatek/mt7988_wo_1.bin"
+ 
+ #define MTK_WO_MCU_CFG_LS_BASE				0
+ #define MTK_WO_MCU_CFG_LS_HW_VER_ADDR			(MTK_WO_MCU_CFG_LS_BASE + 0x000)
 diff --git a/include/linux/soc/mediatek/mtk_wed.h b/include/linux/soc/mediatek/mtk_wed.h
 index 5f00dc26582b..0beccbe45585 100644
 --- a/include/linux/soc/mediatek/mtk_wed.h
