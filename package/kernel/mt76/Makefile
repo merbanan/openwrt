@@ -553,6 +553,12 @@ define KernelPackage/mt7996-firmware/install
 		./files/mt7996_eeprom.bin \
 		./files/mt7996_eeprom_tm.bin \
 		$(1)/lib/firmware/mediatek/mt7996/
+	$(INSTALL_DIR) $(1)/lib/firmware/mediatek/
+	cp \
+		./files/mt7988_wo_0.bin \
+		./files/mt7988_wo_1.bin \
+		./files/mt7988_wo_2.bin \
+		$(1)/lib/firmware/mediatek/
 endef
 
 define KernelPackage/mt7921-firmware/install
