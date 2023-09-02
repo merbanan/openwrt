@@ -1,0 +1,31 @@
+From 862d44050b1d375450fd13b30270ff64fb667f71 Mon Sep 17 00:00:00 2001
+Message-ID: <862d44050b1d375450fd13b30270ff64fb667f71.1693607713.git.lorenzo@kernel.org>
+In-Reply-To: <31fb753829ea5b8bfa0effcfbd1783c8833062a9.1693607713.git.lorenzo@kernel.org>
+References: <31fb753829ea5b8bfa0effcfbd1783c8833062a9.1693607713.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Fri, 1 Sep 2023 10:21:09 +0200
+Subject: [PATCH 2/3] mt76: increase MT_QFLAG_WED_TYPE size
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt76.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/mt76.h b/mt76.h
+index 2dd290ce..ca585a41 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -28,8 +28,8 @@
+ #define MT76_TOKEN_FREE_THR	64
+ 
+ #define MT_QFLAG_WED_RING	GENMASK(1, 0)
+-#define MT_QFLAG_WED_TYPE	GENMASK(3, 2)
+-#define MT_QFLAG_WED		BIT(4)
++#define MT_QFLAG_WED_TYPE	GENMASK(4, 2)
++#define MT_QFLAG_WED		BIT(5)
+ 
+ #define __MT_WED_Q(_type, _n)	(MT_QFLAG_WED | \
+ 				 FIELD_PREP(MT_QFLAG_WED_TYPE, _type) | \
+-- 
+2.41.0
+

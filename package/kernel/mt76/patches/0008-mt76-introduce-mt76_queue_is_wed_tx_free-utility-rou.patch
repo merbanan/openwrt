@@ -1,0 +1,77 @@
+From 7ea9ed0ddcfddc63d5e263169d35d5469565df29 Mon Sep 17 00:00:00 2001
+Message-ID: <7ea9ed0ddcfddc63d5e263169d35d5469565df29.1693608015.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Fri, 1 Sep 2023 10:18:19 +0200
+Subject: [PATCH] mt76: introduce mt76_queue_is_wed_tx_free utility routine
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ dma.c        | 6 +++---
+ mt76.h       | 6 ++++++
+ mt7915/dma.c | 2 +-
+ 3 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/dma.c b/dma.c
+index d64824ab..3c72b34a 100644
+--- a/dma.c
++++ b/dma.c
+@@ -723,7 +723,7 @@ mt76_dma_alloc_queue(struct mt76_dev *dev, struct mt76_queue *q,
+ 	if (ret)
+ 		return ret;
+ 
+-	if (q->flags != MT_WED_Q_TXFREE)
++	if (!mt76_queue_is_wed_tx_free(q))
+ 		mt76_dma_queue_reset(dev, q);
+ 
+ 	return 0;
+@@ -772,7 +772,7 @@ mt76_dma_rx_reset(struct mt76_dev *dev, enum mt76_rxq_id qid)
+ 
+ 	/* reset WED rx queues */
+ 	mt76_dma_wed_setup(dev, q, true);
+-	if (q->flags != MT_WED_Q_TXFREE) {
++	if (!mt76_queue_is_wed_tx_free(q)) {
+ 		mt76_dma_sync_idx(dev, q);
+ 		mt76_dma_rx_fill(dev, q, false);
+ 	}
+@@ -815,7 +815,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+ 	bool more;
+ 
+ 	if (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
+-	    q->flags == MT_WED_Q_TXFREE) {
++	    mt76_queue_is_wed_tx_free(q)) {
+ 		dma_idx = Q_READ(q, dma_idx);
+ 		check_ddone = true;
+ 	}
+diff --git a/mt76.h b/mt76.h
+index 4534fdc1..babe0825 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -1533,6 +1533,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
+ 			      struct mt76_power_limits *dest,
+ 			      s8 target_power);
+ 
++static inline bool mt76_queue_is_wed_tx_free(struct mt76_queue *q)
++{
++	return (q->flags & MT_QFLAG_WED) &&
++	       FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_TXFREE;
++}
++
+ static inline bool mt76_queue_is_wed_rx(struct mt76_queue *q)
+ {
+ 	return (q->flags & MT_QFLAG_WED) &&
+diff --git a/mt7915/dma.c b/mt7915/dma.c
+index cfa6139a..26cec4bd 100644
+--- a/mt7915/dma.c
++++ b/mt7915/dma.c
+@@ -649,7 +649,7 @@ int mt7915_dma_reset(struct mt7915_dev *dev, bool force)
+ 		mt76_queue_reset(dev, dev->mt76.q_mcu[i]);
+ 
+ 	mt76_for_each_q_rx(&dev->mt76, i) {
+-		if (dev->mt76.q_rx[i].flags == MT_WED_Q_TXFREE)
++		if (mt76_queue_is_wed_tx_free(&dev->mt76.q_rx[i]))
+ 			continue;
+ 
+ 		mt76_queue_reset(dev, &dev->mt76.q_rx[i]);
+-- 
+2.41.0
+

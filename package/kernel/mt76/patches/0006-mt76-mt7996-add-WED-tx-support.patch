@@ -1,29 +1,31 @@
-From 14e324099a11d41070923770bce0cc168530e1d3 Mon Sep 17 00:00:00 2001
-Message-ID: <14e324099a11d41070923770bce0cc168530e1d3.1693477299.git.lorenzo@kernel.org>
+From 31fb753829ea5b8bfa0effcfbd1783c8833062a9 Mon Sep 17 00:00:00 2001
+Message-ID: <31fb753829ea5b8bfa0effcfbd1783c8833062a9.1693607713.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Mon, 21 Aug 2023 10:47:54 +0200
-Subject: [PATCH] mt76: mt7996: add WED tx support
+Subject: [PATCH 1/3] mt76: mt7996: add WED tx support
 
 Similar to MT7915 driver, introduce Wireless Ethernet Distpactcher
 support for MT7996 device.
 
+Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 ---
  dma.c           |   2 +
  mt76.h          |   1 +
- mt7996/dma.c    |  59 ++++++++++++----
+ mt7996/dma.c    |  60 +++++++++++++----
  mt7996/init.c   |  21 ++++--
  mt7996/mac.c    |  25 ++++++-
  mt7996/main.c   |  42 ++++++++++++
- mt7996/mmio.c   | 174 +++++++++++++++++++++++++++++++++++++++++++-----
+ mt7996/mmio.c   | 175 +++++++++++++++++++++++++++++++++++++++++++-----
  mt7996/mt7996.h |   8 ++-
  mt7996/pci.c    |  70 ++++++++++++++-----
  mt7996/regs.h   |   5 ++
  tx.c            |   4 +-
- 11 files changed, 358 insertions(+), 53 deletions(-)
+ 11 files changed, 360 insertions(+), 53 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index d64824ab..14d964e2 100644
+index 3c72b34a..630b999f 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -989,5 +989,7 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
@@ -35,7 +37,7 @@ index d64824ab..14d964e2 100644
  }
  EXPORT_SYMBOL_GPL(mt76_dma_cleanup);
 diff --git a/mt76.h b/mt76.h
-index 4534fdc1..1c35ecb1 100644
+index babe0825..2dd290ce 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -600,6 +600,7 @@ struct mt76_mmio {
@@ -47,7 +49,7 @@ index 4534fdc1..1c35ecb1 100644
  	struct completion wed_reset_complete;
  };
 diff --git a/mt7996/dma.c b/mt7996/dma.c
-index b3334636..df491494 100644
+index b3334636..96f9d06a 100644
 --- a/mt7996/dma.c
 +++ b/mt7996/dma.c
 @@ -20,6 +20,26 @@ static int mt7996_poll_tx(struct napi_struct *napi, int budget)
@@ -99,16 +101,15 @@ index b3334636..df491494 100644
  
  	if (!dev->mphy.band_idx)
  		irq_mask |= MT_INT_BAND0_RX_DONE;
-@@ -168,7 +184,17 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
+@@ -168,7 +184,16 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset)
  	if (dev->tbtc_support)
  		irq_mask |= MT_INT_BAND2_RX_DONE;
  
 -done:
 +	if (mtk_wed_device_active(&dev->mt76.mmio.wed) && wed_reset) {
-+		u32 wed_irq_mask = irq_mask;
-+		int ret;
++		u32 wed_irq_mask = irq_mask | MT_INT_TX_DONE_BAND0 |
++				   MT_INT_TX_DONE_BAND1;
 +
-+		wed_irq_mask |= MT_INT_TX_DONE_BAND0 | MT_INT_TX_DONE_BAND1;
 +		mt76_wr(dev, MT_INT_MASK_CSR, wed_irq_mask);
 +		mtk_wed_device_start(&dev->mt76.mmio.wed, wed_irq_mask);
 +	}
@@ -118,7 +119,7 @@ index b3334636..df491494 100644
  	mt7996_irq_enable(dev, irq_mask);
  	mt7996_irq_disable(dev, 0);
  }
-@@ -247,7 +273,7 @@ static void mt7996_dma_enable(struct mt7996_dev *dev, bool reset)
+@@ -247,11 +272,13 @@ static void mt7996_dma_enable(struct mt7996_dev *dev, bool reset)
  		/* TODO: redirect rx ring6 interrupt to pcie0 for wed function */
  	}
  
@@ -127,7 +128,13 @@ index b3334636..df491494 100644
  }
  
  int mt7996_dma_init(struct mt7996_dev *dev)
-@@ -265,10 +291,9 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+ {
++	struct mtk_wed_device *wed = &dev->mt76.mmio.wed;
++	struct mtk_wed_device *wed_hif2 = &dev->mt76.mmio.wed_hif2;
+ 	u32 hif1_ofs = 0;
+ 	int ret;
+ 
+@@ -265,10 +292,9 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  	mt7996_dma_disable(dev, true);
  
  	/* init tx queue */
@@ -137,29 +144,29 @@ index b3334636..df491494 100644
 -					 MT_TXQ_RING_BASE(0), NULL, 0);
 +	ret = mt7996_init_tx_queues(&dev->phy, MT_TXQ_ID(dev->mphy.band_idx),
 +				    MT7996_TX_RING_SIZE, MT_TXQ_RING_BASE(0),
-+				    &dev->mt76.mmio.wed);
++				    wed);
  	if (ret)
  		return ret;
  
-@@ -324,6 +349,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -324,6 +350,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  		return ret;
  
  	/* tx free notify event from WA for band0 */
-+	if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
++	if (mtk_wed_device_active(wed)) {
 +		dev->mt76.q_rx[MT_RXQ_MAIN_WA].flags = MT_WED_Q_TXFREE;
-+		dev->mt76.q_rx[MT_RXQ_MAIN_WA].wed = &dev->mt76.mmio.wed;
++		dev->mt76.q_rx[MT_RXQ_MAIN_WA].wed = wed;
 +	}
 +
  	ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN_WA],
  			       MT_RXQ_ID(MT_RXQ_MAIN_WA),
  			       MT7996_RX_MCU_RING_SIZE,
-@@ -345,6 +375,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -345,6 +376,11 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  		/* tx free notify event from WA for band2
  		 * use pcie0's rx ring3, but, redirect pcie0 rx ring3 interrupt to pcie1
  		 */
-+		if (mtk_wed_device_active(&dev->mt76.mmio.wed_hif2)) {
++		if (mtk_wed_device_active(wed_hif2)) {
 +			dev->mt76.q_rx[MT_RXQ_BAND2_WA].flags = MT_WED_Q_TXFREE;
-+			dev->mt76.q_rx[MT_RXQ_BAND2_WA].wed = &dev->mt76.mmio.wed_hif2;
++			dev->mt76.q_rx[MT_RXQ_BAND2_WA].wed = wed_hif2;
 +		}
 +
  		ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_BAND2_WA],
@@ -321,7 +328,7 @@ index c3a479dc..da89ef16 100644
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
  };
 diff --git a/mt7996/mmio.c b/mt7996/mmio.c
-index 3a591a7b..b1f12ee1 100644
+index 3a591a7b..8848c81e 100644
 --- a/mt7996/mmio.c
 +++ b/mt7996/mmio.c
 @@ -10,6 +10,10 @@
@@ -335,7 +342,7 @@ index 3a591a7b..b1f12ee1 100644
  
  static const struct __base mt7996_reg_base[] = {
  	[WF_AGG_BASE]		= { { 0x820e2000, 0x820f2000, 0x830e2000 } },
-@@ -191,6 +195,109 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
+@@ -191,6 +195,110 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
  	return dev->bus_ops->rmw(mdev, __mt7996_reg_addr(dev, offset), mask, val);
  }
  
@@ -426,6 +433,7 @@ index 3a591a7b..b1f12ee1 100644
 +	*irq = wed->irq;
 +	dev->mt76.dma_dev = wed->dev;
 +
++	/* FIXME */
 +	dev->mt76.token_size = 1024;
 +
 +	ret = dma_set_mask(wed->dev, DMA_BIT_MASK(32));
@@ -445,7 +453,7 @@ index 3a591a7b..b1f12ee1 100644
  static int mt7996_mmio_init(struct mt76_dev *mdev,
  			    void __iomem *mem_base,
  			    u32 device_id)
-@@ -241,8 +348,16 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
+@@ -241,8 +349,16 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
  	mdev->mmio.irqmask |= set;
  
  	if (write_reg) {
@@ -464,7 +472,7 @@ index 3a591a7b..b1f12ee1 100644
  	}
  
  	spin_unlock_irqrestore(&mdev->mmio.irq_lock, flags);
-@@ -260,22 +375,35 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
+@@ -260,22 +376,35 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
  static void mt7996_irq_tasklet(struct tasklet_struct *t)
  {
  	struct mt7996_dev *dev = from_tasklet(dev, t, mt76.irq_tasklet);
@@ -513,7 +521,7 @@ index 3a591a7b..b1f12ee1 100644
  	}
  
  	trace_dev_irq(&dev->mt76, intr, dev->mt76.mmio.irqmask);
-@@ -307,10 +435,20 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
+@@ -307,10 +436,20 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
  irqreturn_t mt7996_irq_handler(int irq, void *dev_instance)
  {
  	struct mt7996_dev *dev = dev_instance;
