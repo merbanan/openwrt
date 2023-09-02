@@ -22,6 +22,14 @@ define Build/mt7986-bl31-uboot
 	cat $(STAGING_DIR_IMAGE)/mt7986_$1-u-boot.fip >> $@
 endef
 
+define Build/mt7988-bl2
+	cat $(STAGING_DIR_IMAGE)/mt7988-$1-bl2.img >> $@
+endef
+
+define Build/mt7988-bl31-uboot
+	cat $(STAGING_DIR_IMAGE)/mt7988_$1-u-boot.fip >> $@
+endef
+
 define Build/mt7986-gpt
 	cp $@ $@.tmp 2>/dev/null || true
 	ptgen -g -o $@.tmp -a 1 -l 1024 \
@@ -289,14 +297,41 @@ define Device/mediatek_mt7988a-rfb-nand
   DEVICE_DTS_DIR := $(DTS_DIR)/
   KERNEL_LOADADDR := 0x48000000
   SUPPORTED_DEVICES := mediatek,mt7988a-rfb
-  UBINIZE_OPTS := -E 5
-  BLOCKSIZE := 128k
-  PAGESIZE := 2048
-  IMAGE_SIZE := 65536k
+  KERNEL := kernel-bin | gzip
+  KERNEL_INITRAMFS := kernel-bin | lzma | \
+	fit lzma $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb with-initrd | pad-to 64k
   KERNEL_IN_UBI := 1
-  IMAGES += factory.bin
-  IMAGE/factory.bin := append-ubi | check-size $$$$(IMAGE_SIZE)
-  IMAGE/sysupgrade.bin := sysupgrade-tar | append-metadata
+  IMAGE_SIZE := $$(shell expr 64 + $$(CONFIG_TARGET_ROOTFS_PARTSIZE))m
+  IMAGES := sysupgrade.itb
+  IMAGE/sysupgrade.itb := append-kernel | fit gzip $$(KDIR)/image-$$(firstword $$(DEVICE_DTS)).dtb external-static-with-rootfs | pad-rootfs | append-metadata
+  ARTIFACTS := \
+	       emmc-preloader.bin emmc-bl31-uboot.fip \
+	       nor-preloader.bin nor-bl31-uboot.fip \
+	       sdcard.img.gz \
+	       snand-preloader.bin snand-bl31-uboot.fip
+  ARTIFACT/emmc-preloader.bin	:= mt7988-bl2 emmc-ddr4
+  ARTIFACT/emmc-bl31-uboot.fip	:= mt7988-bl31-uboot rfb-emmc
+  ARTIFACT/nor-preloader.bin	:= mt7988-bl2 nor-ddr4
+  ARTIFACT/nor-bl31-uboot.fip	:= mt7988-bl31-uboot rfb-nor
+  ARTIFACT/snand-preloader.bin	:= mt7988-bl2 spim-nand-ddr4
+  ARTIFACT/snand-bl31-uboot.fip	:= mt7988-bl31-uboot rfb-snand
+  ARTIFACT/sdcard.img.gz	:= mt7986-gpt sdmmc |\
+				   pad-to 17k | mt7988-bl2 sdmmc-ddr4 |\
+				   pad-to 6656k | mt7988-bl31-uboot rfb-sd |\
+				$(if $(CONFIG_TARGET_ROOTFS_INITRAMFS),\
+				   pad-to 12M | append-image-stage initramfs-kernel.bin | check-size 44m |\
+				) \
+				   pad-to 44M | mt7988-bl2 spim-nand-ddr4 |\
+				   pad-to 45M | mt7988-bl31-uboot rfb-snand |\
+				   pad-to 49M | mt7988-bl2 nor-ddr4 |\
+				   pad-to 50M | mt7988-bl31-uboot rfb-nor |\
+				   pad-to 51M | mt7988-bl2 emmc-ddr4 |\
+				   pad-to 52M | mt7988-bl31-uboot rfb-emmc |\
+				   pad-to 56M | mt7986-gpt emmc |\
+				$(if $(CONFIG_TARGET_ROOTFS_SQUASHFS),\
+				   pad-to 64M | append-image squashfs-sysupgrade.itb | check-size |\
+				) \
+				  gzip
 endef
 TARGET_DEVICES += mediatek_mt7988a-rfb-nand
 
