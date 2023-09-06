@@ -166,10 +166,11 @@
 			no-map;
 		};
 
+		/*
 		wo_data: wo-data@4f700000 {
 			reg = <0 0x4f700000 0 0x800000>;
 			no-map;
-		};
+		};*/
 	};
 
 	timer {
@@ -899,8 +900,10 @@
 			reg = <0 0x15010000 0 0x2000>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>;
-			memory-region = <&wo_emi0>, <&wo_data>;
-			memory-region-names = "wo-emi", "wo-data";
+			//memory-region = <&wo_emi0>, <&wo_data>;
+			memory-region = <&wo_emi0>;
+			//memory-region-names = "wo-emi", "wo-data";
+			memory-region-names = "wo-emi";
 			mediatek,wo-ccif = <&wo_ccif0>;
 			mediatek,wo-cpuboot = <&wo_cpuboot0>;
 			mediatek,wo-ilm = <&wo_ilm0>;
@@ -934,8 +937,10 @@
 			reg = <0 0x15012000 0 0x2000>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>;
-			memory-region = <&wo_emi1>, <&wo_data>;
-			memory-region-names = "wo-emi", "wo-data";
+			//memory-region = <&wo_emi1>, <&wo_data>;
+			memory-region = <&wo_emi1>;
+			//memory-region-names = "wo-emi", "wo-data";
+			memory-region-names = "wo-emi";
 			mediatek,wo-ccif = <&wo_ccif1>;
 			mediatek,wo-cpuboot = <&wo_cpuboot1>;
 			mediatek,wo-ilm = <&wo_ilm1>;
@@ -969,8 +974,10 @@
 			reg = <0 0x15014000 0 0x2000>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 207 IRQ_TYPE_LEVEL_HIGH>;
-			memory-region = <&wo_emi2>, <&wo_data>;
-			memory-region-names = "wo-emi", "wo-data";
+			//memory-region = <&wo_emi2>, <&wo_data>;
+			memory-region = <&wo_emi2>;
+			//memory-region-names = "wo-emi", "wo-data";
+			memory-region-names = "wo-emi";
 			mediatek,wo-ccif = <&wo_ccif2>;
 			mediatek,wo-cpuboot = <&wo_cpuboot2>;
 			mediatek,wo-ilm = <&wo_ilm2>;

@@ -1,0 +1,150 @@
+From 4944aaa54be3696dfebc5506d8431dc007c77095 Mon Sep 17 00:00:00 2001
+Message-ID: <4944aaa54be3696dfebc5506d8431dc007c77095.1693948541.git.lorenzo@kernel.org>
+In-Reply-To: <d374bdddd4d724f96b93e6a6bb24b55182b32e5c.1693948541.git.lorenzo@kernel.org>
+References: <d374bdddd4d724f96b93e6a6bb24b55182b32e5c.1693948541.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Tue, 5 Sep 2023 23:06:24 +0200
+Subject: [PATCH net-next 2/2] net: ethernet: mtk_wed: make memory region
+ optional
+
+Make mtk_wed_wo_memory_region optionals. This is a preliminary patch to
+introduce WED support for MT7988 SoC.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_wed_mcu.c | 23 ++++++++++++---------
+ 1 file changed, 13 insertions(+), 10 deletions(-)
+
+--- a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
+@@ -242,19 +242,13 @@ int mtk_wed_mcu_msg_update(struct mtk_we
+ }
+ 
+ static int
+-mtk_wed_get_reserved_memory_region(struct mtk_wed_wo *wo,
++mtk_wed_get_reserved_memory_region(struct mtk_wed_hw *hw, int index,
+ 				   struct mtk_wed_wo_memory_region *region)
+ {
+ 	struct reserved_mem *rmem;
+ 	struct device_node *np;
+-	int index;
+ 
+-	index = of_property_match_string(wo->hw->node, "memory-region-names",
+-					 region->name);
+-	if (index < 0)
+-		return index;
+-
+-	np = of_parse_phandle(wo->hw->node, "memory-region", index);
++	np = of_parse_phandle(hw->node, "memory-region", index);
+ 	if (!np)
+ 		return -ENODEV;
+ 
+@@ -266,7 +260,7 @@ mtk_wed_get_reserved_memory_region(struc
+ 
+ 	region->phy_addr = rmem->base;
+ 	region->size = rmem->size;
+-	region->addr = devm_ioremap(wo->hw->dev, region->phy_addr, region->size);
++	region->addr = devm_ioremap(hw->dev, region->phy_addr, region->size);
+ 
+ 	return !region->addr ? -EINVAL : 0;
+ }
+@@ -279,6 +273,9 @@ mtk_wed_mcu_run_firmware(struct mtk_wed_
+ 	const struct mtk_wed_fw_trailer *trailer;
+ 	const struct mtk_wed_fw_region *fw_region;
+ 
++	if (!region->phy_addr || !region->size)
++		return 0;
++
+ 	trailer_ptr = fw->data + fw->size - sizeof(*trailer);
+ 	trailer = (const struct mtk_wed_fw_trailer *)trailer_ptr;
+ 	region_ptr = trailer_ptr - trailer->num_region * sizeof(*fw_region);
+@@ -320,19 +317,27 @@ mtk_wed_mcu_load_memory_regions(struct m
+ 				struct mtk_wed_wo_memory_region *region)
+ {
+ 	struct device_node *np;
+-	int ret;
++	int ret, index;
+ 
+-	/* firmware EMI memory region */
+-	ret = mtk_wed_get_reserved_memory_region(wo,
+-			&region[MTK_WED_WO_REGION_EMI]);
+-	if (ret)
+-		return ret;
++	index = of_property_match_string(wo->hw->node, "memory-region-names",
++					 "wo-emi");
++	if (index >= 0) {
++		/* firmware EMI memory region */
++		ret = mtk_wed_get_reserved_memory_region(wo->hw, index,
++				&region[MTK_WED_WO_REGION_EMI]);
++		if (ret)
++			return ret;
++	}
+ 
+-	/* firmware DATA memory region */
+-	ret = mtk_wed_get_reserved_memory_region(wo,
+-			&region[MTK_WED_WO_REGION_DATA]);
+-	if (ret)
+-		return ret;
++	index = of_property_match_string(wo->hw->node, "memory-region-names",
++					 "wo-data");
++	if (index >= 0) {
++		/* firmware DATA memory region */
++		ret = mtk_wed_get_reserved_memory_region(wo->hw, index,
++				&region[MTK_WED_WO_REGION_DATA]);
++		if (ret)
++			return ret;
++	}
+ 
+ 	np = of_parse_phandle(wo->hw->node, "mediatek,wo-ilm", 0);
+ 	if (np) {
+@@ -354,11 +359,17 @@ mtk_wed_mcu_load_memory_regions(struct m
+ 		return IS_ERR(ilm_region->addr) ? PTR_ERR(ilm_region->addr) : 0;
+ 	}
+ 
+-	/* For backward compatibility, we need to check if ILM
+-	 * node is defined through reserved memory property.
+-	 */
+-	return mtk_wed_get_reserved_memory_region(wo,
+-			&region[MTK_WED_WO_REGION_ILM]);
++	index = of_property_match_string(wo->hw->node, "memory-region-names",
++					 "wo-ilm");
++	if (index >= 0) {
++		/* For backward compatibility, we need to check if ILM
++		 * node is defined through reserved memory property.
++		 */
++		ret = mtk_wed_get_reserved_memory_region(wo->hw, index,
++				&region[MTK_WED_WO_REGION_ILM]);
++	}
++
++	return ret;
+ }
+ 
+ static int
+@@ -377,6 +388,8 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
+ 	wo->boot_regmap = syscon_regmap_lookup_by_phandle(wo->hw->node,
+ 							  "mediatek,wo-cpuboot");
+ 	if (IS_ERR(wo->boot_regmap)) {
++		int index;
++
+ 		if (wo->boot_regmap != ERR_PTR(-ENODEV))
+ 			return PTR_ERR(wo->boot_regmap);
+ 
+@@ -384,10 +397,14 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
+ 		 * is defined through reserved memory property.
+ 		 */
+ 		wo->boot_regmap = NULL;
+-		ret = mtk_wed_get_reserved_memory_region(wo,
+-				&mem_region[MTK_WED_WO_REGION_BOOT]);
+-		if (ret)
+-			return ret;
++		index = of_property_match_string(wo->hw->node, "memory-region-names",
++						 "wo-boot");
++		if (index >= 0) {
++			ret = mtk_wed_get_reserved_memory_region(wo->hw, index,
++					&mem_region[MTK_WED_WO_REGION_BOOT]);
++			if (ret)
++				return ret;
++		}
+ 	}
+ 
+ 	/* set dummy cr */
