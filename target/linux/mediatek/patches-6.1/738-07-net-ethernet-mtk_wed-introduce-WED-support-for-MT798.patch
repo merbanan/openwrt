@@ -1,5 +1,5 @@
-From 94da4d9f3e730b5fae8ab504ecd01babe692bcfb Mon Sep 17 00:00:00 2001
-Message-ID: <94da4d9f3e730b5fae8ab504ecd01babe692bcfb.1693652934.git.lorenzo@kernel.org>
+From 1e94922bd14c489b5b20448a9d48f68a7adc3fbc Mon Sep 17 00:00:00 2001
+Message-ID: <1e94922bd14c489b5b20448a9d48f68a7adc3fbc.1694332111.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sat, 22 Jul 2023 23:06:25 +0200
 Subject: [PATCH net-next] net: ethernet: mtk_wed: introduce WED support for
@@ -49,15 +49,15 @@ index 403219d987ef..9ae3b8a71d0e 100644
  	u32	pse_oq_sta;
  };
 diff --git a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
-index a70a5417c173..23f4cdc3844d 100644
+index ef3980840695..95f76975f258 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 @@ -201,6 +201,9 @@ mtk_flow_set_output_device(struct mtk_eth *eth, struct mtk_foe_entry *foe,
  			case 1:
- 				pse_port = 9;
+ 				pse_port = PSE_WDMA1_PORT;
  				break;
 +			case 2:
-+				pse_port = 13;
++				pse_port = PSE_WDMA2_PORT;
 +				break;
  			default:
  				return -EINVAL;
@@ -850,10 +850,10 @@ index 6f5db891a6b9..224ff00bdd8b 100644
  		    void __iomem *wdma, phys_addr_t wdma_phy,
  		    int index);
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
-index 57a8f28d50da..12f2e72da9eb 100644
+index e53531252bd9..65a78e274009 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
-@@ -326,10 +326,22 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
+@@ -331,10 +331,22 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
  		wo->hw->index + 1);
  
  	/* load firmware */
@@ -880,7 +880,7 @@ index 57a8f28d50da..12f2e72da9eb 100644
  
  	ret = request_firmware(&fw, fw_name, wo->hw->dev);
  	if (ret)
-@@ -350,15 +362,16 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
+@@ -355,15 +367,16 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
  	}
  
  	/* set the start address */
@@ -902,7 +902,7 @@ index 57a8f28d50da..12f2e72da9eb 100644
  	wo_w32(wo, MTK_WO_MCU_CFG_LS_WF_MCU_CFG_WM_WA_ADDR, val);
  out:
  	release_firmware(fw);
-@@ -393,3 +406,5 @@ int mtk_wed_mcu_init(struct mtk_wed_wo *wo)
+@@ -398,3 +411,5 @@ int mtk_wed_mcu_init(struct mtk_wed_wo *wo)
  MODULE_FIRMWARE(MT7981_FIRMWARE_WO);
  MODULE_FIRMWARE(MT7986_FIRMWARE_WO0);
  MODULE_FIRMWARE(MT7986_FIRMWARE_WO1);
@@ -1277,7 +1277,7 @@ index 47ea69feb3b2..cd232f6b958d 100644
 +#define MTK_WED_PCIE_BASE2			0x11290000
  #endif
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_wo.h b/drivers/net/ethernet/mediatek/mtk_wed_wo.h
-index 7a1a2a28f1ac..fa4432a43ee0 100644
+index 8ed81761bf10..87a67fa3868d 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_wo.h
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_wo.h
 @@ -91,6 +91,8 @@ enum mtk_wed_dummy_cr_idx {

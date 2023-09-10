@@ -1,0 +1,33 @@
+From 4156d0b6f2686b58bf492443cfdd1bb105e7ceea Mon Sep 17 00:00:00 2001
+Message-ID: <4156d0b6f2686b58bf492443cfdd1bb105e7ceea.1694281429.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sat, 9 Sep 2023 19:42:20 +0200
+Subject: [PATCH net] net: ethernet: mtk_eth_soc: fix pse_port configuration
+ for MT7988
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_ppe_offload.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+index a70a5417c173..a4efbeb16208 100644
+--- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
++++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+@@ -214,9 +214,11 @@ mtk_flow_set_output_device(struct mtk_eth *eth, struct mtk_foe_entry *foe,
+ 	dsa_port = mtk_flow_get_dsa_port(&dev);
+ 
+ 	if (dev == eth->netdev[0])
+-		pse_port = 1;
++		pse_port = PSE_GDM1_PORT;
+ 	else if (dev == eth->netdev[1])
+-		pse_port = 2;
++		pse_port = PSE_GDM2_PORT;
++	else if (dev == eth->netdev[2])
++		pse_port = PSE_GDM3_PORT;
+ 	else
+ 		return -EOPNOTSUPP;
+ 
+-- 
+2.41.0
+
