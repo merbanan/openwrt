@@ -1,7 +1,7 @@
-From 733412161a0455f3772563c3a05cb8bf18b38ec7 Mon Sep 17 00:00:00 2001
-Message-ID: <733412161a0455f3772563c3a05cb8bf18b38ec7.1694474346.git.lorenzo@kernel.org>
-In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
-References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+From fecd9b6f341efe5a76f56c18759cbde42d74c611 Mon Sep 17 00:00:00 2001
+Message-ID: <fecd9b6f341efe5a76f56c18759cbde42d74c611.1694475922.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
 Subject: [PATCH 08/13] mt76: introduce wed pointer in mt76_queue
@@ -31,7 +31,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  10 files changed, 61 insertions(+), 47 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index ecbb5e1e..0011a194 100644
+index f321c3ca..576b8731 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -9,11 +9,11 @@
@@ -96,7 +96,7 @@ index ecbb5e1e..0011a194 100644
  	mt76_dma_sync_idx(dev, q);
  }
  
-@@ -341,7 +341,7 @@ static void
+@@ -338,7 +338,7 @@ static void
  mt76_dma_kick_queue(struct mt76_dev *dev, struct mt76_queue *q)
  {
  	wmb();
@@ -105,7 +105,7 @@ index ecbb5e1e..0011a194 100644
  }
  
  static void
-@@ -357,7 +357,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
+@@ -354,7 +354,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
  	if (flush)
  		last = -1;
  	else
@@ -114,7 +114,7 @@ index ecbb5e1e..0011a194 100644
  
  	while (q->queued > 0 && q->tail != last) {
  		mt76_dma_tx_cleanup_idx(dev, q, q->tail, &entry);
-@@ -369,7 +369,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
+@@ -366,7 +366,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
  		}
  
  		if (!flush && q->tail == last)
@@ -123,7 +123,7 @@ index ecbb5e1e..0011a194 100644
  	}
  	spin_unlock_bh(&q->cleanup_lock);
  
-@@ -639,7 +639,6 @@ mt76_dma_rx_fill(struct mt76_dev *dev, struct mt76_queue *q,
+@@ -636,7 +636,6 @@ mt76_dma_rx_fill(struct mt76_dev *dev, struct mt76_queue *q,
  int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  {
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
@@ -131,7 +131,7 @@ index ecbb5e1e..0011a194 100644
  	int ret, type, ring;
  	u8 flags;
  
-@@ -647,7 +646,7 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
+@@ -644,7 +643,7 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  		return -EINVAL;
  
  	flags = q->flags;
@@ -140,7 +140,7 @@ index ecbb5e1e..0011a194 100644
  		q->flags &= ~MT_QFLAG_WED;
  
  	if (!(q->flags & MT_QFLAG_WED))
-@@ -658,9 +657,10 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
+@@ -655,9 +654,10 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  
  	switch (type) {
  	case MT76_WED_Q_TX:
@@ -153,7 +153,7 @@ index ecbb5e1e..0011a194 100644
  		break;
  	case MT76_WED_Q_TXFREE:
  		/* WED txfree queue needs ring to be initialized before setup */
-@@ -669,14 +669,15 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
+@@ -666,14 +666,15 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  		mt76_dma_rx_fill(dev, q, false);
  		q->flags = flags;
  
@@ -173,7 +173,7 @@ index ecbb5e1e..0011a194 100644
  		break;
  	default:
  		ret = -EINVAL;
-@@ -815,7 +816,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -812,7 +813,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  	if (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
  	    mt76_queue_is_wed_tx_free(q)) {
@@ -182,7 +182,7 @@ index ecbb5e1e..0011a194 100644
  		check_ddone = true;
  	}
  
-@@ -825,7 +826,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -822,7 +823,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  		if (check_ddone) {
  			if (q->tail == dma_idx)
@@ -192,10 +192,10 @@ index ecbb5e1e..0011a194 100644
  			if (q->tail == dma_idx)
  				break;
 diff --git a/mac80211.c b/mac80211.c
-index b6904485..5a6428a4 100644
+index 52c796c7..5913e967 100644
 --- a/mac80211.c
 +++ b/mac80211.c
-@@ -1675,7 +1675,7 @@ EXPORT_SYMBOL_GPL(mt76_get_antenna);
+@@ -1726,7 +1726,7 @@ EXPORT_SYMBOL_GPL(mt76_get_antenna);
  
  struct mt76_queue *
  mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
@@ -204,7 +204,7 @@ index b6904485..5a6428a4 100644
  {
  	struct mt76_queue *hwq;
  	int err;
-@@ -1685,6 +1685,7 @@ mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
+@@ -1736,6 +1736,7 @@ mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
  		return ERR_PTR(-ENOMEM);
  
  	hwq->flags = flags;
@@ -213,7 +213,7 @@ index b6904485..5a6428a4 100644
  	err = dev->queue_ops->alloc(dev, hwq, idx, n_desc, 0, ring_base);
  	if (err < 0)
 diff --git a/mt76.h b/mt76.h
-index e01c84fd..0b21d78c 100644
+index 7ec0904c..febdd40c 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -199,6 +199,7 @@ struct mt76_queue {
@@ -224,7 +224,7 @@ index e01c84fd..0b21d78c 100644
  	u32 wed_regs;
  
  	dma_addr_t desc_dma;
-@@ -1099,14 +1100,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
+@@ -1114,14 +1115,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
  
  struct mt76_queue *
  mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
@@ -243,7 +243,7 @@ index e01c84fd..0b21d78c 100644
  	if (IS_ERR(q))
  		return PTR_ERR(q);
  
-@@ -1120,7 +1122,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
+@@ -1135,7 +1137,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
  {
  	struct mt76_queue *q;
  
@@ -333,10 +333,10 @@ index 22878f08..0ebb6cb9 100644
  			      struct mt76_tx_info *tx_info,
  			      void *txp_ptr, u32 id);
 diff --git a/mt76_connac_mac.c b/mt76_connac_mac.c
-index ee5177fd..a59f9342 100644
+index 73db9e14..385c8360 100644
 --- a/mt76_connac_mac.c
 +++ b/mt76_connac_mac.c
-@@ -273,11 +273,12 @@ void mt76_connac_txp_skb_unmap(struct mt76_dev *dev,
+@@ -256,11 +256,12 @@ void mt76_connac_txp_skb_unmap(struct mt76_dev *dev,
  EXPORT_SYMBOL_GPL(mt76_connac_txp_skb_unmap);
  
  int mt76_connac_init_tx_queues(struct mt76_phy *phy, int idx, int n_desc,
@@ -352,10 +352,10 @@ index ee5177fd..a59f9342 100644
  		return err;
  
 diff --git a/mt76x02_mmio.c b/mt76x02_mmio.c
-index e9c5e85e..2236c420 100644
+index 9b5e3fb7..e5ad635d 100644
 --- a/mt76x02_mmio.c
 +++ b/mt76x02_mmio.c
-@@ -192,13 +192,14 @@ int mt76x02_dma_init(struct mt76x02_dev *dev)
+@@ -199,13 +199,14 @@ int mt76x02_dma_init(struct mt76x02_dev *dev)
  	for (i = 0; i < IEEE80211_NUM_ACS; i++) {
  		ret = mt76_init_tx_queue(&dev->mphy, i, mt76_ac_to_hwq(i),
  					 MT76x02_TX_RING_SIZE,

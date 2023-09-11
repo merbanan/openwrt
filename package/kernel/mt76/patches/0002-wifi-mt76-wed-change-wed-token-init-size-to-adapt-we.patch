@@ -1,7 +1,7 @@
-From ad2a5c3a270fb88152bfb151a0a6b98b03089ebb Mon Sep 17 00:00:00 2001
-Message-ID: <ad2a5c3a270fb88152bfb151a0a6b98b03089ebb.1694474345.git.lorenzo@kernel.org>
-In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
-References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+From 244bff71243b1bbdf9ea2aa005221a326bd77e72 Mon Sep 17 00:00:00 2001
+Message-ID: <244bff71243b1bbdf9ea2aa005221a326bd77e72.1694475922.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
 From: "sujuan.chen" <sujuan.chen@mediatek.com>
 Date: Wed, 19 Apr 2023 17:13:41 +0800
 Subject: [PATCH 02/13] wifi: mt76: wed: change wed token init size to adapt
@@ -14,10 +14,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 7 insertions(+), 3 deletions(-)
 
 diff --git a/tx.c b/tx.c
-index 59c7ef6f..e885b8dd 100644
+index 74bf0de1..3857c2af 100644
 --- a/tx.c
 +++ b/tx.c
-@@ -751,12 +751,16 @@ EXPORT_SYMBOL_GPL(__mt76_set_tx_blocked);
+@@ -819,12 +819,16 @@ EXPORT_SYMBOL_GPL(__mt76_set_tx_blocked);
  
  int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi)
  {

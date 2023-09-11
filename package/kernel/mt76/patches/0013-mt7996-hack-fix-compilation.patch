@@ -1,53 +1,66 @@
-From 7c0882a117412263a414261e41eae192700ea71e Mon Sep 17 00:00:00 2001
-Message-ID: <7c0882a117412263a414261e41eae192700ea71e.1694474346.git.lorenzo@kernel.org>
-In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
-References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+From efaa9f10887fdbb78bb117eb51f9fcc2f26e1db6 Mon Sep 17 00:00:00 2001
+Message-ID: <efaa9f10887fdbb78bb117eb51f9fcc2f26e1db6.1694475923.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:41:09 +0200
 Subject: [PATCH 13/13] mt7996: hack: fix compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- mac80211.c   | 11 ++++++++---
- mt7996/mac.c |  2 +-
- mt7996/mcu.c |  6 +++---
- 3 files changed, 12 insertions(+), 7 deletions(-)
+ mac80211.c   | 6 ++++++
+ mt7996/mac.c | 6 ++++--
+ mt7996/mcu.c | 6 +++---
+ 3 files changed, 13 insertions(+), 5 deletions(-)
 
 diff --git a/mac80211.c b/mac80211.c
-index 5a6428a4..da749a8c 100644
+index 5913e967..42ae3f54 100644
 --- a/mac80211.c
 +++ b/mac80211.c
-@@ -1071,9 +1071,14 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,
+@@ -1076,6 +1076,7 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,
  	status->enc_flags = mstat.enc_flags;
  	status->encoding = mstat.encoding;
  	status->bw = mstat.bw;
--	status->he_ru = mstat.he_ru;
--	status->he_gi = mstat.he_gi;
--	status->he_dcm = mstat.he_dcm;
-+	//if (status->encoding == RX_ENC_EHT) {
-+	//	status->eht.ru = mstat.eht.ru;
-+	//	status->eht.gi = mstat.eht.gi;
-+	//} else {
-+		status->he_ru = mstat.he_ru;
-+		status->he_gi = mstat.he_gi;
-+		status->he_dcm = mstat.he_dcm;
-+	//}
++#if 0
+ 	if (status->encoding == RX_ENC_EHT) {
+ 		status->eht.ru = mstat.eht.ru;
+ 		status->eht.gi = mstat.eht.gi;
+@@ -1084,6 +1085,11 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,
+ 		status->he_gi = mstat.he_gi;
+ 		status->he_dcm = mstat.he_dcm;
+ 	}
++#endif
++	status->he_ru = mstat.he_ru;
++	status->he_gi = mstat.he_gi;
++	status->he_dcm = mstat.he_dcm;
++
  	status->rate_idx = mstat.rate_idx;
  	status->nss = mstat.nss;
  	status->band = mstat.band;
 diff --git a/mt7996/mac.c b/mt7996/mac.c
-index 99e8e0c1..d1c86022 100644
+index 5d194331..cac4b8d0 100644
 --- a/mt7996/mac.c
 +++ b/mt7996/mac.c
-@@ -404,7 +404,7 @@ mt7996_mac_fill_rx_rate(struct mt7996_dev *dev,
- 	case MT_PHY_TYPE_EHT_MU:
- 		/* TODO: currently report rx rate with HE rate */
+@@ -391,7 +391,8 @@ mt7996_mac_fill_rx_rate(struct mt7996_dev *dev,
+ 	case MT_PHY_TYPE_HE_EXT_SU:
+ 	case MT_PHY_TYPE_HE_TB:
  		status->nss = nss;
 -		status->encoding = RX_ENC_HE;
++		//status->encoding = RX_ENC_HE;
 +		status->encoding = RX_ENC_VHT;
- 		bw = min_t(int, bw, IEEE80211_STA_RX_BW_160);
- 		i = min_t(int, i & 0xf, 11);
- 		break;
+ 		i &= GENMASK(3, 0);
+ 
+ 		if (gi <= NL80211_RATE_INFO_HE_GI_3_2)
+@@ -403,7 +404,8 @@ mt7996_mac_fill_rx_rate(struct mt7996_dev *dev,
+ 	case MT_PHY_TYPE_EHT_TRIG:
+ 	case MT_PHY_TYPE_EHT_MU:
+ 		status->nss = nss;
+-		status->encoding = RX_ENC_EHT;
++		//status->encoding = RX_ENC_EHT;
++		status->encoding = RX_ENC_VHT;
+ 		i &= GENMASK(3, 0);
+ 
+ 		if (gi <= NL80211_RATE_INFO_EHT_GI_3_2)
 diff --git a/mt7996/mcu.c b/mt7996/mcu.c
 index dd722942..c28bf5aa 100644
 --- a/mt7996/mcu.c

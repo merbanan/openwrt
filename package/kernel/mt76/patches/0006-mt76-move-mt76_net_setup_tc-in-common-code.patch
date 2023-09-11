@@ -1,7 +1,7 @@
-From af838728ea94b0fd7493707be91705e196ab50c9 Mon Sep 17 00:00:00 2001
-Message-ID: <af838728ea94b0fd7493707be91705e196ab50c9.1694474346.git.lorenzo@kernel.org>
-In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
-References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+From 8296deb048b8d3442d79b1fb1d42f99015d4a4ce Mon Sep 17 00:00:00 2001
+Message-ID: <8296deb048b8d3442d79b1fb1d42f99015d4a4ce.1694475922.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 23:05:55 +0200
 Subject: [PATCH 06/13] mt76: move mt76_net_setup_tc in common code
@@ -16,10 +16,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  3 files changed, 23 insertions(+), 15 deletions(-)
 
 diff --git a/mac80211.c b/mac80211.c
-index 80588c0b..b6904485 100644
+index 12a67d29..52c796c7 100644
 --- a/mac80211.c
 +++ b/mac80211.c
-@@ -1787,3 +1787,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
+@@ -1838,3 +1838,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
  	return MT_DFS_STATE_ACTIVE;
  }
  EXPORT_SYMBOL_GPL(mt76_phy_dfs_state);
@@ -40,10 +40,10 @@ index 80588c0b..b6904485 100644
 +EXPORT_SYMBOL_GPL(mt76_net_setup_tc);
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
 diff --git a/mt76.h b/mt76.h
-index 186938d0..411b5119 100644
+index 3af1e2eb..cad01419 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1034,6 +1034,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
+@@ -1049,6 +1049,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
  void mt76_mmio_init(struct mt76_dev *dev, void __iomem *regs);
  void mt76_pci_disable_aspm(struct pci_dev *pdev);
  
@@ -57,10 +57,10 @@ index 186938d0..411b5119 100644
  {
  	return dev->rev >> 16;
 diff --git a/mt7915/main.c b/mt7915/main.c
-index 9b79e915..a37c9ce8 100644
+index 68bb4932..2bf69f73 100644
 --- a/mt7915/main.c
 +++ b/mt7915/main.c
-@@ -1639,20 +1639,6 @@ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
+@@ -1651,20 +1651,6 @@ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
  
  	return 0;
  }
@@ -81,7 +81,7 @@ index 9b79e915..a37c9ce8 100644
  #endif
  
  const struct ieee80211_ops mt7915_ops = {
-@@ -1707,6 +1693,6 @@ const struct ieee80211_ops mt7915_ops = {
+@@ -1719,6 +1705,6 @@ const struct ieee80211_ops mt7915_ops = {
  	.set_radar_background = mt7915_set_radar_background,
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
  	.net_fill_forward_path = mt7915_net_fill_forward_path,
