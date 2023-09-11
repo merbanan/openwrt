@@ -1,25 +1,25 @@
-From d14dcbf381f3ddf9b9d928afb8674bd694406fcb Mon Sep 17 00:00:00 2001
-Message-ID: <d14dcbf381f3ddf9b9d928afb8674bd694406fcb.1693061153.git.lorenzo@kernel.org>
-In-Reply-To: <d8c085cc30cce37a28dfa0d52016ca151b34d2d8.1693061153.git.lorenzo@kernel.org>
-References: <d8c085cc30cce37a28dfa0d52016ca151b34d2d8.1693061153.git.lorenzo@kernel.org>
+From af838728ea94b0fd7493707be91705e196ab50c9 Mon Sep 17 00:00:00 2001
+Message-ID: <af838728ea94b0fd7493707be91705e196ab50c9.1694474346.git.lorenzo@kernel.org>
+In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 23:05:55 +0200
-Subject: [PATCH 3/5] mt76: move mt76_net_setup_tc in common code
+Subject: [PATCH 06/13] mt76: move mt76_net_setup_tc in common code
 
 This is a preliminary patch to introduce WED support for mt7996
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  mac80211.c    | 16 ++++++++++++++++
- mt76.h        |  3 +++
+ mt76.h        |  6 ++++++
  mt7915/main.c | 16 +---------------
- 3 files changed, 20 insertions(+), 15 deletions(-)
+ 3 files changed, 23 insertions(+), 15 deletions(-)
 
 diff --git a/mac80211.c b/mac80211.c
-index 400926ae..03e5ec53 100644
+index 80588c0b..b6904485 100644
 --- a/mac80211.c
 +++ b/mac80211.c
-@@ -1788,3 +1788,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
+@@ -1787,3 +1787,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
  	return MT_DFS_STATE_ACTIVE;
  }
  EXPORT_SYMBOL_GPL(mt76_phy_dfs_state);
@@ -40,19 +40,22 @@ index 400926ae..03e5ec53 100644
 +EXPORT_SYMBOL_GPL(mt76_net_setup_tc);
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
 diff --git a/mt76.h b/mt76.h
-index b5a56351..4534fdc1 100644
+index 186938d0..411b5119 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1033,6 +1033,9 @@ void mt76_pci_disable_aspm(struct pci_dev *pdev);
- #ifdef CONFIG_NET_MEDIATEK_SOC_WED
- u32 mt76_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size);
- void mt76_mmio_wed_release_rx_buf(struct mtk_wed_device *wed);
+@@ -1034,6 +1034,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
+ void mt76_mmio_init(struct mt76_dev *dev, void __iomem *regs);
+ void mt76_pci_disable_aspm(struct pci_dev *pdev);
+ 
++#ifdef CONFIG_NET_MEDIATEK_SOC_WED
 +int mt76_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 +		      struct net_device *netdev, enum tc_setup_type type,
 +		      void *type_data);
- #endif /*CONFIG_NET_MEDIATEK_SOC_WED */
- 
++#endif /*CONFIG_NET_MEDIATEK_SOC_WED */
++
  static inline u16 mt76_chip(struct mt76_dev *dev)
+ {
+ 	return dev->rev >> 16;
 diff --git a/mt7915/main.c b/mt7915/main.c
 index 9b79e915..a37c9ce8 100644
 --- a/mt7915/main.c

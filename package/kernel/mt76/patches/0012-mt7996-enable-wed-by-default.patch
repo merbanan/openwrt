@@ -1,0 +1,29 @@
+From 549d2ae16036ba208d507a031a1ac17737a9aba8 Mon Sep 17 00:00:00 2001
+Message-ID: <549d2ae16036ba208d507a031a1ac17737a9aba8.1694474346.git.lorenzo@kernel.org>
+In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Tue, 12 Sep 2023 00:15:35 +0200
+Subject: [PATCH 12/13] mt7996: enable wed by default
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt7996/mmio.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mt7996/mmio.c b/mt7996/mmio.c
+index 0f8d7ff4..1e54507e 100644
+--- a/mt7996/mmio.c
++++ b/mt7996/mmio.c
+@@ -12,7 +12,7 @@
+ #include "../trace.h"
+ #include "../dma.h"
+ 
+-static bool wed_enable;
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ 
+ static const struct __base mt7996_reg_base[] = {
+-- 
+2.41.0
+

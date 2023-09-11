@@ -1,8 +1,10 @@
-From d8c085cc30cce37a28dfa0d52016ca151b34d2d8 Mon Sep 17 00:00:00 2001
-Message-ID: <d8c085cc30cce37a28dfa0d52016ca151b34d2d8.1693061153.git.lorenzo@kernel.org>
+From 733412161a0455f3772563c3a05cb8bf18b38ec7 Mon Sep 17 00:00:00 2001
+Message-ID: <733412161a0455f3772563c3a05cb8bf18b38ec7.1694474346.git.lorenzo@kernel.org>
+In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
-Subject: [PATCH 1/5] mt76: introduce wed pointer in mt76_queue
+Subject: [PATCH 08/13] mt76: introduce wed pointer in mt76_queue
 
 Introduce mtk_wed_device pointer in mt76_queue structure in order to
 configure WED chip.
@@ -24,13 +26,12 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  mt76_connac.h     |  3 ++-
  mt76_connac_mac.c |  5 +++--
  mt76x02_mmio.c    |  5 +++--
- mt7915/dma.c      | 20 ++++++++++++-------
- mt7921/pci.c      |  2 +-
+ mt7915/dma.c      | 16 +++++++++++-----
  mt7996/dma.c      |  2 +-
- 11 files changed, 64 insertions(+), 50 deletions(-)
+ 10 files changed, 61 insertions(+), 47 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index 05d9ab3c..0222e95b 100644
+index ecbb5e1e..0011a194 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -9,11 +9,11 @@
@@ -175,7 +176,7 @@ index 05d9ab3c..0222e95b 100644
 @@ -815,7 +816,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  	if (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
- 	    q->flags == MT_WED_Q_TXFREE) {
+ 	    mt76_queue_is_wed_tx_free(q)) {
 -		dma_idx = Q_READ(dev, q, dma_idx);
 +		dma_idx = Q_READ(q, dma_idx);
  		check_ddone = true;
@@ -191,7 +192,7 @@ index 05d9ab3c..0222e95b 100644
  			if (q->tail == dma_idx)
  				break;
 diff --git a/mac80211.c b/mac80211.c
-index 08b18788..400926ae 100644
+index b6904485..5a6428a4 100644
 --- a/mac80211.c
 +++ b/mac80211.c
 @@ -1675,7 +1675,7 @@ EXPORT_SYMBOL_GPL(mt76_get_antenna);
@@ -212,10 +213,10 @@ index 08b18788..400926ae 100644
  	err = dev->queue_ops->alloc(dev, hwq, idx, n_desc, 0, ring_base);
  	if (err < 0)
 diff --git a/mt76.h b/mt76.h
-index 034ab90c..92a21ae3 100644
+index e01c84fd..0b21d78c 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -198,6 +198,7 @@ struct mt76_queue {
+@@ -199,6 +199,7 @@ struct mt76_queue {
  	u8 hw_idx;
  	u8 flags;
  
@@ -223,7 +224,7 @@ index 034ab90c..92a21ae3 100644
  	u32 wed_regs;
  
  	dma_addr_t desc_dma;
-@@ -1088,14 +1089,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
+@@ -1099,14 +1100,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
  
  struct mt76_queue *
  mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
@@ -242,7 +243,7 @@ index 034ab90c..92a21ae3 100644
  	if (IS_ERR(q))
  		return PTR_ERR(q);
  
-@@ -1109,7 +1111,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
+@@ -1120,7 +1122,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
  {
  	struct mt76_queue *q;
  
@@ -372,7 +373,7 @@ index e9c5e85e..2236c420 100644
  		return ret;
  
 diff --git a/mt7915/dma.c b/mt7915/dma.c
-index 59a44d79..cfa6139a 100644
+index c5e27c8f..9ab4f7cd 100644
 --- a/mt7915/dma.c
 +++ b/mt7915/dma.c
 @@ -9,18 +9,20 @@ static int
@@ -408,20 +409,18 @@ index 59a44d79..cfa6139a 100644
  	} else {
  		wa_rx_base = MT_RXQ_RING_BASE(MT_RXQ_MCU_WA);
  		wa_rx_idx = MT_RXQ_ID(MT_RXQ_MCU_WA);
-@@ -507,9 +510,10 @@ int mt7915_dma_init(struct mt7915_dev *dev, struct mt7915_phy *phy2)
+@@ -507,8 +510,9 @@ int mt7915_dma_init(struct mt7915_dev *dev, struct mt7915_phy *phy2)
  	if (!dev->phy.mt76->band_idx) {
  		if (mtk_wed_device_active(&mdev->mmio.wed) &&
  		    mtk_wed_get_rx_capa(&mdev->mmio.wed)) {
 -			dev->mt76.q_rx[MT_RXQ_MAIN].flags =
 +			mdev->q_rx[MT_RXQ_MAIN].flags =
  				MT_WED_Q_RX(MT7915_RXQ_BAND0);
--			dev->mt76.rx_token_size += MT7915_RX_RING_SIZE;
 +			mdev->q_rx[MT_RXQ_MAIN].wed = &mdev->mmio.wed;
-+			mdev->rx_token_size += MT7915_RX_RING_SIZE;
  		}
  
  		ret = mt76_queue_alloc(dev, &dev->mt76.q_rx[MT_RXQ_MAIN],
-@@ -528,6 +532,7 @@ int mt7915_dma_init(struct mt7915_dev *dev, struct mt7915_phy *phy2)
+@@ -527,6 +531,7 @@ int mt7915_dma_init(struct mt7915_dev *dev, struct mt7915_phy *phy2)
  
  		if (mtk_wed_device_active(&mdev->mmio.wed)) {
  			mdev->q_rx[MT_RXQ_MAIN_WA].flags = MT_WED_Q_TXFREE;
@@ -429,37 +428,22 @@ index 59a44d79..cfa6139a 100644
  			if (is_mt7916(mdev)) {
  				wa_rx_base =  MT_WED_RX_RING_BASE;
  				wa_rx_idx = MT7915_RXQ_MCU_WA;
-@@ -544,9 +549,10 @@ int mt7915_dma_init(struct mt7915_dev *dev, struct mt7915_phy *phy2)
+@@ -543,8 +548,9 @@ int mt7915_dma_init(struct mt7915_dev *dev, struct mt7915_phy *phy2)
  	if (dev->dbdc_support || dev->phy.mt76->band_idx) {
  		if (mtk_wed_device_active(&mdev->mmio.wed) &&
  		    mtk_wed_get_rx_capa(&mdev->mmio.wed)) {
 -			dev->mt76.q_rx[MT_RXQ_BAND1].flags =
 +			mdev->q_rx[MT_RXQ_BAND1].flags =
  				MT_WED_Q_RX(MT7915_RXQ_BAND1);
--			dev->mt76.rx_token_size += MT7915_RX_RING_SIZE;
 +			mdev->q_rx[MT_RXQ_BAND1].wed = &mdev->mmio.wed;
-+			mdev->rx_token_size += MT7915_RX_RING_SIZE;
  		}
  
  		/* rx data queue for band1 */
-diff --git a/mt7921/pci.c b/mt7921/pci.c
-index d869aab7..cb3c0080 100644
---- a/mt7921/pci.c
-+++ b/mt7921/pci.c
-@@ -169,7 +169,7 @@ static int mt7921_dma_init(struct mt792x_dev *dev)
- 	/* init tx queue */
- 	ret = mt76_connac_init_tx_queues(dev->phy.mt76, MT7921_TXQ_BAND0,
- 					 MT7921_TX_RING_SIZE,
--					 MT_TX_RING_BASE, 0);
-+					 MT_TX_RING_BASE, NULL, 0);
- 	if (ret)
- 		return ret;
- 
 diff --git a/mt7996/dma.c b/mt7996/dma.c
-index 586e247a..b3334636 100644
+index f0f6fc95..552f4360 100644
 --- a/mt7996/dma.c
 +++ b/mt7996/dma.c
-@@ -268,7 +268,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -297,7 +297,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  	ret = mt76_connac_init_tx_queues(dev->phy.mt76,
  					 MT_TXQ_ID(dev->mphy.band_idx),
  					 MT7996_TX_RING_SIZE,

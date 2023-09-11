@@ -10,7 +10,7 @@ PKG_SOURCE_URL:=https://github.com/openwrt/mt76
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_DATE:=2023-07-26
 PKG_SOURCE_VERSION:=b14c2351ddb8601c322576d84029e463d456caef
-#PKG_MIRROR_HASH:=413d2d0faa81d834ba13cb9e503e1e3a61e3e071014da6b525a123e5da053f90
+#PKG_SOURCE_VERSION:=969b7b5ebd129068ca56e4b0d831593a2f92382f
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_USE_NINJA:=0
@@ -546,6 +546,7 @@ define KernelPackage/mt7996-firmware/install
 	$(INSTALL_DIR) $(1)/lib/firmware/mediatek/mt7996/
 	cp \
 		./files/mt7996_rom_patch.bin \
+		./files/mt7996_eeprom_dual_404.bin \
 		./files/mt7996_wa.bin \
 		./files/mt7996_wm.bin \
 		./files/mt7996_wm_tm.bin \

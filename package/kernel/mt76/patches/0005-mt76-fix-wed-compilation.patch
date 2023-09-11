@@ -1,8 +1,10 @@
-From bcb6412e0ca47d1084d39533fca437f3b7a8fadd Mon Sep 17 00:00:00 2001
-Message-ID: <bcb6412e0ca47d1084d39533fca437f3b7a8fadd.1692953845.git.lorenzo@kernel.org>
+From 86115a06deda9d2afe7fe83bf1de5c57c00bc8e8 Mon Sep 17 00:00:00 2001
+Message-ID: <86115a06deda9d2afe7fe83bf1de5c57c00bc8e8.1694474346.git.lorenzo@kernel.org>
+In-Reply-To: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
+References: <3ea0f4e652a7205b62a02a66637926a768c4d0be.1694474345.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 20:20:49 +0200
-Subject: [PATCH 1/8] mt76: fix wed compilation
+Subject: [PATCH 05/13] mt76: fix wed compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -10,10 +12,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/mt7915/mmio.c b/mt7915/mmio.c
-index fc7ace63..e7d8e03f 100644
+index a3810949..ee3605ec 100644
 --- a/mt7915/mmio.c
 +++ b/mt7915/mmio.c
-@@ -591,7 +591,7 @@ static void mt7915_mmio_wed_release_rx_buf(struct mtk_wed_device *wed)
+@@ -603,7 +603,7 @@ static void mt7915_mmio_wed_release_rx_buf(struct mtk_wed_device *wed)
  
  static u32 mt7915_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
  {
