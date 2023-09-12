@@ -1,7 +1,7 @@
-From 5996cc8e8c38d9f3904b53a91a8db1a096ffb245 Mon Sep 17 00:00:00 2001
-Message-ID: <5996cc8e8c38d9f3904b53a91a8db1a096ffb245.1694505426.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+From 8e3a68aa77a13d6d8a41aa39e9d5262a3eb42b96 Mon Sep 17 00:00:00 2001
+Message-ID: <8e3a68aa77a13d6d8a41aa39e9d5262a3eb42b96.1694555067.git.lorenzo@kernel.org>
+In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
 From: "sujuan.chen" <sujuan.chen@mediatek.com>
 Date: Wed, 26 Apr 2023 16:44:57 +0800
 Subject: [PATCH 08/11] wifi: mt76: mt7996: wed: add wed3.0 tx support
@@ -9,38 +9,45 @@ Subject: [PATCH 08/11] wifi: mt76: mt7996: wed: add wed3.0 tx support
 Signed-off-by: sujuan.chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- dma.c           |   3 +
+ dma.c           |   9 ++-
  mt76.h          |   1 +
  mt7921/pci.c    |   2 +-
- mt7996/dma.c    |  77 ++++++++++++---
- mt7996/init.c   |  21 +++-
- mt7996/mac.c    |  29 +++++-
- mt7996/main.c   |  42 ++++++++
- mt7996/mmio.c   | 247 ++++++++++++++++++++++++++++++++++++++++++++----
- mt7996/mt7996.h |  21 +++-
- mt7996/pci.c    |  72 ++++++++++----
- mt7996/regs.h   |   5 +
- 11 files changed, 462 insertions(+), 58 deletions(-)
+ mt7996/dma.c    |  77 ++++++++++++++++-----
+ mt7996/init.c   |  21 ++++--
+ mt7996/mac.c    |  29 +++++++-
+ mt7996/main.c   |  42 ++++++++++++
+ mt7996/mmio.c   | 173 +++++++++++++++++++++++++++++++++++++++++++-----
+ mt7996/mt7996.h |  18 ++++-
+ mt7996/pci.c    |  72 +++++++++++++++-----
+ mt7996/regs.h   |   5 ++
+ 11 files changed, 388 insertions(+), 61 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index 576b8731..abe5f6b2 100644
+index e549ce9b..2ded22d2 100644
 --- a/dma.c
 +++ b/dma.c
-@@ -987,6 +987,9 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
+@@ -981,10 +981,13 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
+ 		page_pool_destroy(q->page_pool);
+ 	}
+ 
+-	mt76_free_pending_txwi(dev);
+-	mt76_free_pending_rxwi(dev);
+-
  	if (mtk_wed_device_active(&dev->mmio.wed))
  		mtk_wed_device_detach(&dev->mmio.wed);
- 
++
 +	if (mtk_wed_device_active(&dev->mmio.wed_hif2))
 +		mtk_wed_device_detach(&dev->mmio.wed_hif2);
 +
- 	mt76_free_pending_txwi(dev);
- 	mt76_free_pending_rxwi(dev);
++	mt76_free_pending_txwi(dev);
++	mt76_free_pending_rxwi(dev);
  }
+ EXPORT_SYMBOL_GPL(mt76_dma_cleanup);
 diff --git a/mt76.h b/mt76.h
-index e45147d5..75e9da42 100644
+index 59828077..34188675 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -609,6 +609,7 @@ struct mt76_mmio {
+@@ -603,6 +603,7 @@ struct mt76_mmio {
  	u32 irqmask;
  
  	struct mtk_wed_device wed;
@@ -388,7 +395,7 @@ index 7947142f..62b2152a 100644
 +#endif
  };
 diff --git a/mt7996/mmio.c b/mt7996/mmio.c
-index 3a591a7b..1f87a471 100644
+index 3a591a7b..52eb6381 100644
 --- a/mt7996/mmio.c
 +++ b/mt7996/mmio.c
 @@ -10,6 +10,10 @@
@@ -402,84 +409,10 @@ index 3a591a7b..1f87a471 100644
  
  static const struct __base mt7996_reg_base[] = {
  	[WF_AGG_BASE]		= { { 0x820e2000, 0x820f2000, 0x830e2000 } },
-@@ -191,6 +195,181 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
+@@ -191,6 +195,107 @@ static u32 mt7996_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
  	return dev->bus_ops->rmw(mdev, __mt7996_reg_addr(dev, offset), mask, val);
  }
  
-+#ifdef CONFIG_NET_MEDIATEK_SOC_WED
-+static void mt7996_mmio_wed_release_rx_buf(struct mtk_wed_device *wed)
-+{
-+	struct mt7996_dev *dev;
-+	int i;
-+
-+	dev = container_of(wed, struct mt7996_dev, mt76.mmio.wed);
-+	for (i = 0; i < dev->mt76.rx_token_size; i++) {
-+		struct mt76_rxwi_cache *r;
-+
-+		r = mt76_rx_token_release(&dev->mt76, i);
-+		if (!r || !r->ptr)
-+			continue;
-+
-+		mt76_put_page_pool_buf(r->ptr, false);
-+		r->ptr = NULL;
-+
-+		mt76_put_rxwi(&dev->mt76, r);
-+	}
-+}
-+
-+static u32 mt7996_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
-+{
-+	struct mtk_wed_bm_desc *desc = wed->rx_buf_ring.desc;
-+	struct mt76_rxwi_cache *r = NULL;
-+	struct mt7996_dev *dev;
-+	struct mt76_queue *q;
-+	int i, len;
-+
-+	dev = container_of(wed, struct mt7996_dev, mt76.mmio.wed);
-+	q = &dev->mt76.q_rx[MT_RXQ_MAIN];
-+	len = SKB_WITH_OVERHEAD(q->buf_size);
-+
-+	for (i = 0; i < size; i++) {
-+		enum dma_data_direction dir;
-+		dma_addr_t addr;
-+		u32 offset;
-+		int token;
-+		void *buf;
-+
-+		r = mt76_get_rxwi(&dev->mt76);
-+		if (!r)
-+			goto unmap;
-+
-+		buf = mt76_get_page_pool_buf(q, &offset, q->buf_size);
-+		if (!buf)
-+			goto unmap;
-+
-+		addr = page_pool_get_dma_addr(virt_to_head_page(buf)) + offset;
-+		dir = page_pool_get_dma_dir(q->page_pool);
-+		dma_sync_single_for_device(dev->mt76.dma_dev, addr, len, dir);
-+
-+		desc->buf0 = cpu_to_le32(addr);
-+		token = mt76_rx_token_consume(&dev->mt76, buf, r, addr);
-+		if (token < 0) {
-+			mt76_put_page_pool_buf(buf, false);
-+			goto unmap;
-+		}
-+
-+		desc->token |= cpu_to_le32(FIELD_PREP(MT_DMA_CTL_TOKEN,
-+						      token));
-+		desc++;
-+	}
-+
-+	return 0;
-+
-+unmap:
-+	if (r)
-+		mt76_put_rxwi(&dev->mt76, r);
-+	mt7996_mmio_wed_release_rx_buf(wed);
-+	return -ENOMEM;
-+}
-+#endif
-+
 +int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,
 +			 bool hif2, int *irq)
 +{
@@ -554,8 +487,8 @@ index 3a591a7b..1f87a471 100644
 +	wed->wlan.amsdu_max_len = 1536;
 +
 +	wed->wlan.init_buf = mt7996_wed_init_buf;
-+	wed->wlan.init_rx_buf = mt7996_mmio_wed_init_rx_buf;
-+	wed->wlan.release_rx_buf = mt7996_mmio_wed_release_rx_buf;
++	wed->wlan.init_rx_buf = mt76_mmio_wed_init_rx_buf;
++	wed->wlan.release_rx_buf = mt76_mmio_wed_release_rx_buf;
 +
 +	dev->mt76.rx_token_size += wed->wlan.rx_npkt;
 +
@@ -584,7 +517,7 @@ index 3a591a7b..1f87a471 100644
  static int mt7996_mmio_init(struct mt76_dev *mdev,
  			    void __iomem *mem_base,
  			    u32 device_id)
-@@ -241,8 +420,17 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
+@@ -241,8 +346,17 @@ void mt7996_dual_hif_set_irq_mask(struct mt7996_dev *dev, bool write_reg,
  	mdev->mmio.irqmask |= set;
  
  	if (write_reg) {
@@ -604,7 +537,7 @@ index 3a591a7b..1f87a471 100644
  	}
  
  	spin_unlock_irqrestore(&mdev->mmio.irq_lock, flags);
-@@ -260,22 +448,36 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
+@@ -260,22 +374,36 @@ static void mt7996_rx_poll_complete(struct mt76_dev *mdev,
  static void mt7996_irq_tasklet(struct tasklet_struct *t)
  {
  	struct mt7996_dev *dev = from_tasklet(dev, t, mt76.irq_tasklet);
@@ -654,7 +587,7 @@ index 3a591a7b..1f87a471 100644
  	}
  
  	trace_dev_irq(&dev->mt76, intr, dev->mt76.mmio.irqmask);
-@@ -307,10 +509,19 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
+@@ -307,10 +435,19 @@ static void mt7996_irq_tasklet(struct tasklet_struct *t)
  irqreturn_t mt7996_irq_handler(int irq, void *dev_instance)
  {
  	struct mt7996_dev *dev = dev_instance;
@@ -678,7 +611,7 @@ index 3a591a7b..1f87a471 100644
  	if (!test_bit(MT76_STATE_INITIALIZED, &dev->mphy.state))
  		return IRQ_NONE;
 diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
-index 7354e5cf..7a0c5fc1 100644
+index 7354e5cf..5eff5307 100644
 --- a/mt7996/mt7996.h
 +++ b/mt7996/mt7996.h
 @@ -335,7 +335,9 @@ int mt7996_dma_init(struct mt7996_dev *dev);
@@ -692,12 +625,10 @@ index 7354e5cf..7a0c5fc1 100644
  void mt7996_init_txpower(struct mt7996_dev *dev,
  			 struct ieee80211_supported_band *sband);
  int mt7996_txbf_init(struct mt7996_dev *dev);
-@@ -495,5 +497,22 @@ int mt7996_mcu_wtbl_update_hdr_trans(struct mt7996_dev *dev,
+@@ -495,5 +497,19 @@ int mt7996_mcu_wtbl_update_hdr_trans(struct mt7996_dev *dev,
  void mt7996_sta_add_debugfs(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
  			    struct ieee80211_sta *sta, struct dentry *dir);
  #endif
-+<<<<<<< HEAD
-+=======
 +int mt7996_mmio_wed_init(struct mt7996_dev *dev, void *pdev_ptr,
 +			 bool hif2, int *irq);
 +u32 mt7996_wed_init_buf(void *ptr, dma_addr_t phys, int token_id);
@@ -712,7 +643,6 @@ index 7354e5cf..7a0c5fc1 100644
 +#ifdef CONFIG_MTK_DEBUG
 +int mt7996_mtk_init_debugfs(struct mt7996_phy *phy, struct dentry *dir);
 +#endif
-+>>>>>>> 2925fdb0 (wifi: mt76: mt7996: wed: add wed3.0 tx support)
  
  #endif
 diff --git a/mt7996/pci.c b/mt7996/pci.c

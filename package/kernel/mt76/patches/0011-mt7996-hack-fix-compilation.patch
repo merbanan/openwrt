@@ -1,7 +1,7 @@
-From 251eedebaeb2d1266685d0ca00bd56e760d4a501 Mon Sep 17 00:00:00 2001
-Message-ID: <251eedebaeb2d1266685d0ca00bd56e760d4a501.1694505426.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+From 3d9abb9d5c640b43a5ecf19094a6ed6bf0b4affa Mon Sep 17 00:00:00 2001
+Message-ID: <3d9abb9d5c640b43a5ecf19094a6ed6bf0b4affa.1694555067.git.lorenzo@kernel.org>
+In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:41:09 +0200
 Subject: [PATCH 11/11] mt7996: hack: fix compilation
@@ -14,7 +14,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  3 files changed, 13 insertions(+), 5 deletions(-)
 
 diff --git a/mac80211.c b/mac80211.c
-index 5913e967..42ae3f54 100644
+index d68de4be..9e3ad2c3 100644
 --- a/mac80211.c
 +++ b/mac80211.c
 @@ -1076,6 +1076,7 @@ mt76_rx_convert(struct mt76_dev *dev, struct sk_buff *skb,

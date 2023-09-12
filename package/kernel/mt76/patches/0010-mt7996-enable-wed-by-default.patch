@@ -1,7 +1,7 @@
-From 1ad3c42e2dc7b3ce2d421f71a64431077ff045b4 Mon Sep 17 00:00:00 2001
-Message-ID: <1ad3c42e2dc7b3ce2d421f71a64431077ff045b4.1694505426.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+From a7daeb616ae86a326e54f7ebff080048eb5d519d Mon Sep 17 00:00:00 2001
+Message-ID: <a7daeb616ae86a326e54f7ebff080048eb5d519d.1694555067.git.lorenzo@kernel.org>
+In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:15:35 +0200
 Subject: [PATCH 10/11] mt7996: enable wed by default
@@ -12,7 +12,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/mt7996/mmio.c b/mt7996/mmio.c
-index 0f8d7ff4..1e54507e 100644
+index 8442b866..bcdfdc14 100644
 --- a/mt7996/mmio.c
 +++ b/mt7996/mmio.c
 @@ -12,7 +12,7 @@

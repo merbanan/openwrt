@@ -1,10 +1,10 @@
-From 51391b782c879817790671b7c8f2c2372a8a0eac Mon Sep 17 00:00:00 2001
-Message-ID: <51391b782c879817790671b7c8f2c2372a8a0eac.1694505426.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+From 224d6595917c74bc2683afb947d46e561ce2602f Mon Sep 17 00:00:00 2001
+Message-ID: <224d6595917c74bc2683afb947d46e561ce2602f.1694555067.git.lorenzo@kernel.org>
+In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 23:05:55 +0200
-Subject: [PATCH 04/11] mt76: move mt76_net_setup_tc in common code
+Subject: [PATCH 03/11] mt76: move mt76_net_setup_tc in common code
 
 This is a preliminary patch to introduce WED support for mt7996
 
@@ -16,7 +16,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  3 files changed, 23 insertions(+), 15 deletions(-)
 
 diff --git a/mac80211.c b/mac80211.c
-index 12a67d29..52c796c7 100644
+index 41afb11b..dda216de 100644
 --- a/mac80211.c
 +++ b/mac80211.c
 @@ -1838,3 +1838,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
@@ -40,10 +40,10 @@ index 12a67d29..52c796c7 100644
 +EXPORT_SYMBOL_GPL(mt76_net_setup_tc);
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
 diff --git a/mt76.h b/mt76.h
-index 3af1e2eb..cad01419 100644
+index 8cbae6df..0402609c 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1049,6 +1049,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
+@@ -1044,6 +1044,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
  void mt76_mmio_init(struct mt76_dev *dev, void __iomem *regs);
  void mt76_pci_disable_aspm(struct pci_dev *pdev);
  

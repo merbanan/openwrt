@@ -1,10 +1,10 @@
-From d1116f1e5e8e8f1388f799c1b361cf5fd48864e2 Mon Sep 17 00:00:00 2001
-Message-ID: <d1116f1e5e8e8f1388f799c1b361cf5fd48864e2.1694505426.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+From 51969b46c5aff97a631d24d3d6c20e2825337925 Mon Sep 17 00:00:00 2001
+Message-ID: <51969b46c5aff97a631d24d3d6c20e2825337925.1694555067.git.lorenzo@kernel.org>
+In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 20:20:49 +0200
-Subject: [PATCH 03/11] mt76: fix wed compilation
+Subject: [PATCH 02/11] mt76: fix wed compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -12,10 +12,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/mt7915/mmio.c b/mt7915/mmio.c
-index a3810949..ee3605ec 100644
+index fc7ace63..e7d8e03f 100644
 --- a/mt7915/mmio.c
 +++ b/mt7915/mmio.c
-@@ -603,7 +603,7 @@ static void mt7915_mmio_wed_release_rx_buf(struct mtk_wed_device *wed)
+@@ -591,7 +591,7 @@ static void mt7915_mmio_wed_release_rx_buf(struct mtk_wed_device *wed)
  
  static u32 mt7915_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
  {

@@ -1,7 +1,7 @@
-From 36d607e8fdcf886e119db5afa78561e647e254c5 Mon Sep 17 00:00:00 2001
-Message-ID: <36d607e8fdcf886e119db5afa78561e647e254c5.1694505426.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+From 108bf2db3a1227f3a51017faa7105248906857d8 Mon Sep 17 00:00:00 2001
+Message-ID: <108bf2db3a1227f3a51017faa7105248906857d8.1694555067.git.lorenzo@kernel.org>
+In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 1 Sep 2023 10:18:19 +0200
 Subject: [PATCH 05/11] mt76: introduce mt76_queue_is_wed_tx_free utility
@@ -15,7 +15,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  3 files changed, 10 insertions(+), 4 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index c67aa030..f321c3ca 100644
+index 6a6af1d3..1fd99e8c 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -719,7 +719,7 @@ mt76_dma_alloc_queue(struct mt76_dev *dev, struct mt76_queue *q,
@@ -46,10 +46,10 @@ index c67aa030..f321c3ca 100644
  		check_ddone = true;
  	}
 diff --git a/mt76.h b/mt76.h
-index cad01419..7ec0904c 100644
+index 8cd5fd45..dfb461a5 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1549,6 +1549,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
+@@ -1546,6 +1546,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
  			      struct mt76_power_limits *dest,
  			      s8 target_power);
  
@@ -63,10 +63,10 @@ index cad01419..7ec0904c 100644
  {
  	return (q->flags & MT_QFLAG_WED) &&
 diff --git a/mt7915/dma.c b/mt7915/dma.c
-index 326c8c8c..c5e27c8f 100644
+index 59a44d79..96b2c380 100644
 --- a/mt7915/dma.c
 +++ b/mt7915/dma.c
-@@ -641,7 +641,7 @@ int mt7915_dma_reset(struct mt7915_dev *dev, bool force)
+@@ -643,7 +643,7 @@ int mt7915_dma_reset(struct mt7915_dev *dev, bool force)
  		mt76_queue_reset(dev, dev->mt76.q_mcu[i]);
  
  	mt76_for_each_q_rx(&dev->mt76, i) {
