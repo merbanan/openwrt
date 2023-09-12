@@ -1,10 +1,10 @@
-From 6557027858bb53833c9feea972e79165f8a6bb3c Mon Sep 17 00:00:00 2001
-Message-ID: <6557027858bb53833c9feea972e79165f8a6bb3c.1694475923.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+From 1ad3c42e2dc7b3ce2d421f71a64431077ff045b4 Mon Sep 17 00:00:00 2001
+Message-ID: <1ad3c42e2dc7b3ce2d421f71a64431077ff045b4.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:15:35 +0200
-Subject: [PATCH 12/13] mt7996: enable wed by default
+Subject: [PATCH 10/11] mt7996: enable wed by default
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---

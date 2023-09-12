@@ -1,10 +1,10 @@
-From 5130a3214c1aa851e5cb8d6b3047ac0bcd73fdd0 Mon Sep 17 00:00:00 2001
-Message-ID: <5130a3214c1aa851e5cb8d6b3047ac0bcd73fdd0.1694475922.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+From 36d607e8fdcf886e119db5afa78561e647e254c5 Mon Sep 17 00:00:00 2001
+Message-ID: <36d607e8fdcf886e119db5afa78561e647e254c5.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 1 Sep 2023 10:18:19 +0200
-Subject: [PATCH 07/13] mt76: introduce mt76_queue_is_wed_tx_free utility
+Subject: [PATCH 05/11] mt76: introduce mt76_queue_is_wed_tx_free utility
  routine
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>

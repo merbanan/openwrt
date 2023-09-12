@@ -1,10 +1,10 @@
 From 244bff71243b1bbdf9ea2aa005221a326bd77e72 Mon Sep 17 00:00:00 2001
-Message-ID: <244bff71243b1bbdf9ea2aa005221a326bd77e72.1694475922.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+Message-ID: <244bff71243b1bbdf9ea2aa005221a326bd77e72.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: "sujuan.chen" <sujuan.chen@mediatek.com>
 Date: Wed, 19 Apr 2023 17:13:41 +0800
-Subject: [PATCH 02/13] wifi: mt76: wed: change wed token init size to adapt
+Subject: [PATCH 02/11] wifi: mt76: wed: change wed token init size to adapt
  wed3.0
 
 Signed-off-by: sujuan.chen <sujuan.chen@mediatek.com>

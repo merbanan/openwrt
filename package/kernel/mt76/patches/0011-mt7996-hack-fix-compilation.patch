@@ -1,10 +1,10 @@
-From efaa9f10887fdbb78bb117eb51f9fcc2f26e1db6 Mon Sep 17 00:00:00 2001
-Message-ID: <efaa9f10887fdbb78bb117eb51f9fcc2f26e1db6.1694475923.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+From 251eedebaeb2d1266685d0ca00bd56e760d4a501 Mon Sep 17 00:00:00 2001
+Message-ID: <251eedebaeb2d1266685d0ca00bd56e760d4a501.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:41:09 +0200
-Subject: [PATCH 13/13] mt7996: hack: fix compilation
+Subject: [PATCH 11/11] mt7996: hack: fix compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -62,7 +62,7 @@ index 5d194331..cac4b8d0 100644
  
  		if (gi <= NL80211_RATE_INFO_EHT_GI_3_2)
 diff --git a/mt7996/mcu.c b/mt7996/mcu.c
-index dd722942..c28bf5aa 100644
+index 519148a2..42f9725d 100644
 --- a/mt7996/mcu.c
 +++ b/mt7996/mcu.c
 @@ -1115,7 +1115,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,

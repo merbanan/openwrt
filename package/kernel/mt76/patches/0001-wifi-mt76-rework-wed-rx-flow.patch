@@ -1,8 +1,8 @@
 From d87026d038d2ce988b66354bbe9a3b88c5397be4 Mon Sep 17 00:00:00 2001
-Message-ID: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+Message-ID: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Bo Jiao <Bo.Jiao@mediatek.com>
 Date: Mon, 6 Feb 2023 13:37:23 +0800
-Subject: [PATCH 01/13] wifi: mt76: rework wed rx flow
+Subject: [PATCH 01/11] wifi: mt76: rework wed rx flow
 
 Signed-off-by: Bo Jiao <Bo.Jiao@mediatek.com>
 Change-Id: Icd787345c811cb5ad30d9c7c1c5f9e5298bd3be6

@@ -1,10 +1,10 @@
-From ad84210bfd190c1863f676d205c3342c9aaf7875 Mon Sep 17 00:00:00 2001
-Message-ID: <ad84210bfd190c1863f676d205c3342c9aaf7875.1694475922.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+From 4ef6c181de81981b81998f75735746ce715e2b13 Mon Sep 17 00:00:00 2001
+Message-ID: <4ef6c181de81981b81998f75735746ce715e2b13.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 1 Sep 2023 10:21:09 +0200
-Subject: [PATCH 09/13] mt76: increase MT_QFLAG_WED_TYPE size
+Subject: [PATCH 07/11] mt76: increase MT_QFLAG_WED_TYPE size
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---

@@ -1,10 +1,10 @@
-From 8296deb048b8d3442d79b1fb1d42f99015d4a4ce Mon Sep 17 00:00:00 2001
-Message-ID: <8296deb048b8d3442d79b1fb1d42f99015d4a4ce.1694475922.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+From 51391b782c879817790671b7c8f2c2372a8a0eac Mon Sep 17 00:00:00 2001
+Message-ID: <51391b782c879817790671b7c8f2c2372a8a0eac.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 23:05:55 +0200
-Subject: [PATCH 06/13] mt76: move mt76_net_setup_tc in common code
+Subject: [PATCH 04/11] mt76: move mt76_net_setup_tc in common code
 
 This is a preliminary patch to introduce WED support for mt7996
 

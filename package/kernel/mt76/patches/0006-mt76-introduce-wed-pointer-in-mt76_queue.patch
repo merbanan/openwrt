@@ -1,10 +1,10 @@
-From fecd9b6f341efe5a76f56c18759cbde42d74c611 Mon Sep 17 00:00:00 2001
-Message-ID: <fecd9b6f341efe5a76f56c18759cbde42d74c611.1694475922.git.lorenzo@kernel.org>
-In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
-References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694475922.git.lorenzo@kernel.org>
+From 61ce2b99eb8e70d29f540970e1e90c1ffcccc58d Mon Sep 17 00:00:00 2001
+Message-ID: <61ce2b99eb8e70d29f540970e1e90c1ffcccc58d.1694505426.git.lorenzo@kernel.org>
+In-Reply-To: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
+References: <d87026d038d2ce988b66354bbe9a3b88c5397be4.1694505426.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
-Subject: [PATCH 08/13] mt76: introduce wed pointer in mt76_queue
+Subject: [PATCH 06/11] mt76: introduce wed pointer in mt76_queue
 
 Introduce mtk_wed_device pointer in mt76_queue structure in order to
 configure WED chip.
@@ -440,10 +440,10 @@ index c5e27c8f..9ab4f7cd 100644
  
  		/* rx data queue for band1 */
 diff --git a/mt7996/dma.c b/mt7996/dma.c
-index f0f6fc95..552f4360 100644
+index 586e247a..b3334636 100644
 --- a/mt7996/dma.c
 +++ b/mt7996/dma.c
-@@ -297,7 +297,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+@@ -268,7 +268,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
  	ret = mt76_connac_init_tx_queues(dev->phy.mt76,
  					 MT_TXQ_ID(dev->mphy.band_idx),
  					 MT7996_TX_RING_SIZE,
