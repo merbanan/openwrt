@@ -1,42 +1,75 @@
-From 324d80be3f883229ce414dfec1c32fa64e7338c4 Mon Sep 17 00:00:00 2001
-Message-ID: <324d80be3f883229ce414dfec1c32fa64e7338c4.1693142992.git.lorenzo@kernel.org>
+From ea9e1313e01f7925b9fc4040f3776070447f261d Mon Sep 17 00:00:00 2001
+Message-ID: <ea9e1313e01f7925b9fc4040f3776070447f261d.1694624651.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 27 Aug 2023 15:26:32 +0200
-Subject: [PATCH net-next 1/2] net: ethernet: mtk_wed: do not assume offload
+Subject: [PATCH net-next] net: ethernet: mtk_wed: do not assume offload
  callbacks are always set
 
 Check if wlan.offload_enable and wlan.offload_disable callbacks are set
-since MT7996 SoC does not rely on them
+in mtk_wed_flow_add/mtk_wed_flow_remove since mt7996 will not rely
+on them.
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
- drivers/net/ethernet/mediatek/mtk_wed.c | 6 ++++++
- 1 file changed, 6 insertions(+)
+ drivers/net/ethernet/mediatek/mtk_wed.c | 32 +++++++++++++------------
+ 1 file changed, 17 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
-index afc707729cf8..2cf615a0cb1f 100644
+index 94376aa2b34c..e7d3525d2e30 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -1739,6 +1739,9 @@ int mtk_wed_flow_add(int index)
- 	if (!hw || !hw->wed_dev)
- 		return -ENODEV;
+@@ -1713,19 +1713,20 @@ mtk_wed_irq_set_mask(struct mtk_wed_device *dev, u32 mask)
+ int mtk_wed_flow_add(int index)
+ {
+ 	struct mtk_wed_hw *hw = hw_list[index];
+-	int ret;
++	int ret = 0;
  
+-	if (!hw || !hw->wed_dev)
+-		return -ENODEV;
++	mutex_lock(&hw_lock);
+ 
+-	if (hw->num_flows) {
+-		hw->num_flows++;
+-		return 0;
++	if (!hw || !hw->wed_dev) {
++		ret = -ENODEV;
++		goto out;
+ 	}
+ 
+-	mutex_lock(&hw_lock);
+-	if (!hw->wed_dev) {
+-		ret = -ENODEV;
 +	if (!hw->wed_dev->wlan.offload_enable)
-+		return 0;
++		goto out;
 +
- 	if (hw->num_flows) {
- 		hw->num_flows++;
- 		return 0;
-@@ -1768,6 +1771,9 @@ void mtk_wed_flow_remove(int index)
- 	if (!hw)
- 		return;
++	if (hw->num_flows) {
++		hw->num_flows++;
+ 		goto out;
+ 	}
  
+@@ -1744,14 +1745,15 @@ void mtk_wed_flow_remove(int index)
+ {
+ 	struct mtk_wed_hw *hw = hw_list[index];
+ 
+-	if (!hw)
+-		return;
++	mutex_lock(&hw_lock);
+ 
+-	if (--hw->num_flows)
+-		return;
++	if (!hw || !hw->wed_dev)
++		goto out;
+ 
+-	mutex_lock(&hw_lock);
+-	if (!hw->wed_dev)
 +	if (!hw->wed_dev->wlan.offload_disable)
-+		return;
++		goto out;
 +
- 	if (--hw->num_flows)
- 		return;
++	if (--hw->num_flows)
+ 		goto out;
  
+ 	hw->wed_dev->wlan.offload_disable(hw->wed_dev);
 -- 
 2.41.0
 
