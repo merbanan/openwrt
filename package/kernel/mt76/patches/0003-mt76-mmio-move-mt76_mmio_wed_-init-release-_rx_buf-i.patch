@@ -1,10 +1,10 @@
-From d14e8db339a27412c0add9fa7e66a9707db20e4a Mon Sep 17 00:00:00 2001
-Message-ID: <d14e8db339a27412c0add9fa7e66a9707db20e4a.1694555067.git.lorenzo@kernel.org>
-In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
-References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+From 546479b72c7c46aa68623643464a8acfec760597 Mon Sep 17 00:00:00 2001
+Message-ID: <546479b72c7c46aa68623643464a8acfec760597.1694615091.git.lorenzo@kernel.org>
+In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 20:01:42 +0200
-Subject: [PATCH 04/11] mt76: mmio: move mt76_mmio_wed_{init,release}_rx_buf in
+Subject: [PATCH 03/12] mt76: mmio: move mt76_mmio_wed_{init,release}_rx_buf in
  common code
 
 Move mt76_mmio_wed_init_rx_buf and mt76_mmio_wed_release_rx_buf routines

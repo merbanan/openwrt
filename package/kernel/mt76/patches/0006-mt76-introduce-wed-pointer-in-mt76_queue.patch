@@ -1,10 +1,10 @@
-From 2674868395d20f286bd3a1a90a986766a701ba04 Mon Sep 17 00:00:00 2001
-Message-ID: <2674868395d20f286bd3a1a90a986766a701ba04.1694555067.git.lorenzo@kernel.org>
-In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
-References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+From f17f71105fbcd7870cd4fd810d0e67d19404649c Mon Sep 17 00:00:00 2001
+Message-ID: <f17f71105fbcd7870cd4fd810d0e67d19404649c.1694615091.git.lorenzo@kernel.org>
+In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
-Subject: [PATCH 06/11] mt76: introduce wed pointer in mt76_queue
+Subject: [PATCH 06/12] mt76: introduce wed pointer in mt76_queue
 
 Introduce mtk_wed_device pointer in mt76_queue structure in order to
 configure WED chip.
@@ -27,8 +27,9 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  mt76_connac_mac.c |  5 +++--
  mt76x02_mmio.c    |  5 +++--
  mt7915/dma.c      | 16 +++++++++++-----
+ mt7921/pci.c      |  2 +-
  mt7996/dma.c      |  2 +-
- 10 files changed, 61 insertions(+), 47 deletions(-)
+ 11 files changed, 62 insertions(+), 48 deletions(-)
 
 diff --git a/dma.c b/dma.c
 index 1fd99e8c..e549ce9b 100644
@@ -213,7 +214,7 @@ index dda216de..d68de4be 100644
  	err = dev->queue_ops->alloc(dev, hwq, idx, n_desc, 0, ring_base);
  	if (err < 0)
 diff --git a/mt76.h b/mt76.h
-index dfb461a5..13b821b5 100644
+index 61b476e0..4af1787e 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -198,6 +198,7 @@ struct mt76_queue {
@@ -224,7 +225,7 @@ index dfb461a5..13b821b5 100644
  	u32 wed_regs;
  
  	dma_addr_t desc_dma;
-@@ -1111,14 +1112,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
+@@ -1113,14 +1114,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
  
  struct mt76_queue *
  mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
@@ -243,7 +244,7 @@ index dfb461a5..13b821b5 100644
  	if (IS_ERR(q))
  		return PTR_ERR(q);
  
-@@ -1132,7 +1134,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
+@@ -1134,7 +1136,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
  {
  	struct mt76_queue *q;
  
@@ -441,6 +442,19 @@ index 96b2c380..1bceeb52 100644
  		}
  
  		/* rx data queue for band1 */
+diff --git a/mt7921/pci.c b/mt7921/pci.c
+index d869aab7..cb3c0080 100644
+--- a/mt7921/pci.c
++++ b/mt7921/pci.c
+@@ -169,7 +169,7 @@ static int mt7921_dma_init(struct mt792x_dev *dev)
+ 	/* init tx queue */
+ 	ret = mt76_connac_init_tx_queues(dev->phy.mt76, MT7921_TXQ_BAND0,
+ 					 MT7921_TX_RING_SIZE,
+-					 MT_TX_RING_BASE, 0);
++					 MT_TX_RING_BASE, NULL, 0);
+ 	if (ret)
+ 		return ret;
+ 
 diff --git a/mt7996/dma.c b/mt7996/dma.c
 index 586e247a..b3334636 100644
 --- a/mt7996/dma.c

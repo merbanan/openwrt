@@ -1,10 +1,10 @@
-From 108bf2db3a1227f3a51017faa7105248906857d8 Mon Sep 17 00:00:00 2001
-Message-ID: <108bf2db3a1227f3a51017faa7105248906857d8.1694555067.git.lorenzo@kernel.org>
-In-Reply-To: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
-References: <4447b49fdd3d7cb0ba70e05adf30c7dc9c1c5967.1694555067.git.lorenzo@kernel.org>
+From ca19016ac845dbb2eb8959df2470413adf157f3e Mon Sep 17 00:00:00 2001
+Message-ID: <ca19016ac845dbb2eb8959df2470413adf157f3e.1694615091.git.lorenzo@kernel.org>
+In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 1 Sep 2023 10:18:19 +0200
-Subject: [PATCH 05/11] mt76: introduce mt76_queue_is_wed_tx_free utility
+Subject: [PATCH 05/12] mt76: introduce mt76_queue_is_wed_tx_free utility
  routine
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
@@ -46,10 +46,10 @@ index 6a6af1d3..1fd99e8c 100644
  		check_ddone = true;
  	}
 diff --git a/mt76.h b/mt76.h
-index 8cd5fd45..dfb461a5 100644
+index 6f91d729..61b476e0 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1546,6 +1546,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
+@@ -1548,6 +1548,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
  			      struct mt76_power_limits *dest,
  			      s8 target_power);
  
