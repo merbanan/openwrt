@@ -689,7 +689,7 @@ index 72912f37..01b3c3b1 100644
 +	irq_mask = mdev->mmio.irqmask | MT_INT_RRO_RX_DONE |
 +		   MT_INT_TX_DONE_BAND2;
 +	mt76_wr(dev, MT_INT_MASK_CSR, irq_mask);
-+	mtk_wed_device_start_hw_rro(&mdev->mmio.wed, irq_mask);
++	mtk_wed_device_start_hw_rro(&mdev->mmio.wed, irq_mask, false);
 +	mt7996_irq_enable(dev, irq_mask);
 +
 +	return 0;
