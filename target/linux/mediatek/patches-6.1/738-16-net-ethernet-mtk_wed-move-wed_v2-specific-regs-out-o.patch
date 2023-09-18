@@ -1,11 +1,11 @@
-From 0b00c11ac9da54d8a22dbdf57167f5a71cbfe0a3 Mon Sep 17 00:00:00 2001
-Message-ID: <0b00c11ac9da54d8a22dbdf57167f5a71cbfe0a3.1693153819.git.lorenzo@kernel.org>
-In-Reply-To: <f557e870f4ba8e5673dca35fda4a8d45a17023c4.1693153819.git.lorenzo@kernel.org>
-References: <f557e870f4ba8e5673dca35fda4a8d45a17023c4.1693153819.git.lorenzo@kernel.org>
+From 0728827634acf0a006b79b83c102ce69e9aab66a Mon Sep 17 00:00:00 2001
+Message-ID: <0728827634acf0a006b79b83c102ce69e9aab66a.1694978923.git.lorenzo@kernel.org>
+In-Reply-To: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
+References: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 27 Aug 2023 17:07:37 +0200
-Subject: [PATCH net-next 3/4] net: ethernet: mtk_wed: move wed_v2 specific
- regs out of regs array
+Subject: [PATCH net-next 7/9] net: ethernet: mtk_wed: debugfs: move wed_v2
+ specific regs out of regs array
 
 Move specific WED2.0 debugfs entries out of regs array. This is a
 preliminary patch to introduce WED 3.0 debugfs info.
@@ -16,7 +16,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 18 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c b/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
-index 3087a7eb202a..4e056b4a7151 100644
+index 674e919d0d3a..8999d0c743f3 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
 @@ -151,7 +151,7 @@ DEFINE_SHOW_ATTRIBUTE(wed_txinfo);

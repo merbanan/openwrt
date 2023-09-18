@@ -1,10 +1,10 @@
-From 6f2d133f143126a78fa6decd272ca765ec757337 Mon Sep 17 00:00:00 2001
-Message-ID: <6f2d133f143126a78fa6decd272ca765ec757337.1693052350.git.lorenzo@kernel.org>
-In-Reply-To: <537b973c952546b3b94d4c93664f7df6bb0e9262.1693052350.git.lorenzo@kernel.org>
-References: <537b973c952546b3b94d4c93664f7df6bb0e9262.1693052350.git.lorenzo@kernel.org>
+From 2af3b2cb180bb1db961c14f14f0d31d23739f793 Mon Sep 17 00:00:00 2001
+Message-ID: <2af3b2cb180bb1db961c14f14f0d31d23739f793.1694978923.git.lorenzo@kernel.org>
+In-Reply-To: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
+References: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sat, 22 Jul 2023 23:06:25 +0200
-Subject: [PATCH net-next 3/4] net: ethernet: mtk_wed: introduce partial AMSDU
+Subject: [PATCH net-next 5/9] net: ethernet: mtk_wed: introduce partial AMSDU
  offload support for MT7988
 
 Introduce partial AMSDU offload support for MT7988 SoC in order to merge
@@ -25,9 +25,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  include/linux/soc/mediatek/mtk_wed.h          |  12 ++
  8 files changed, 248 insertions(+), 28 deletions(-)
 
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.c b/drivers/net/ethernet/mediatek/mtk_ppe.c
+index 86f32f486043..b2a5d9c3733d 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.c
-@@ -433,7 +433,8 @@ int mtk_foe_entry_set_pppoe(struct mtk_e
+@@ -425,7 +425,8 @@ int mtk_foe_entry_set_pppoe(struct mtk_eth *eth, struct mtk_foe_entry *entry,
  }
  
  int mtk_foe_entry_set_wdma(struct mtk_eth *eth, struct mtk_foe_entry *entry,
@@ -37,7 +39,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  {
  	struct mtk_foe_mac_info *l2 = mtk_foe_entry_l2(eth, entry);
  	u32 *ib2 = mtk_foe_entry_ib2(eth, entry);
-@@ -445,6 +446,7 @@ int mtk_foe_entry_set_wdma(struct mtk_et
+@@ -437,6 +438,7 @@ int mtk_foe_entry_set_wdma(struct mtk_eth *eth, struct mtk_foe_entry *entry,
  			 MTK_FOE_IB2_WDMA_WINFO_V2;
  		l2->w3info = FIELD_PREP(MTK_FOE_WINFO_WCID_V3, wcid) |
  			     FIELD_PREP(MTK_FOE_WINFO_BSS_V3, bss);
@@ -45,6 +47,8 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  		break;
  	case 2:
  		*ib2 &= ~MTK_FOE_IB2_PORT_MG_V2;
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe.h b/drivers/net/ethernet/mediatek/mtk_ppe.h
+index e3d0ec72bc69..691806bca372 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe.h
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe.h
 @@ -88,13 +88,13 @@ enum {
@@ -77,7 +81,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  };
  
  /* software-only entry type */
-@@ -393,7 +393,8 @@ int mtk_foe_entry_set_vlan(struct mtk_et
+@@ -392,7 +392,8 @@ int mtk_foe_entry_set_vlan(struct mtk_eth *eth, struct mtk_foe_entry *entry,
  int mtk_foe_entry_set_pppoe(struct mtk_eth *eth, struct mtk_foe_entry *entry,
  			    int sid);
  int mtk_foe_entry_set_wdma(struct mtk_eth *eth, struct mtk_foe_entry *entry,
@@ -87,9 +91,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  int mtk_foe_entry_set_queue(struct mtk_eth *eth, struct mtk_foe_entry *entry,
  			    unsigned int queue);
  int mtk_foe_entry_commit(struct mtk_ppe *ppe, struct mtk_flow_entry *entry);
+diff --git a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
+index 95f76975f258..e073d2b5542c 100644
 --- a/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
 +++ b/drivers/net/ethernet/mediatek/mtk_ppe_offload.c
-@@ -111,6 +111,7 @@ mtk_flow_get_wdma_info(struct net_device
+@@ -111,6 +111,7 @@ mtk_flow_get_wdma_info(struct net_device *dev, const u8 *addr, struct mtk_wdma_i
  	info->queue = path->mtk_wdma.queue;
  	info->bss = path->mtk_wdma.bss;
  	info->wcid = path->mtk_wdma.wcid;
@@ -97,7 +103,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  	return 0;
  }
-@@ -192,7 +193,7 @@ mtk_flow_set_output_device(struct mtk_et
+@@ -192,7 +193,7 @@ mtk_flow_set_output_device(struct mtk_eth *eth, struct mtk_foe_entry *foe,
  
  	if (mtk_flow_get_wdma_info(dev, dest_mac, &info) == 0) {
  		mtk_foe_entry_set_wdma(eth, foe, info.wdma_idx, info.queue,
@@ -106,9 +112,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  		if (mtk_is_netsys_v2_or_greater(eth)) {
  			switch (info.wdma_idx) {
  			case 0:
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
+index 56b8d9a4286a..452b00f36ed4 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.c
-@@ -29,6 +29,8 @@
+@@ -30,6 +30,8 @@
  #define MTK_WED_RX_PAGE_BUF_PER_PAGE	(PAGE_SIZE / 128)
  #define MTK_WED_RX_RING_SIZE		1536
  #define MTK_WED_RX_PG_BM_CNT		8192
@@ -117,7 +125,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  #define MTK_WED_TX_RING_SIZE		2048
  #define MTK_WED_WDMA_RING_SIZE		1024
-@@ -139,6 +141,23 @@ mtk_wdma_rx_reset(struct mtk_wed_device
+@@ -187,6 +189,23 @@ mtk_wdma_rx_reset(struct mtk_wed_device *dev)
  	return ret;
  }
  
@@ -141,10 +149,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  static void
  mtk_wdma_tx_reset(struct mtk_wed_device *dev)
  {
-@@ -302,6 +321,118 @@ out:
+@@ -349,6 +368,118 @@ mtk_wed_assign(struct mtk_wed_device *dev)
+ 	return hw;
  }
  
- static int
++static int
 +mtk_wed_amsdu_buffer_alloc(struct mtk_wed_device *dev)
 +{
 +	struct mtk_wed_hw *hw = dev->hw;
@@ -256,11 +265,10 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 +	return 0;
 +}
 +
-+static int
+ static int
  mtk_wed_tx_buffer_alloc(struct mtk_wed_device *dev)
  {
- 	int i, page_idx = 0, n_pages, ring_size;
-@@ -676,6 +807,7 @@ __mtk_wed_detach(struct mtk_wed_device *
+@@ -705,6 +836,7 @@ __mtk_wed_detach(struct mtk_wed_device *dev)
  
  	mtk_wdma_rx_reset(dev);
  	mtk_wed_reset(dev, MTK_WED_RESET_WED);
@@ -268,7 +276,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  	mtk_wed_free_tx_buffer(dev);
  	mtk_wed_free_tx_rings(dev);
  
-@@ -1129,23 +1261,6 @@ mtk_wed_ring_reset(struct mtk_wed_ring *
+@@ -1125,23 +1257,6 @@ mtk_wed_ring_reset(struct mtk_wed_ring *ring, int size, bool tx)
  	}
  }
  
@@ -292,7 +300,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  static int
  mtk_wed_rx_reset(struct mtk_wed_device *dev)
  {
-@@ -1707,6 +1822,7 @@ mtk_wed_start(struct mtk_wed_device *dev
+@@ -1688,6 +1803,7 @@ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
  	}
  
  	mtk_wed_set_512_support(dev, dev->wlan.wcid_512);
@@ -300,7 +308,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  	mtk_wed_dma_enable(dev);
  	dev->running = true;
-@@ -1763,6 +1879,10 @@ mtk_wed_attach(struct mtk_wed_device *de
+@@ -1744,6 +1860,10 @@ mtk_wed_attach(struct mtk_wed_device *dev)
  	if (ret)
  		goto out;
  
@@ -311,11 +319,13 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  	if (mtk_wed_get_rx_capa(dev)) {
  		ret = mtk_wed_rro_alloc(dev);
  		if (ret)
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed.h b/drivers/net/ethernet/mediatek/mtk_wed.h
+index 8082a55f5e6a..75b0efb83398 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed.h
 +++ b/drivers/net/ethernet/mediatek/mtk_wed.h
-@@ -14,6 +14,11 @@
- struct mtk_eth;
- struct mtk_wed_wo;
+@@ -27,6 +27,11 @@ struct mtk_wed_soc_data {
+ 	u32 wdma_desc_size;
+ };
  
 +struct mtk_wed_amsdu {
 +	void *txd;
@@ -323,9 +333,9 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 +};
 +
  struct mtk_wed_hw {
+ 	const struct mtk_wed_soc_data *soc;
  	struct device_node *node;
- 	struct mtk_eth *eth;
-@@ -26,6 +31,7 @@ struct mtk_wed_hw {
+@@ -40,6 +45,7 @@ struct mtk_wed_hw {
  	struct dentry *debugfs_dir;
  	struct mtk_wed_device *wed_dev;
  	struct mtk_wed_wo *wed_wo;
@@ -333,7 +343,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  	u32 pcie_base;
  	u32 debugfs_reg;
  	u32 num_flows;
-@@ -40,6 +46,7 @@ struct mtk_wdma_info {
+@@ -54,6 +60,7 @@ struct mtk_wdma_info {
  	u8 queue;
  	u16 wcid;
  	u8 bss;
@@ -341,9 +351,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  };
  
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed_regs.h b/drivers/net/ethernet/mediatek/mtk_wed_regs.h
+index a4d3cf64d090..5a7e4a11a54e 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_regs.h
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_regs.h
-@@ -679,6 +679,82 @@ struct mtk_wdma_desc {
+@@ -672,6 +672,82 @@ struct mtk_wdma_desc {
  #define MTK_WED_WOCPU_VIEW_MIOD_BASE			0x8000
  #define MTK_WED_PCIE_INT_MASK				0x0
  
@@ -426,9 +438,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  #define MTK_WED_PCIE_BASE			0x11280000
  #define MTK_WED_PCIE_BASE0			0x11300000
  #define MTK_WED_PCIE_BASE1			0x11310000
+diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
+index 0896aaa91dd7..1b00b34dc352 100644
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
-@@ -929,6 +929,7 @@ struct net_device_path {
+@@ -917,6 +917,7 @@ struct net_device_path {
  			u8 queue;
  			u16 wcid;
  			u8 bss;
@@ -436,9 +450,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  		} mtk_wdma;
  	};
  };
+diff --git a/include/linux/soc/mediatek/mtk_wed.h b/include/linux/soc/mediatek/mtk_wed.h
+index 5b096f9f1975..90d9c9ead3bc 100644
 --- a/include/linux/soc/mediatek/mtk_wed.h
 +++ b/include/linux/soc/mediatek/mtk_wed.h
-@@ -130,6 +130,7 @@ struct mtk_wed_device {
+@@ -128,6 +128,7 @@ struct mtk_wed_device {
  		enum mtk_wed_bus_tye bus_type;
  		void __iomem *base;
  		u32 phy_base;
@@ -446,7 +462,7 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  		u32 wpdma_phys;
  		u32 wpdma_int;
-@@ -148,10 +149,12 @@ struct mtk_wed_device {
+@@ -146,10 +147,12 @@ struct mtk_wed_device {
  		unsigned int rx_nbuf;
  		unsigned int rx_npkt;
  		unsigned int rx_size;
@@ -459,12 +475,10 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
  
  		u32 (*init_buf)(void *ptr, dma_addr_t phys, int token_id);
  		int (*offload_enable)(struct mtk_wed_device *wed);
-@@ -225,6 +228,15 @@ static inline bool mtk_wed_get_rx_capa(s
- #else
- 	return false;
+@@ -225,6 +228,15 @@ static inline bool mtk_wed_get_rx_capa(struct mtk_wed_device *dev)
  #endif
-+}
-+
+ }
+ 
 +static inline bool mtk_wed_is_amsdu_supported(struct mtk_wed_device *dev)
 +{
 +#ifdef CONFIG_NET_MEDIATEK_SOC_WED
@@ -472,6 +486,11 @@ Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 +#else
 +	return false;
 +#endif
- }
- 
++}
++
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
+ #define mtk_wed_device_active(_dev) !!(_dev)->ops
+ #define mtk_wed_device_detach(_dev) (_dev)->ops->detach(_dev)
+-- 
+2.41.0
+

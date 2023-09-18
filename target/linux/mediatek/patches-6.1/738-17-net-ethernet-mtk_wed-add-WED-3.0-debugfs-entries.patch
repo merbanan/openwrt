@@ -1,11 +1,11 @@
-From e4f914e65781834d2dcae034d145ab0ecd7a7222 Mon Sep 17 00:00:00 2001
-Message-ID: <e4f914e65781834d2dcae034d145ab0ecd7a7222.1693153819.git.lorenzo@kernel.org>
-In-Reply-To: <f557e870f4ba8e5673dca35fda4a8d45a17023c4.1693153819.git.lorenzo@kernel.org>
-References: <f557e870f4ba8e5673dca35fda4a8d45a17023c4.1693153819.git.lorenzo@kernel.org>
+From d79f1f86573fe740d258cc4bf5bf0782a154a06b Mon Sep 17 00:00:00 2001
+Message-ID: <d79f1f86573fe740d258cc4bf5bf0782a154a06b.1694978923.git.lorenzo@kernel.org>
+In-Reply-To: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
+References: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
 From: Sujuan Chen <sujuan.chen@mediatek.com>
 Date: Sun, 27 Aug 2023 18:11:33 +0200
-Subject: [PATCH net-next 4/4] net: ethernet: mtk_wed: add WED 3.0 debugfs
- entries
+Subject: [PATCH net-next 8/9] net: ethernet: mtk_wed: debugfs: add WED 3.0
+ debugfs entries
 
 Introduce WED3.0 debugfs entries useful for debugging.
 
@@ -13,11 +13,11 @@ Co-developed-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 Signed-off-by: Sujuan Chen <sujuan.chen@mediatek.com>
 ---
- .../net/ethernet/mediatek/mtk_wed_debugfs.c   | 373 +++++++++++++++++-
- 1 file changed, 371 insertions(+), 2 deletions(-)
+ .../net/ethernet/mediatek/mtk_wed_debugfs.c   | 371 +++++++++++++++++-
+ 1 file changed, 369 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c b/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
-index 4e056b4a7151..b200ef25c0c2 100644
+index 8999d0c743f3..781c691473e1 100644
 --- a/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
 +++ b/drivers/net/ethernet/mediatek/mtk_wed_debugfs.c
 @@ -11,6 +11,7 @@ struct reg_dump {
@@ -45,7 +45,7 @@ index 4e056b4a7151..b200ef25c0c2 100644
  #define DUMP_WED_RING(_base) DUMP_RING(#_base, MTK_##_base, DUMP_TYPE_WED)
  
  #define DUMP_WDMA(_reg) DUMP_REG(_reg, DUMP_TYPE_WDMA)
-@@ -212,18 +216,374 @@ wed_rxinfo_show(struct seq_file *s, void *data)
+@@ -212,18 +216,372 @@ wed_rxinfo_show(struct seq_file *s, void *data)
  		DUMP_WED(WED_RTQM_Q2B_MIB),
  		DUMP_WED(WED_RTQM_PFDBK_MIB),
  	};
@@ -280,7 +280,6 @@ index 4e056b4a7151..b200ef25c0c2 100644
 +		DUMP_WED_MASK(WED_MON_AMSDU_QMEM_CNT(4), WED_AMSDU_QMEM_TID6_QCNT),
 +		DUMP_WED_MASK(WED_MON_AMSDU_QMEM_CNT(4), WED_AMSDU_QMEM_TID7_QCNT),
 +
-+
 +		DUMP_STR("WED QMEM HEAD INFO"),
 +		DUMP_WED_MASK(WED_MON_AMSDU_QMEM_PTR(0), WED_AMSDU_QMEM_FQ_HEAD),
 +		DUMP_WED_MASK(WED_MON_AMSDU_QMEM_PTR(0), WED_AMSDU_QMEM_SP_QHEAD),
@@ -342,7 +341,6 @@ index 4e056b4a7151..b200ef25c0c2 100644
 +		DUMP_WED(WED_RTQM_IGRS0_I2H_PKT_CNT(0)),
 +		DUMP_WED(WED_RTQM_IGRS0_I2H_PKT_CNT(0)),
 +		DUMP_WED(WED_RTQM_IGRS0_FDROP_CNT),
-+
 +
 +		DUMP_STR("WED Route QM IGRS1(Legacy)"),
 +		DUMP_WED(WED_RTQM_IGRS1_I2HW_DMAD_CNT),
@@ -421,7 +419,7 @@ index 4e056b4a7151..b200ef25c0c2 100644
  static int
  mtk_wed_reg_set(void *data, u64 val)
  {
-@@ -264,7 +624,16 @@ void mtk_wed_hw_add_debugfs(struct mtk_wed_hw *hw)
+@@ -264,7 +622,16 @@ void mtk_wed_hw_add_debugfs(struct mtk_wed_hw *hw)
  	debugfs_create_u32("regidx", 0600, dir, &hw->debugfs_reg);
  	debugfs_create_file_unsafe("regval", 0600, dir, hw, &fops_regval);
  	debugfs_create_file_unsafe("txinfo", 0400, dir, hw, &wed_txinfo_fops);

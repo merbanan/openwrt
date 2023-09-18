@@ -1,0 +1,35 @@
+From afa9c258d66f0bb9c80590fe998f85de357c3b87 Mon Sep 17 00:00:00 2001
+Message-ID: <afa9c258d66f0bb9c80590fe998f85de357c3b87.1694978923.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 17 Sep 2023 10:53:09 +0200
+Subject: [PATCH net-next 1/9] net: ethernet: mtk_wed: fix
+ EXT_INT_STATUS_RX_FBUF definitions for MT7986 SoC
+
+Fix MTK_WED_EXT_INT_STATUS_RX_FBUF_LO_TH and
+MTK_WED_EXT_INT_STATUS_RX_FBUF_HI_TH definitions for MT7986 (MT7986 is
+the only SoC to use them).
+
+Fixes: de84a090d99a ("net: ethernet: mtk_eth_wed: add wed support for mt7986 chipset")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_wed_regs.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed_regs.h b/drivers/net/ethernet/mediatek/mtk_wed_regs.h
+index 47ea69feb3b2..f87ab9b8a590 100644
+--- a/drivers/net/ethernet/mediatek/mtk_wed_regs.h
++++ b/drivers/net/ethernet/mediatek/mtk_wed_regs.h
+@@ -64,8 +64,8 @@ struct mtk_wdma_desc {
+ #define MTK_WED_EXT_INT_STATUS_TKID_TITO_INVALID	BIT(4)
+ #define MTK_WED_EXT_INT_STATUS_TX_FBUF_LO_TH		BIT(8)
+ #define MTK_WED_EXT_INT_STATUS_TX_FBUF_HI_TH		BIT(9)
+-#define MTK_WED_EXT_INT_STATUS_RX_FBUF_LO_TH		BIT(12)
+-#define MTK_WED_EXT_INT_STATUS_RX_FBUF_HI_TH		BIT(13)
++#define MTK_WED_EXT_INT_STATUS_RX_FBUF_LO_TH		BIT(10) /* wed v2 */
++#define MTK_WED_EXT_INT_STATUS_RX_FBUF_HI_TH		BIT(11) /* wed v2 */
+ #define MTK_WED_EXT_INT_STATUS_RX_DRV_R_RESP_ERR	BIT(16)
+ #define MTK_WED_EXT_INT_STATUS_RX_DRV_W_RESP_ERR	BIT(17)
+ #define MTK_WED_EXT_INT_STATUS_RX_DRV_COHERENT		BIT(18)
+-- 
+2.41.0
+
