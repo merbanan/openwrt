@@ -1,10 +1,10 @@
-From b1b76f55551ebced4253c2aa1f2174b215eb92b9 Mon Sep 17 00:00:00 2001
-Message-ID: <b1b76f55551ebced4253c2aa1f2174b215eb92b9.1694615091.git.lorenzo@kernel.org>
-In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
-References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+From 5365b7dc7f28f3641ac0ccab06c5f05e861ef04a Mon Sep 17 00:00:00 2001
+Message-ID: <5365b7dc7f28f3641ac0ccab06c5f05e861ef04a.1695287173.git.lorenzo@kernel.org>
+In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Wed, 13 Sep 2023 10:26:39 +0200
-Subject: [PATCH 04/12] mt76: move mt76_mmio_wed_offload_{enable,disable} in
+Subject: [PATCH 04/13] mt76: move mt76_mmio_wed_offload_{enable,disable} in
  common code
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
@@ -48,10 +48,10 @@ index 350650a0..c3462497 100644
  
  void mt76_mmio_init(struct mt76_dev *dev, void __iomem *regs)
 diff --git a/mt76.h b/mt76.h
-index 8cd5fd45..6f91d729 100644
+index 3a5d0dc0..c5fb4c07 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1050,6 +1050,8 @@ int mt76_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+@@ -1052,6 +1052,8 @@ int mt76_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
  		      void *type_data);
  u32 mt76_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size);
  void mt76_mmio_wed_release_rx_buf(struct mtk_wed_device *wed);

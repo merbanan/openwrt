@@ -1,10 +1,10 @@
-From f17f71105fbcd7870cd4fd810d0e67d19404649c Mon Sep 17 00:00:00 2001
-Message-ID: <f17f71105fbcd7870cd4fd810d0e67d19404649c.1694615091.git.lorenzo@kernel.org>
-In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
-References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+From e387856499e6dd4d7c9452620c2dbf7d9d910c69 Mon Sep 17 00:00:00 2001
+Message-ID: <e387856499e6dd4d7c9452620c2dbf7d9d910c69.1695287173.git.lorenzo@kernel.org>
+In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
-Subject: [PATCH 06/12] mt76: introduce wed pointer in mt76_queue
+Subject: [PATCH 06/13] mt76: introduce wed pointer in mt76_queue
 
 Introduce mtk_wed_device pointer in mt76_queue structure in order to
 configure WED chip.
@@ -32,7 +32,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  11 files changed, 62 insertions(+), 48 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index 1fd99e8c..e549ce9b 100644
+index f58522bb..ffdb2bef 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -9,11 +9,11 @@
@@ -73,7 +73,7 @@ index 1fd99e8c..e549ce9b 100644
  
  #endif
  
-@@ -183,9 +183,9 @@ EXPORT_SYMBOL_GPL(mt76_free_pending_rxwi);
+@@ -188,9 +188,9 @@ EXPORT_SYMBOL_GPL(mt76_free_pending_rxwi);
  static void
  mt76_dma_sync_idx(struct mt76_dev *dev, struct mt76_queue *q)
  {
@@ -86,7 +86,7 @@ index 1fd99e8c..e549ce9b 100644
  	q->tail = q->head;
  }
  
-@@ -201,8 +201,8 @@ mt76_dma_queue_reset(struct mt76_dev *dev, struct mt76_queue *q)
+@@ -206,8 +206,8 @@ mt76_dma_queue_reset(struct mt76_dev *dev, struct mt76_queue *q)
  	for (i = 0; i < q->ndesc; i++)
  		q->desc[i].ctrl = cpu_to_le32(MT_DMA_CTL_DMA_DONE);
  
@@ -97,7 +97,7 @@ index 1fd99e8c..e549ce9b 100644
  	mt76_dma_sync_idx(dev, q);
  }
  
-@@ -338,7 +338,7 @@ static void
+@@ -343,7 +343,7 @@ static void
  mt76_dma_kick_queue(struct mt76_dev *dev, struct mt76_queue *q)
  {
  	wmb();
@@ -106,7 +106,7 @@ index 1fd99e8c..e549ce9b 100644
  }
  
  static void
-@@ -354,7 +354,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
+@@ -359,7 +359,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
  	if (flush)
  		last = -1;
  	else
@@ -115,7 +115,7 @@ index 1fd99e8c..e549ce9b 100644
  
  	while (q->queued > 0 && q->tail != last) {
  		mt76_dma_tx_cleanup_idx(dev, q, q->tail, &entry);
-@@ -366,7 +366,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
+@@ -371,7 +371,7 @@ mt76_dma_tx_cleanup(struct mt76_dev *dev, struct mt76_queue *q, bool flush)
  		}
  
  		if (!flush && q->tail == last)
@@ -124,7 +124,7 @@ index 1fd99e8c..e549ce9b 100644
  	}
  	spin_unlock_bh(&q->cleanup_lock);
  
-@@ -636,7 +636,6 @@ mt76_dma_rx_fill(struct mt76_dev *dev, struct mt76_queue *q,
+@@ -641,7 +641,6 @@ mt76_dma_rx_fill(struct mt76_dev *dev, struct mt76_queue *q,
  int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  {
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
@@ -132,7 +132,7 @@ index 1fd99e8c..e549ce9b 100644
  	int ret, type, ring;
  	u8 flags;
  
-@@ -644,7 +643,7 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
+@@ -649,7 +648,7 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  		return -EINVAL;
  
  	flags = q->flags;
@@ -141,7 +141,7 @@ index 1fd99e8c..e549ce9b 100644
  		q->flags &= ~MT_QFLAG_WED;
  
  	if (!(q->flags & MT_QFLAG_WED))
-@@ -655,9 +654,10 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
+@@ -660,9 +659,10 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  
  	switch (type) {
  	case MT76_WED_Q_TX:
@@ -154,7 +154,7 @@ index 1fd99e8c..e549ce9b 100644
  		break;
  	case MT76_WED_Q_TXFREE:
  		/* WED txfree queue needs ring to be initialized before setup */
-@@ -666,14 +666,15 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
+@@ -671,14 +671,15 @@ int mt76_dma_wed_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset)
  		mt76_dma_rx_fill(dev, q, false);
  		q->flags = flags;
  
@@ -174,7 +174,7 @@ index 1fd99e8c..e549ce9b 100644
  		break;
  	default:
  		ret = -EINVAL;
-@@ -812,7 +813,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -817,7 +818,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  	if (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
  	    mt76_queue_is_wed_tx_free(q)) {
@@ -183,7 +183,7 @@ index 1fd99e8c..e549ce9b 100644
  		check_ddone = true;
  	}
  
-@@ -822,7 +823,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -827,7 +828,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  		if (check_ddone) {
  			if (q->tail == dma_idx)
@@ -193,7 +193,7 @@ index 1fd99e8c..e549ce9b 100644
  			if (q->tail == dma_idx)
  				break;
 diff --git a/mac80211.c b/mac80211.c
-index dda216de..d68de4be 100644
+index cf81650c..cd102dd0 100644
 --- a/mac80211.c
 +++ b/mac80211.c
 @@ -1726,7 +1726,7 @@ EXPORT_SYMBOL_GPL(mt76_get_antenna);
@@ -214,7 +214,7 @@ index dda216de..d68de4be 100644
  	err = dev->queue_ops->alloc(dev, hwq, idx, n_desc, 0, ring_base);
  	if (err < 0)
 diff --git a/mt76.h b/mt76.h
-index 61b476e0..4af1787e 100644
+index e1f46c7f..be552d62 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -198,6 +198,7 @@ struct mt76_queue {
@@ -225,13 +225,14 @@ index 61b476e0..4af1787e 100644
  	u32 wed_regs;
  
  	dma_addr_t desc_dma;
-@@ -1113,14 +1114,15 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
+@@ -1115,15 +1116,16 @@ int mt76_get_of_eeprom(struct mt76_dev *dev, void *data, int offset, int len);
  
  struct mt76_queue *
  mt76_init_queue(struct mt76_dev *dev, int qid, int idx, int n_desc,
 -		int ring_base, u32 flags);
 +		int ring_base, void *wed, u32 flags);
- u16 mt76_calculate_default_rate(struct mt76_phy *phy, int rateidx);
+ u16 mt76_calculate_default_rate(struct mt76_phy *phy,
+ 				struct ieee80211_vif *vif, int rateidx);
  static inline int mt76_init_tx_queue(struct mt76_phy *phy, int qid, int idx,
 -				     int n_desc, int ring_base, u32 flags)
 +				     int n_desc, int ring_base, void *wed,
@@ -244,7 +245,7 @@ index 61b476e0..4af1787e 100644
  	if (IS_ERR(q))
  		return PTR_ERR(q);
  
-@@ -1134,7 +1136,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
+@@ -1137,7 +1139,7 @@ static inline int mt76_init_mcu_queue(struct mt76_dev *dev, int qid, int idx,
  {
  	struct mt76_queue *q;
  
@@ -320,10 +321,10 @@ index 0ce01ccc..e7135b2f 100644
  		return ret;
  
 diff --git a/mt76_connac.h b/mt76_connac.h
-index 22878f08..0ebb6cb9 100644
+index 1f29d8cd..e5ebde19 100644
 --- a/mt76_connac.h
 +++ b/mt76_connac.h
-@@ -385,7 +385,8 @@ mt76_connac_mutex_release(struct mt76_dev *dev, struct mt76_connac_pm *pm)
+@@ -391,7 +391,8 @@ mt76_connac_mutex_release(struct mt76_dev *dev, struct mt76_connac_pm *pm)
  
  void mt76_connac_gen_ppe_thresh(u8 *he_ppet, int nss);
  int mt76_connac_init_tx_queues(struct mt76_phy *phy, int idx, int n_desc,
@@ -334,7 +335,7 @@ index 22878f08..0ebb6cb9 100644
  			      struct mt76_tx_info *tx_info,
  			      void *txp_ptr, u32 id);
 diff --git a/mt76_connac_mac.c b/mt76_connac_mac.c
-index 73db9e14..385c8360 100644
+index 93402d2c..c7914643 100644
 --- a/mt76_connac_mac.c
 +++ b/mt76_connac_mac.c
 @@ -256,11 +256,12 @@ void mt76_connac_txp_skb_unmap(struct mt76_dev *dev,
@@ -443,10 +444,10 @@ index 96b2c380..1bceeb52 100644
  
  		/* rx data queue for band1 */
 diff --git a/mt7921/pci.c b/mt7921/pci.c
-index d869aab7..cb3c0080 100644
+index 9647e4b2..9ea7e0c9 100644
 --- a/mt7921/pci.c
 +++ b/mt7921/pci.c
-@@ -169,7 +169,7 @@ static int mt7921_dma_init(struct mt792x_dev *dev)
+@@ -171,7 +171,7 @@ static int mt7921_dma_init(struct mt792x_dev *dev)
  	/* init tx queue */
  	ret = mt76_connac_init_tx_queues(dev->phy.mt76, MT7921_TXQ_BAND0,
  					 MT7921_TX_RING_SIZE,

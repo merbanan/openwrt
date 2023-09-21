@@ -1,10 +1,10 @@
-From e055174c3a9fd34d6a8961cd8ddba4623dffd49d Mon Sep 17 00:00:00 2001
-Message-ID: <e055174c3a9fd34d6a8961cd8ddba4623dffd49d.1694615091.git.lorenzo@kernel.org>
-In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
-References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+From 5ba53621361f6fe4a3e8486038e073bc02a24b31 Mon Sep 17 00:00:00 2001
+Message-ID: <5ba53621361f6fe4a3e8486038e073bc02a24b31.1695287172.git.lorenzo@kernel.org>
+In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 23:05:55 +0200
-Subject: [PATCH 02/12] mt76: move mt76_net_setup_tc in common code
+Subject: [PATCH 02/13] mt76: move mt76_net_setup_tc in common code
 
 This is a preliminary patch to introduce WED support for mt7996
 
@@ -16,10 +16,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  3 files changed, 23 insertions(+), 15 deletions(-)
 
 diff --git a/mac80211.c b/mac80211.c
-index 41afb11b..dda216de 100644
+index 12fcb2b0..cf81650c 100644
 --- a/mac80211.c
 +++ b/mac80211.c
-@@ -1838,3 +1838,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
+@@ -1843,3 +1843,19 @@ enum mt76_dfs_state mt76_phy_dfs_state(struct mt76_phy *phy)
  	return MT_DFS_STATE_ACTIVE;
  }
  EXPORT_SYMBOL_GPL(mt76_phy_dfs_state);
@@ -40,10 +40,10 @@ index 41afb11b..dda216de 100644
 +EXPORT_SYMBOL_GPL(mt76_net_setup_tc);
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
 diff --git a/mt76.h b/mt76.h
-index 8cbae6df..0402609c 100644
+index a2382160..4402653d 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1044,6 +1044,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
+@@ -1046,6 +1046,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,
  void mt76_mmio_init(struct mt76_dev *dev, void __iomem *regs);
  void mt76_pci_disable_aspm(struct pci_dev *pdev);
  
@@ -57,10 +57,10 @@ index 8cbae6df..0402609c 100644
  {
  	return dev->rev >> 16;
 diff --git a/mt7915/main.c b/mt7915/main.c
-index 68bb4932..2bf69f73 100644
+index a3fd54cc..ba34c8e1 100644
 --- a/mt7915/main.c
 +++ b/mt7915/main.c
-@@ -1651,20 +1651,6 @@ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
+@@ -1653,20 +1653,6 @@ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
  
  	return 0;
  }
@@ -81,7 +81,7 @@ index 68bb4932..2bf69f73 100644
  #endif
  
  const struct ieee80211_ops mt7915_ops = {
-@@ -1719,6 +1705,6 @@ const struct ieee80211_ops mt7915_ops = {
+@@ -1721,6 +1707,6 @@ const struct ieee80211_ops mt7915_ops = {
  	.set_radar_background = mt7915_set_radar_background,
  #ifdef CONFIG_NET_MEDIATEK_SOC_WED
  	.net_fill_forward_path = mt7915_net_fill_forward_path,

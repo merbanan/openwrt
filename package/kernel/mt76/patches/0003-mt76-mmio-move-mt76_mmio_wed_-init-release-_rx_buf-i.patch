@@ -1,10 +1,10 @@
-From 546479b72c7c46aa68623643464a8acfec760597 Mon Sep 17 00:00:00 2001
-Message-ID: <546479b72c7c46aa68623643464a8acfec760597.1694615091.git.lorenzo@kernel.org>
-In-Reply-To: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
-References: <e8283ec59ba7dee4f73916f64fb4dd8809749ca1.1694615091.git.lorenzo@kernel.org>
+From de2cee93302fed59871eee3c27974f0918126f36 Mon Sep 17 00:00:00 2001
+Message-ID: <de2cee93302fed59871eee3c27974f0918126f36.1695287173.git.lorenzo@kernel.org>
+In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 20:01:42 +0200
-Subject: [PATCH 03/12] mt76: mmio: move mt76_mmio_wed_{init,release}_rx_buf in
+Subject: [PATCH 03/13] mt76: mmio: move mt76_mmio_wed_{init,release}_rx_buf in
  common code
 
 Move mt76_mmio_wed_init_rx_buf and mt76_mmio_wed_release_rx_buf routines
@@ -112,10 +112,10 @@ index 86e3d2ac..350650a0 100644
  {
  	static const struct mt76_bus_ops mt76_mmio_ops = {
 diff --git a/mt76.h b/mt76.h
-index 0402609c..8cd5fd45 100644
+index 4402653d..3a5d0dc0 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1048,6 +1048,8 @@ void mt76_pci_disable_aspm(struct pci_dev *pdev);
+@@ -1050,6 +1050,8 @@ void mt76_pci_disable_aspm(struct pci_dev *pdev);
  int mt76_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
  		      struct net_device *netdev, enum tc_setup_type type,
  		      void *type_data);
