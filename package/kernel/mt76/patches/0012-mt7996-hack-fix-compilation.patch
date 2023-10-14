@@ -1,10 +1,10 @@
-From 6d500255d18a806fc503c7b507891c9ccaeae316 Mon Sep 17 00:00:00 2001
-Message-ID: <6d500255d18a806fc503c7b507891c9ccaeae316.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From 3b3087d0dad7fab927b9d38fa878523c43ec7c0d Mon Sep 17 00:00:00 2001
+Message-ID: <3b3087d0dad7fab927b9d38fa878523c43ec7c0d.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:41:09 +0200
-Subject: [PATCH 12/13] mt7996: hack: fix compilation
+Subject: [PATCH 12/15] mt7996: hack: fix compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -38,7 +38,7 @@ index cd102dd0..8644b4ad 100644
  	status->nss = mstat.nss;
  	status->band = mstat.band;
 diff --git a/mt7996/mac.c b/mt7996/mac.c
-index bc535c98..42400b4b 100644
+index 888de632..9c6a67c9 100644
 --- a/mt7996/mac.c
 +++ b/mt7996/mac.c
 @@ -391,7 +391,8 @@ mt7996_mac_fill_rx_rate(struct mt7996_dev *dev,
@@ -62,10 +62,10 @@ index bc535c98..42400b4b 100644
  
  		if (gi <= NL80211_RATE_INFO_EHT_GI_3_2)
 diff --git a/mt7996/mcu.c b/mt7996/mcu.c
-index 3ff70c6d..bd307eae 100644
+index 2256038e..ee41b734 100644
 --- a/mt7996/mcu.c
 +++ b/mt7996/mcu.c
-@@ -1138,7 +1138,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
+@@ -1189,7 +1189,7 @@ mt7996_mcu_sta_muru_tlv(struct mt7996_dev *dev, struct sk_buff *skb,
  	tlv = mt76_connac_mcu_add_tlv(skb, STA_REC_MURU, sizeof(*muru));
  
  	muru = (struct sta_rec_muru *)tlv;
@@ -74,7 +74,7 @@ index 3ff70c6d..bd307eae 100644
  			       vif->bss_conf.he_mu_beamformer ||
  			       vif->bss_conf.vht_mu_beamformer ||
  			       vif->bss_conf.vht_mu_beamformee;
-@@ -1196,10 +1196,10 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
+@@ -1247,10 +1247,10 @@ mt7996_is_ebf_supported(struct mt7996_phy *phy, struct ieee80211_vif *vif,
  		struct ieee80211_eht_cap_elem_fixed *pe = &pc->eht_cap_elem;
  
  		if (bfee)

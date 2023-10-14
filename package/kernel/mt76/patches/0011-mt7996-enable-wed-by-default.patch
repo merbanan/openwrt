@@ -1,10 +1,10 @@
-From ff8cac1905e69fa9185492a86ca95ed2ae58acc3 Mon Sep 17 00:00:00 2001
-Message-ID: <ff8cac1905e69fa9185492a86ca95ed2ae58acc3.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From 45a6a9113e7df4a5c913d99d2923882779fe85e2 Mon Sep 17 00:00:00 2001
+Message-ID: <45a6a9113e7df4a5c913d99d2923882779fe85e2.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Tue, 12 Sep 2023 00:15:35 +0200
-Subject: [PATCH 11/13] mt7996: enable wed by default
+Subject: [PATCH 11/15] mt7996: enable wed by default
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -20,7 +20,7 @@ index c7b6d4bd..170f9a47 100644
  #include "../dma.h"
  
 -static bool wed_enable;
-+static bool wed_enable = true;
++static bool wed_enable = false;
  module_param(wed_enable, bool, 0644);
  
  static const struct __base mt7996_reg_base[] = {

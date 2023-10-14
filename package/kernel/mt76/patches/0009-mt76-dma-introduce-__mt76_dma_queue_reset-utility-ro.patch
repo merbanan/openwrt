@@ -1,10 +1,10 @@
-From 2d0aebc3e5f04416198f38d719397d25fa1ce3cb Mon Sep 17 00:00:00 2001
-Message-ID: <2d0aebc3e5f04416198f38d719397d25fa1ce3cb.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From f64236e6fabb27bdc04ffe8e3b4d158fe8fd243f Mon Sep 17 00:00:00 2001
+Message-ID: <f64236e6fabb27bdc04ffe8e3b4d158fe8fd243f.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Wed, 13 Sep 2023 11:28:39 +0200
-Subject: [PATCH 09/13] mt76: dma: introduce __mt76_dma_queue_reset utility
+Subject: [PATCH 09/15] mt76: dma: introduce __mt76_dma_queue_reset utility
  routine
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
@@ -13,7 +13,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 12 insertions(+), 3 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index d513318d..9b184f4d 100644
+index a7a04548..12615b49 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -195,7 +195,8 @@ mt76_dma_sync_idx(struct mt76_dev *dev, struct mt76_queue *q)

@@ -1,10 +1,10 @@
-From e387856499e6dd4d7c9452620c2dbf7d9d910c69 Mon Sep 17 00:00:00 2001
-Message-ID: <e387856499e6dd4d7c9452620c2dbf7d9d910c69.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From f428aae15c12336b2906ef887f1d65af1a051be2 Mon Sep 17 00:00:00 2001
+Message-ID: <f428aae15c12336b2906ef887f1d65af1a051be2.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 12:40:54 +0200
-Subject: [PATCH 06/13] mt76: introduce wed pointer in mt76_queue
+Subject: [PATCH 06/15] mt76: introduce wed pointer in mt76_queue
 
 Introduce mtk_wed_device pointer in mt76_queue structure in order to
 configure WED chip.
@@ -32,7 +32,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  11 files changed, 62 insertions(+), 48 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index f58522bb..ffdb2bef 100644
+index d9e11817..3453b4c7 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -9,11 +9,11 @@
@@ -174,7 +174,7 @@ index f58522bb..ffdb2bef 100644
  		break;
  	default:
  		ret = -EINVAL;
-@@ -817,7 +818,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -819,7 +820,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  	if (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
  	    mt76_queue_is_wed_tx_free(q)) {
@@ -183,7 +183,7 @@ index f58522bb..ffdb2bef 100644
  		check_ddone = true;
  	}
  
-@@ -827,7 +828,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -829,7 +830,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  
  		if (check_ddone) {
  			if (q->tail == dma_idx)
@@ -214,7 +214,7 @@ index cf81650c..cd102dd0 100644
  	err = dev->queue_ops->alloc(dev, hwq, idx, n_desc, 0, ring_base);
  	if (err < 0)
 diff --git a/mt76.h b/mt76.h
-index e1f46c7f..be552d62 100644
+index c83e929c..a56b7852 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -198,6 +198,7 @@ struct mt76_queue {

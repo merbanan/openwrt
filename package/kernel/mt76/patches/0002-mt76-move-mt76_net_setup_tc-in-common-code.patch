@@ -1,10 +1,10 @@
-From 5ba53621361f6fe4a3e8486038e073bc02a24b31 Mon Sep 17 00:00:00 2001
-Message-ID: <5ba53621361f6fe4a3e8486038e073bc02a24b31.1695287172.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From e914fc9abcad6020aa3172fcacb88a417c5eaa25 Mon Sep 17 00:00:00 2001
+Message-ID: <e914fc9abcad6020aa3172fcacb88a417c5eaa25.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 23:05:55 +0200
-Subject: [PATCH 02/13] mt76: move mt76_net_setup_tc in common code
+Subject: [PATCH 02/15] mt76: move mt76_net_setup_tc in common code
 
 This is a preliminary patch to introduce WED support for mt7996
 
@@ -40,7 +40,7 @@ index 12fcb2b0..cf81650c 100644
 +EXPORT_SYMBOL_GPL(mt76_net_setup_tc);
 +#endif /* CONFIG_NET_MEDIATEK_SOC_WED */
 diff --git a/mt76.h b/mt76.h
-index a2382160..4402653d 100644
+index 37c70edc..8ef193c7 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -1046,6 +1046,12 @@ bool ____mt76_poll_msec(struct mt76_dev *dev, u32 offset, u32 mask, u32 val,

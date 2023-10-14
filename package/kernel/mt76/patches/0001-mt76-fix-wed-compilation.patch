@@ -1,8 +1,8 @@
-From 7705cde7173796e7f455ef093499219703cfa2ad Mon Sep 17 00:00:00 2001
-Message-ID: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From 1bd1992db53a7fda77df752597f1f677cb549bda Mon Sep 17 00:00:00 2001
+Message-ID: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Sun, 20 Aug 2023 20:20:49 +0200
-Subject: [PATCH 01/13] mt76: fix wed compilation
+Subject: [PATCH 01/15] mt76: fix wed compilation
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---

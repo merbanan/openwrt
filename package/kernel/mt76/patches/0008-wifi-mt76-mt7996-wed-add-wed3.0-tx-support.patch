@@ -1,10 +1,10 @@
-From 92c1d7208e77195b99c4f3cf86ea8a28425132d3 Mon Sep 17 00:00:00 2001
-Message-ID: <92c1d7208e77195b99c4f3cf86ea8a28425132d3.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From 757b4255c411e7d902afab6b0a662b683e656a7b Mon Sep 17 00:00:00 2001
+Message-ID: <757b4255c411e7d902afab6b0a662b683e656a7b.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: "sujuan.chen" <sujuan.chen@mediatek.com>
 Date: Wed, 26 Apr 2023 16:44:57 +0800
-Subject: [PATCH 08/13] wifi: mt76: mt7996: wed: add wed3.0 tx support
+Subject: [PATCH 08/15] wifi: mt76: mt7996: wed: add wed3.0 tx support
 
 Signed-off-by: sujuan.chen <sujuan.chen@mediatek.com>
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
@@ -22,10 +22,10 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  10 files changed, 386 insertions(+), 63 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index ffdb2bef..d513318d 100644
+index 3453b4c7..a7a04548 100644
 --- a/dma.c
 +++ b/dma.c
-@@ -986,10 +986,13 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
+@@ -988,10 +988,13 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
  		page_pool_destroy(q->page_pool);
  	}
  
@@ -43,7 +43,7 @@ index ffdb2bef..d513318d 100644
  }
  EXPORT_SYMBOL_GPL(mt76_dma_cleanup);
 diff --git a/mt76.h b/mt76.h
-index a3a34f60..fae412d7 100644
+index 43748fe6..77ce356d 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -603,6 +603,7 @@ struct mt76_mmio {
@@ -214,7 +214,7 @@ index b3334636..72912f37 100644
  				       MT_RXQ_ID(MT_RXQ_BAND2_WA),
  				       MT7996_RX_MCU_RING_SIZE,
 diff --git a/mt7996/init.c b/mt7996/init.c
-index 12c25138..a42b6c14 100644
+index cab58827..bac80477 100644
 --- a/mt7996/init.c
 +++ b/mt7996/init.c
 @@ -155,7 +155,7 @@ mt7996_regd_notifier(struct wiphy *wiphy,
@@ -235,7 +235,7 @@ index 12c25138..a42b6c14 100644
  
  	hw->radiotap_timestamp.units_pos =
  		IEEE80211_RADIOTAP_TIMESTAMP_UNIT_US;
-@@ -350,6 +352,7 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
+@@ -355,6 +357,7 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
  	struct mt76_phy *mphy;
  	u32 mac_ofs, hif1_ofs = 0;
  	int ret;
@@ -243,7 +243,7 @@ index 12c25138..a42b6c14 100644
  
  	if (band != MT_BAND1 && band != MT_BAND2)
  		return 0;
-@@ -361,8 +364,10 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
+@@ -366,8 +369,10 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
  	if (phy)
  		return 0;
  
@@ -255,7 +255,7 @@ index 12c25138..a42b6c14 100644
  
  	mphy = mt76_alloc_phy(&dev->mt76, sizeof(*phy), &mt7996_ops, band);
  	if (!mphy)
-@@ -395,11 +400,12 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
+@@ -400,11 +405,12 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
  	mt76_eeprom_override(mphy);
  
  	/* init wiphy according to mphy and phy */
@@ -273,7 +273,7 @@ index 12c25138..a42b6c14 100644
  	if (ret)
  		goto error;
  
-@@ -412,6 +418,13 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
+@@ -417,6 +423,13 @@ static int mt7996_register_phy(struct mt7996_dev *dev, struct mt7996_phy *phy,
  	if (ret)
  		goto error;
  
@@ -287,7 +287,7 @@ index 12c25138..a42b6c14 100644
  	return 0;
  
  error:
-@@ -884,7 +897,7 @@ int mt7996_register_device(struct mt7996_dev *dev)
+@@ -889,7 +902,7 @@ int mt7996_register_device(struct mt7996_dev *dev)
  	if (ret)
  		return ret;
  
@@ -297,10 +297,10 @@ index 12c25138..a42b6c14 100644
  	ret = mt76_register_device(&dev->mt76, true, mt76_rates,
  				   ARRAY_SIZE(mt76_rates));
 diff --git a/mt7996/mac.c b/mt7996/mac.c
-index c43839a2..2ab93241 100644
+index 04540833..fd0f48d7 100644
 --- a/mt7996/mac.c
 +++ b/mt7996/mac.c
-@@ -1005,6 +1005,29 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
+@@ -996,6 +996,29 @@ int mt7996_tx_prepare_skb(struct mt76_dev *mdev, void *txwi_ptr,
  	return 0;
  }
  
@@ -328,9 +328,9 @@ index c43839a2..2ab93241 100644
 +}
 +
  static void
- mt7996_tx_check_aggr(struct ieee80211_sta *sta, __le32 *txwi)
+ mt7996_tx_check_aggr(struct ieee80211_sta *sta, struct sk_buff *skb)
  {
-@@ -1383,6 +1406,12 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
+@@ -1403,6 +1426,12 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
  
  	switch (type) {
  	case PKT_TYPE_TXRX_NOTIFY:
@@ -343,7 +343,7 @@ index c43839a2..2ab93241 100644
  		mt7996_mac_tx_free(dev, skb->data, skb->len);
  		napi_consume_skb(skb, 1);
  		break;
-@@ -1857,7 +1886,7 @@ void mt7996_mac_reset_work(struct work_struct *work)
+@@ -1877,7 +1906,7 @@ void mt7996_mac_reset_work(struct work_struct *work)
  	mt7996_wait_reset_state(dev, MT_MCU_CMD_NORMAL_STATE);
  
  	/* enable DMA Tx/Tx and interrupt */
@@ -353,10 +353,10 @@ index c43839a2..2ab93241 100644
  	clear_bit(MT76_MCU_RESET, &dev->mphy.state);
  	clear_bit(MT76_RESET, &dev->mphy.state);
 diff --git a/mt7996/main.c b/mt7996/main.c
-index a2ab668a..7a9cea99 100644
+index 09c7a28a..eee8fd36 100644
 --- a/mt7996/main.c
 +++ b/mt7996/main.c
-@@ -1368,6 +1368,44 @@ out:
+@@ -1388,6 +1388,44 @@ out:
  	return ret;
  }
  
@@ -401,7 +401,7 @@ index a2ab668a..7a9cea99 100644
  const struct ieee80211_ops mt7996_ops = {
  	.tx = mt7996_tx,
  	.start = mt7996_start,
-@@ -1412,4 +1450,8 @@ const struct ieee80211_ops mt7996_ops = {
+@@ -1432,4 +1470,8 @@ const struct ieee80211_ops mt7996_ops = {
  	.sta_add_debugfs = mt7996_sta_add_debugfs,
  #endif
  	.set_radar_background = mt7996_set_radar_background,
@@ -626,7 +626,7 @@ index 3a591a7b..ae029ae9 100644
  	if (!test_bit(MT76_STATE_INITIALIZED, &dev->mphy.state))
  		return IRQ_NONE;
 diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
-index 7354e5cf..470a5413 100644
+index e53cf6a3..ccb6c576 100644
 --- a/mt7996/mt7996.h
 +++ b/mt7996/mt7996.h
 @@ -37,6 +37,7 @@
@@ -637,7 +637,7 @@ index 7354e5cf..470a5413 100644
  
  #define MT7996_CFEND_RATE_DEFAULT	0x49	/* OFDM 24M */
  #define MT7996_CFEND_RATE_11B		0x03	/* 11B LP, 11M */
-@@ -335,7 +336,9 @@ int mt7996_dma_init(struct mt7996_dev *dev);
+@@ -334,7 +335,9 @@ int mt7996_dma_init(struct mt7996_dev *dev);
  void mt7996_dma_reset(struct mt7996_dev *dev, bool force);
  void mt7996_dma_prefetch(struct mt7996_dev *dev);
  void mt7996_dma_cleanup(struct mt7996_dev *dev);
@@ -770,10 +770,10 @@ index c5301050..b74f7a76 100644
  	mt76_free_device(&dev->mt76);
  
 diff --git a/mt7996/regs.h b/mt7996/regs.h
-index 57022906..2c1841c2 100644
+index 0086a786..7d32eb6c 100644
 --- a/mt7996/regs.h
 +++ b/mt7996/regs.h
-@@ -323,6 +323,7 @@ enum base_rev {
+@@ -330,6 +330,7 @@ enum base_rev {
  
  #define MT_WFDMA0_RX_INT_PCIE_SEL		MT_WFDMA0(0x154)
  #define MT_WFDMA0_RX_INT_SEL_RING3		BIT(3)
@@ -781,7 +781,7 @@ index 57022906..2c1841c2 100644
  
  #define MT_WFDMA0_MCU_HOST_INT_ENA		MT_WFDMA0(0x1f4)
  
-@@ -367,6 +368,9 @@ enum base_rev {
+@@ -374,6 +375,9 @@ enum base_rev {
  #define MT_WFDMA0_PCIE1_BASE			0xd8000
  #define MT_WFDMA0_PCIE1(ofs)			(MT_WFDMA0_PCIE1_BASE + (ofs))
  
@@ -791,7 +791,7 @@ index 57022906..2c1841c2 100644
  #define MT_WFDMA0_PCIE1_BUSY_ENA		MT_WFDMA0_PCIE1(0x13c)
  #define MT_WFDMA0_PCIE1_BUSY_ENA_TX_FIFO0	BIT(0)
  #define MT_WFDMA0_PCIE1_BUSY_ENA_TX_FIFO1	BIT(1)
-@@ -412,6 +416,7 @@ enum base_rev {
+@@ -419,6 +423,7 @@ enum base_rev {
  #define MT_INT_RX_TXFREE_MAIN			BIT(17)
  #define MT_INT_RX_TXFREE_TRI			BIT(15)
  #define MT_INT_MCU_CMD				BIT(29)

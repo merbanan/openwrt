@@ -1,10 +1,10 @@
-From e3195d096fe9b3ee2de826cc79ff1043dca131cd Mon Sep 17 00:00:00 2001
-Message-ID: <e3195d096fe9b3ee2de826cc79ff1043dca131cd.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From 982ff9c170cdcc7f7b7d1d387d963ce2f688c601 Mon Sep 17 00:00:00 2001
+Message-ID: <982ff9c170cdcc7f7b7d1d387d963ce2f688c601.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 1 Sep 2023 10:18:19 +0200
-Subject: [PATCH 05/13] mt76: introduce mt76_queue_is_wed_tx_free utility
+Subject: [PATCH 05/15] mt76: introduce mt76_queue_is_wed_tx_free utility
  routine
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
@@ -15,7 +15,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  3 files changed, 10 insertions(+), 4 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index 28e6943e..f58522bb 100644
+index 511fe7e6..d9e11817 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -724,7 +724,7 @@ mt76_dma_alloc_queue(struct mt76_dev *dev, struct mt76_queue *q,
@@ -27,7 +27,7 @@ index 28e6943e..f58522bb 100644
  		mt76_dma_queue_reset(dev, q);
  
  	return 0;
-@@ -773,7 +773,7 @@ mt76_dma_rx_reset(struct mt76_dev *dev, enum mt76_rxq_id qid)
+@@ -775,7 +775,7 @@ mt76_dma_rx_reset(struct mt76_dev *dev, enum mt76_rxq_id qid)
  
  	/* reset WED rx queues */
  	mt76_dma_wed_setup(dev, q, true);
@@ -36,7 +36,7 @@ index 28e6943e..f58522bb 100644
  		mt76_dma_sync_idx(dev, q);
  		mt76_dma_rx_fill(dev, q, false);
  	}
-@@ -816,7 +816,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+@@ -818,7 +818,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
  	bool more;
  
  	if (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
@@ -46,10 +46,10 @@ index 28e6943e..f58522bb 100644
  		check_ddone = true;
  	}
 diff --git a/mt76.h b/mt76.h
-index c5fb4c07..e1f46c7f 100644
+index c69968fa..c83e929c 100644
 --- a/mt76.h
 +++ b/mt76.h
-@@ -1551,6 +1551,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
+@@ -1556,6 +1556,12 @@ s8 mt76_get_rate_power_limits(struct mt76_phy *phy,
  			      struct mt76_power_limits *dest,
  			      s8 target_power);
  

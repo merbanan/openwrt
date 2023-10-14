@@ -1,10 +1,10 @@
-From 0359de8135db3eb94a0897c5c579f1179656ae35 Mon Sep 17 00:00:00 2001
-Message-ID: <0359de8135db3eb94a0897c5c579f1179656ae35.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From e49f66b477fed930efa1d1a3906620f238805489 Mon Sep 17 00:00:00 2001
+Message-ID: <e49f66b477fed930efa1d1a3906620f238805489.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Bo Jiao <Bo.Jiao@mediatek.com>
 Date: Mon, 6 Feb 2023 13:50:56 +0800
-Subject: [PATCH 10/13] wifi: mt76: mt7996: wed: add wed3.0 rx support
+Subject: [PATCH 10/15] wifi: mt76: mt7996: wed: add wed3.0 rx support
 
 add hardware rro support, This is the preliminary patch for WED3.0 support.
 
@@ -26,7 +26,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  10 files changed, 699 insertions(+), 85 deletions(-)
 
 diff --git a/dma.c b/dma.c
-index 9b184f4d..88f3dc75 100644
+index 12615b49..1b7c489b 100644
 --- a/dma.c
 +++ b/dma.c
 @@ -189,7 +189,10 @@ static void
@@ -302,7 +302,7 @@ index 9b184f4d..88f3dc75 100644
  
  	return 0;
  }
-@@ -756,7 +824,8 @@ mt76_dma_rx_cleanup(struct mt76_dev *dev, struct mt76_queue *q)
+@@ -757,7 +825,8 @@ mt76_dma_rx_cleanup(struct mt76_dev *dev, struct mt76_queue *q)
  		if (!buf)
  			break;
  
@@ -311,8 +311,8 @@ index 9b184f4d..88f3dc75 100644
 +			mt76_put_page_pool_buf(buf, false);
  	} while (1);
  
- 	if (q->rx_head) {
-@@ -771,13 +840,16 @@ static void
+ 	spin_lock_bh(&q->lock);
+@@ -773,13 +842,16 @@ static void
  mt76_dma_rx_reset(struct mt76_dev *dev, enum mt76_rxq_id qid)
  {
  	struct mt76_queue *q = &dev->q_rx[qid];
@@ -332,7 +332,7 @@ index 9b184f4d..88f3dc75 100644
  
  	mt76_dma_rx_cleanup(dev, q);
  
-@@ -989,6 +1061,10 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
+@@ -991,6 +1063,10 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
  	mt76_for_each_q_rx(dev, i) {
  		struct mt76_queue *q = &dev->q_rx[i];
  
@@ -374,7 +374,7 @@ index 1b090d78..22b79d58 100644
  	MT_QSEL_MGMT,
  	MT_QSEL_HCCA,
 diff --git a/mt76.h b/mt76.h
-index fae412d7..0c77e025 100644
+index 77ce356d..047feda5 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -30,13 +30,20 @@
@@ -460,7 +460,7 @@ index fae412d7..0c77e025 100644
  struct mt76_txwi_cache {
  	struct list_head list;
  	dma_addr_t dma_addr;
-@@ -1560,10 +1592,32 @@ static inline bool mt76_queue_is_wed_tx_free(struct mt76_queue *q)
+@@ -1565,10 +1597,32 @@ static inline bool mt76_queue_is_wed_tx_free(struct mt76_queue *q)
  	       FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_TXFREE;
  }
  
@@ -495,7 +495,7 @@ index fae412d7..0c77e025 100644
  }
  
  struct mt76_txwi_cache *
-@@ -1603,10 +1657,14 @@ static inline void mt76_set_tx_blocked(struct mt76_dev *dev, bool blocked)
+@@ -1608,10 +1662,14 @@ static inline void mt76_set_tx_blocked(struct mt76_dev *dev, bool blocked)
  static inline int
  mt76_token_get(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi)
  {
@@ -794,10 +794,10 @@ index 72912f37..0feaad6e 100644
  	if (ret < 0)
  		return ret;
 diff --git a/mt7996/init.c b/mt7996/init.c
-index a42b6c14..d335b58f 100644
+index bac80477..1cb1e53d 100644
 --- a/mt7996/init.c
 +++ b/mt7996/init.c
-@@ -314,8 +314,13 @@ void mt7996_mac_init(struct mt7996_dev *dev)
+@@ -319,8 +319,13 @@ void mt7996_mac_init(struct mt7996_dev *dev)
  
  	/* rro module init */
  	mt7996_mcu_set_rro(dev, UNI_RRO_SET_PLATFORM_TYPE, 2);
@@ -813,7 +813,7 @@ index a42b6c14..d335b58f 100644
  
  	mt7996_mcu_wa_cmd(dev, MCU_WA_PARAM_CMD(SET),
  			  MCU_WA_PARAM_HW_PATH_HIF_VER,
-@@ -469,6 +474,120 @@ void mt7996_wfsys_reset(struct mt7996_dev *dev)
+@@ -474,6 +479,120 @@ void mt7996_wfsys_reset(struct mt7996_dev *dev)
  	msleep(20);
  }
  
@@ -934,7 +934,7 @@ index a42b6c14..d335b58f 100644
  static int mt7996_init_hardware(struct mt7996_dev *dev)
  {
  	int ret, idx;
-@@ -490,6 +609,10 @@ static int mt7996_init_hardware(struct mt7996_dev *dev)
+@@ -495,6 +614,10 @@ static int mt7996_init_hardware(struct mt7996_dev *dev)
  	if (ret)
  		return ret;
  
@@ -946,7 +946,7 @@ index a42b6c14..d335b58f 100644
  	if (ret < 0)
  		return ret;
 diff --git a/mt7996/mac.c b/mt7996/mac.c
-index 2ab93241..bc535c98 100644
+index fd0f48d7..888de632 100644
 --- a/mt7996/mac.c
 +++ b/mt7996/mac.c
 @@ -449,8 +449,37 @@ mt7996_mac_fill_rx_rate(struct mt7996_dev *dev,
@@ -1024,7 +1024,7 @@ index 2ab93241..bc535c98 100644
  		return 0;
  
  	status->aggr = unicast &&
-@@ -1428,7 +1460,7 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
+@@ -1448,7 +1480,7 @@ void mt7996_queue_rx_skb(struct mt76_dev *mdev, enum mt76_rxq_id q,
  		dev_kfree_skb(skb);
  		break;
  	case PKT_TYPE_NORMAL:
@@ -1034,10 +1034,10 @@ index 2ab93241..bc535c98 100644
  			return;
  		}
 diff --git a/mt7996/mcu.c b/mt7996/mcu.c
-index 12bf4e50..3ff70c6d 100644
+index bf917beb..2256038e 100644
 --- a/mt7996/mcu.c
 +++ b/mt7996/mcu.c
-@@ -912,7 +912,7 @@ int mt7996_mcu_set_timing(struct mt7996_phy *phy, struct ieee80211_vif *vif)
+@@ -963,7 +963,7 @@ int mt7996_mcu_set_timing(struct mt7996_phy *phy, struct ieee80211_vif *vif)
  }
  
  static int
@@ -1046,7 +1046,7 @@ index 12bf4e50..3ff70c6d 100644
  		  struct ieee80211_ampdu_params *params,
  		  bool enable, bool tx)
  {
-@@ -921,7 +921,7 @@ mt7996_mcu_sta_ba(struct mt76_dev *dev, struct mt76_vif *mvif,
+@@ -972,7 +972,7 @@ mt7996_mcu_sta_ba(struct mt76_dev *dev, struct mt76_vif *mvif,
  	struct sk_buff *skb;
  	struct tlv *tlv;
  
@@ -1055,7 +1055,7 @@ index 12bf4e50..3ff70c6d 100644
  					      MT7996_STA_UPDATE_MAX_SIZE);
  	if (IS_ERR(skb))
  		return PTR_ERR(skb);
-@@ -935,8 +935,9 @@ mt7996_mcu_sta_ba(struct mt76_dev *dev, struct mt76_vif *mvif,
+@@ -986,8 +986,9 @@ mt7996_mcu_sta_ba(struct mt76_dev *dev, struct mt76_vif *mvif,
  	ba->ba_en = enable << params->tid;
  	ba->amsdu = params->amsdu;
  	ba->tid = params->tid;
@@ -1066,7 +1066,7 @@ index 12bf4e50..3ff70c6d 100644
  				     MCU_WMWA_UNI_CMD(STA_REC_UPDATE), true);
  }
  
-@@ -951,8 +952,7 @@ int mt7996_mcu_add_tx_ba(struct mt7996_dev *dev,
+@@ -1002,8 +1003,7 @@ int mt7996_mcu_add_tx_ba(struct mt7996_dev *dev,
  	if (enable && !params->amsdu)
  		msta->wcid.amsdu = false;
  
@@ -1076,7 +1076,7 @@ index 12bf4e50..3ff70c6d 100644
  }
  
  int mt7996_mcu_add_rx_ba(struct mt7996_dev *dev,
-@@ -962,8 +962,7 @@ int mt7996_mcu_add_rx_ba(struct mt7996_dev *dev,
+@@ -1013,8 +1013,7 @@ int mt7996_mcu_add_rx_ba(struct mt7996_dev *dev,
  	struct mt7996_sta *msta = (struct mt7996_sta *)params->sta->drv_priv;
  	struct mt7996_vif *mvif = msta->vif;
  
@@ -1200,7 +1200,7 @@ index ae029ae9..c7b6d4bd 100644
  		mt76_wr(dev, MT_INT_MASK_CSR, 0);
  
 diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
-index 470a5413..02c3f17c 100644
+index ccb6c576..399f9725 100644
 --- a/mt7996/mt7996.h
 +++ b/mt7996/mt7996.h
 @@ -50,6 +50,22 @@
@@ -1243,7 +1243,7 @@ index 470a5413..02c3f17c 100644
  };
  
  struct mt7996_twt_flow {
-@@ -148,6 +174,15 @@ struct mt7996_hif {
+@@ -147,6 +173,15 @@ struct mt7996_hif {
  	int irq;
  };
  
@@ -1259,7 +1259,7 @@ index 470a5413..02c3f17c 100644
  struct mt7996_phy {
  	struct mt76_phy *mt76;
  	struct mt7996_dev *dev;
-@@ -227,6 +262,22 @@ struct mt7996_dev {
+@@ -226,6 +261,22 @@ struct mt7996_dev {
  	bool tbtc_support:1;
  	bool flash_mode:1;
  	bool has_eht:1;
@@ -1292,7 +1292,7 @@ index 470a5413..02c3f17c 100644
 +
  #endif
 diff --git a/mt7996/regs.h b/mt7996/regs.h
-index 2c1841c2..a1e21c6c 100644
+index 7d32eb6c..6d39d9e2 100644
 --- a/mt7996/regs.h
 +++ b/mt7996/regs.h
 @@ -39,6 +39,39 @@ enum base_rev {
@@ -1335,7 +1335,7 @@ index 2c1841c2..a1e21c6c 100644
  #define MT_MCU_INT_EVENT			0x2108
  #define MT_MCU_INT_EVENT_DMA_STOPPED		BIT(0)
  #define MT_MCU_INT_EVENT_DMA_INIT		BIT(1)
-@@ -391,6 +424,7 @@ enum base_rev {
+@@ -398,6 +431,7 @@ enum base_rev {
  #define MT_MCUQ_RING_BASE(q)			(MT_Q_BASE(q) + 0x300)
  #define MT_TXQ_RING_BASE(q)			(MT_Q_BASE(__TXQ(q)) + 0x300)
  #define MT_RXQ_RING_BASE(q)			(MT_Q_BASE(__RXQ(q)) + 0x500)
@@ -1343,7 +1343,7 @@ index 2c1841c2..a1e21c6c 100644
  
  #define MT_MCUQ_EXT_CTRL(q)			(MT_Q_BASE(q) +	0x600 +	\
  						 MT_MCUQ_ID(q) * 0x4)
-@@ -418,6 +452,14 @@ enum base_rev {
+@@ -425,6 +459,14 @@ enum base_rev {
  #define MT_INT_MCU_CMD				BIT(29)
  #define MT_INT_RX_TXFREE_EXT			BIT(26)
  
@@ -1358,7 +1358,7 @@ index 2c1841c2..a1e21c6c 100644
  #define MT_INT_RX(q)				(dev->q_int_mask[__RXQ(q)])
  #define MT_INT_TX_MCU(q)			(dev->q_int_mask[(q)])
  
-@@ -425,20 +467,31 @@ enum base_rev {
+@@ -432,20 +474,31 @@ enum base_rev {
  						 MT_INT_RX(MT_RXQ_MCU_WA))
  
  #define MT_INT_BAND0_RX_DONE			(MT_INT_RX(MT_RXQ_MAIN) |	\

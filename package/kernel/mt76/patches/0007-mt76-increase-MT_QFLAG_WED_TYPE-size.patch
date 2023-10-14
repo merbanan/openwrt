@@ -1,10 +1,10 @@
-From 13cc77606e763d210bbb827c233ca190fe1a5730 Mon Sep 17 00:00:00 2001
-Message-ID: <13cc77606e763d210bbb827c233ca190fe1a5730.1695287173.git.lorenzo@kernel.org>
-In-Reply-To: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
-References: <7705cde7173796e7f455ef093499219703cfa2ad.1695287172.git.lorenzo@kernel.org>
+From 99c8414f1e720fce75e7d0ab0341733be434c682 Mon Sep 17 00:00:00 2001
+Message-ID: <99c8414f1e720fce75e7d0ab0341733be434c682.1697293255.git.lorenzo@kernel.org>
+In-Reply-To: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
+References: <1bd1992db53a7fda77df752597f1f677cb549bda.1697293255.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Fri, 1 Sep 2023 10:21:09 +0200
-Subject: [PATCH 07/13] mt76: increase MT_QFLAG_WED_TYPE size
+Subject: [PATCH 07/15] mt76: increase MT_QFLAG_WED_TYPE size
 
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
@@ -12,7 +12,7 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/mt76.h b/mt76.h
-index be552d62..a3a34f60 100644
+index a56b7852..43748fe6 100644
 --- a/mt76.h
 +++ b/mt76.h
 @@ -28,8 +28,8 @@
