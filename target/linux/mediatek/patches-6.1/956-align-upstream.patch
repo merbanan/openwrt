@@ -1,0 +1,100 @@
+--- a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
+@@ -34,23 +34,12 @@ static struct mtk_wed_wo_memory_region m
+ 
+ static u32 wo_r32(struct mtk_wed_wo *wo, u32 reg)
+ {
+-	u32 val;
+-
+-	if (!wo->boot_regmap)
+-		return readl(mem_region[MTK_WED_WO_REGION_BOOT].addr + reg);
+-
+-	if (regmap_read(wo->boot_regmap, reg, &val))
+-		val = ~0;
+-
+-	return val;
++	return readl(mem_region[MTK_WED_WO_REGION_BOOT].addr + reg);
+ }
+ 
+ static void wo_w32(struct mtk_wed_wo *wo, u32 reg, u32 val)
+ {
+-	if (wo->boot_regmap)
+-		regmap_write(wo->boot_regmap, reg, val);
+-	else
+-		writel(val, mem_region[MTK_WED_WO_REGION_BOOT].addr + reg);
++	writel(val, mem_region[MTK_WED_WO_REGION_BOOT].addr + reg);
+ }
+ 
+ static struct sk_buff *
+@@ -343,6 +332,37 @@ mtk_wed_mcu_load_memory_regions(struct m
+ 			return ret;
+ 	}
+ 
++	np = of_parse_phandle(wo->hw->node, "mediatek,wo-cpuboot", 0);
++	if (np) {
++		struct mtk_wed_wo_memory_region *boot_region;
++		struct resource res;
++
++		ret = of_address_to_resource(np, 0, &res);
++		of_node_put(np);
++
++		if (ret < 0)
++			return ret;
++
++		boot_region = &region[MTK_WED_WO_REGION_BOOT];
++		boot_region->phy_addr = res.start;
++		boot_region->size = resource_size(&res);
++		boot_region->addr = devm_ioremap(wo->hw->dev, res.start,
++						resource_size(&res));
++		if (IS_ERR(boot_region->addr))
++			return PTR_ERR(boot_region->addr);
++
++	} else {
++		index = of_property_match_string(wo->hw->node, "memory-region-names",
++						 "wo-boot");
++		if (index >= 0) {
++			/* For backward compatibility, we need to check if ILM
++			 * node is defined through reserved memory property.
++			 */
++			ret = mtk_wed_get_reserved_memory_region(wo->hw, index,
++					&region[MTK_WED_WO_REGION_BOOT]);
++		}
++	}
++
+ 	np = of_parse_phandle(wo->hw->node, "mediatek,wo-ilm", 0);
+ 	if (np) {
+ 		struct mtk_wed_wo_memory_region *ilm_region;
+@@ -385,32 +405,11 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
+ 	u32 val, boot_cr;
+ 	int ret, i;
+ 
++	wo->boot_regmap = NULL;
+ 	ret = mtk_wed_mcu_load_memory_regions(wo, mem_region);
+ 	if (ret)
+ 		return ret;
+ 
+-	wo->boot_regmap = syscon_regmap_lookup_by_phandle(wo->hw->node,
+-							  "mediatek,wo-cpuboot");
+-	if (IS_ERR(wo->boot_regmap)) {
+-		int index;
+-
+-		if (wo->boot_regmap != ERR_PTR(-ENODEV))
+-			return PTR_ERR(wo->boot_regmap);
+-
+-		/* For backward compatibility, we need to check if cpu_boot
+-		 * is defined through reserved memory property.
+-		 */
+-		wo->boot_regmap = NULL;
+-		index = of_property_match_string(wo->hw->node, "memory-region-names",
+-						 "wo-boot");
+-		if (index >= 0) {
+-			ret = mtk_wed_get_reserved_memory_region(wo->hw, index,
+-					&mem_region[MTK_WED_WO_REGION_BOOT]);
+-			if (ret)
+-				return ret;
+-		}
+-	}
+-
+ 	/* set dummy cr */
+ 	wed_w32(wo->hw->wed_dev, MTK_WED_SCR0 + 4 * MTK_WED_DUMMY_CR_FWDL,
+ 		wo->hw->index + 1);

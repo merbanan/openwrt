@@ -1,0 +1,53 @@
+From 3c27bedae1e524fd39e6fb72180d44e6c4d213f2 Mon Sep 17 00:00:00 2001
+Message-ID: <3c27bedae1e524fd39e6fb72180d44e6c4d213f2.1698074158.git.lorenzo@kernel.org>
+In-Reply-To: <fde51ec7ebc462ff8f3c0ccc0638babb55b41d10.1698074158.git.lorenzo@kernel.org>
+References: <fde51ec7ebc462ff8f3c0ccc0638babb55b41d10.1698074158.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 23 Oct 2023 15:29:04 +0200
+Subject: [PATCH wireless-next 2/2] net: ethernet: mtk_wed: remove wo pointer
+ in wo_r32/wo_w32 signature
+
+wo pointer is no longer used in wo_r32 and wo_w32 routines so get rid of
+it.
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ drivers/net/ethernet/mediatek/mtk_wed_mcu.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+--- a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
+@@ -32,12 +32,12 @@ static struct mtk_wed_wo_memory_region m
+ 	},
+ };
+ 
+-static u32 wo_r32(struct mtk_wed_wo *wo, u32 reg)
++static u32 wo_r32(u32 reg)
+ {
+ 	return readl(mem_region[MTK_WED_WO_REGION_BOOT].addr + reg);
+ }
+ 
+-static void wo_w32(struct mtk_wed_wo *wo, u32 reg, u32 val)
++static void wo_w32(u32 reg, u32 val)
+ {
+ 	writel(val, mem_region[MTK_WED_WO_REGION_BOOT].addr + reg);
+ }
+@@ -439,14 +439,14 @@ mtk_wed_mcu_load_firmware(struct mtk_wed
+ 	/* set the start address */
+ 	boot_cr = wo->hw->index ? MTK_WO_MCU_CFG_LS_WA_BOOT_ADDR_ADDR
+ 				: MTK_WO_MCU_CFG_LS_WM_BOOT_ADDR_ADDR;
+-	wo_w32(wo, boot_cr, mem_region[MTK_WED_WO_REGION_EMI].phy_addr >> 16);
++	wo_w32(boot_cr, mem_region[MTK_WED_WO_REGION_EMI].phy_addr >> 16);
+ 	/* wo firmware reset */
+-	wo_w32(wo, MTK_WO_MCU_CFG_LS_WF_MCCR_CLR_ADDR, 0xc00);
++	wo_w32(MTK_WO_MCU_CFG_LS_WF_MCCR_CLR_ADDR, 0xc00);
+ 
+-	val = wo_r32(wo, MTK_WO_MCU_CFG_LS_WF_MCU_CFG_WM_WA_ADDR);
++	val = wo_r32(MTK_WO_MCU_CFG_LS_WF_MCU_CFG_WM_WA_ADDR);
+ 	val |= wo->hw->index ? MTK_WO_MCU_CFG_LS_WF_WM_WA_WA_CPU_RSTB_MASK
+ 			     : MTK_WO_MCU_CFG_LS_WF_WM_WA_WM_CPU_RSTB_MASK;
+-	wo_w32(wo, MTK_WO_MCU_CFG_LS_WF_MCU_CFG_WM_WA_ADDR, val);
++	wo_w32(MTK_WO_MCU_CFG_LS_WF_MCU_CFG_WM_WA_ADDR, val);
+ out:
+ 	release_firmware(fw);
+ 
