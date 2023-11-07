@@ -1,0 +1,27 @@
+From ce4c08cc761841fc260885f8fde4637265aa4bd0 Mon Sep 17 00:00:00 2001
+Message-ID: <ce4c08cc761841fc260885f8fde4637265aa4bd0.1699223713.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 18 Sep 2023 11:53:29 +0200
+Subject: [PATCH] mt7915: enable wed by default
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ mt7915/mmio.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mt7915/mmio.c b/mt7915/mmio.c
+index c404c90b..2f451d9a 100644
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -13,7 +13,7 @@
+ #include "../trace.h"
+ #include "../dma.h"
+ 
+-static bool wed_enable;
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ MODULE_PARM_DESC(wed_enable, "Enable Wireless Ethernet Dispatch support");
+ 
+-- 
+2.41.0
+
