@@ -323,6 +323,12 @@ define KernelPackage/mt7996e
   AUTOLOAD:=$(call AutoProbe,mt7996e)
 endef
 
+define KernelPackage/mt7996-firmware
+  $(KernelPackage/mt76-default)
+  TITLE:=MediaTek MT7996 firmware
+  DEPENDS+=+kmod-mt7996e
+endef
+
 define KernelPackage/mt7925-common
   $(KernelPackage/mt76-default)
   TITLE:=MediaTek MT7925 wireless driver common code
@@ -610,6 +616,19 @@ define KernelPackage/mt7922-firmware/install
 		$(1)/lib/firmware/mediatek
 endef
 
+define KernelPackage/mt7996-firmware/install
+	$(INSTALL_DIR) $(1)/lib/firmware/mediatek/mt7996/
+	cp \
+		./files/mt7996_rom_patch.bin \
+		./files/mt7996_wa.bin \
+		./files/mt7996_wm.bin \
+		./files/mt7996_wm_tm.bin \
+		./files/mt7996_dsp.bin \
+		./files/mt7996_eeprom.bin \
+		./files/mt7996_eeprom_tm.bin \
+		$(1)/lib/firmware/mediatek/mt7996/
+endef
+
 define Package/mt76-test/install
 	mkdir -p $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/tools/mt76-test $(1)/usr/sbin
@@ -654,5 +673,6 @@ $(eval $(call KernelPackage,mt7921e))
 $(eval $(call KernelPackage,mt7925u))
 $(eval $(call KernelPackage,mt7925e))
 $(eval $(call KernelPackage,mt7996e))
+$(eval $(call KernelPackage,mt7996-firmware))
 $(eval $(call KernelPackage,mt76))
 $(eval $(call BuildPackage,mt76-test))
