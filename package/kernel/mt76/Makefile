@@ -627,6 +627,10 @@ define KernelPackage/mt7996-firmware/install
 		./files/mt7996_eeprom.bin \
 		./files/mt7996_eeprom_tm.bin \
 		$(1)/lib/firmware/mediatek/mt7996/
+	cp \
+		./files/mt7988_wo_0.bin \
+		./files/mt7988_wo_1.bin \
+		$(1)/lib/firmware/mediatek/
 endef
 
 define Package/mt76-test/install
