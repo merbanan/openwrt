@@ -554,7 +554,7 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/mmcblk0p65
++bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/mmcblk0p65 swiotlb=524288
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_sdmmc ; fi
 +bootconf=config-mt7988a-bananapi-bpi-r4
 +bootconf_sd=mt7988a-bananapi-bpi-r4-sd
@@ -623,7 +623,7 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/ubiblock0_2p1
++bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/ubiblock0_2p1 swiotlb=524288
 +bootconf=config-mt7988a-bananapi-bpi-r4
 +bootconf_extra=mt7988a-bananapi-bpi-r4-emmc
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_ubi ; fi
@@ -694,7 +694,7 @@
 +ipaddr=192.168.1.1
 +serverip=192.168.1.254
 +loadaddr=0x50000000
-+bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/mmcblk0p65
++bootargs=console=ttyS0,115200n1 pci=pcie_bus_perf root=/dev/mmcblk0p65 swiotlb=524288
 +bootcmd=if pstore check ; then run boot_recovery ; else run boot_emmc ; fi
 +bootconf=config-mt7988a-bananapi-bpi-r4
 +bootconf_base=config-mt7988a-bananapi-bpi-r4
