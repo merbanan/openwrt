@@ -1,0 +1,111 @@
+commit c35d7636991fe09175fb33287cbb4e02e25d2c53
+Author: Lorenzo Bianconi <lorenzo@kernel.org>
+Date:   Tue Oct 24 00:00:19 2023 +0200
+
+    net: ethernet: mtk_wed: fix firmware loading for MT7986 SoC
+    
+    The WED mcu firmware does not contain all the memory regions defined in
+    the dts reserved_memory node (e.g. MT7986 WED firmware does not contain
+    cpu-boot region).
+    Reverse the mtk_wed_mcu_run_firmware() logic to check all the fw
+    sections are defined in the dts reserved_memory node.
+    
+    Fixes: c6d961aeaa77 ("net: ethernet: mtk_wed: move mem_region array out of mtk_wed_mcu_load_firmware")
+    Tested-by: Frank Wunderlich <frank-w@public-files.de>
+    Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+    Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+    Link: https://lore.kernel.org/r/d983cbfe8ea562fef9264de8f0c501f7d5705bd5.1698098381.git.lorenzo@kernel.org
+    Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
+index 65a78e274009..fee9c9d3a92f 100644
+--- a/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed_mcu.c
+@@ -258,16 +258,12 @@ mtk_wed_get_memory_region(struct mtk_wed_hw *hw, int index,
+ }
+ 
+ static int
+-mtk_wed_mcu_run_firmware(struct mtk_wed_wo *wo, const struct firmware *fw,
+-			 struct mtk_wed_wo_memory_region *region)
++mtk_wed_mcu_run_firmware(struct mtk_wed_wo *wo, const struct firmware *fw)
+ {
+ 	const u8 *first_region_ptr, *region_ptr, *trailer_ptr, *ptr = fw->data;
+ 	const struct mtk_wed_fw_trailer *trailer;
+ 	const struct mtk_wed_fw_region *fw_region;
+ 
+-	if (!region->phy_addr || !region->size)
+-		return 0;
+-
+ 	trailer_ptr = fw->data + fw->size - sizeof(*trailer);
+ 	trailer = (const struct mtk_wed_fw_trailer *)trailer_ptr;
+ 	region_ptr = trailer_ptr - trailer->num_region * sizeof(*fw_region);
+@@ -275,33 +271,41 @@ mtk_wed_mcu_run_firmware(struct mtk_wed_wo *wo, const struct firmware *fw,
+ 
+ 	while (region_ptr < trailer_ptr) {
+ 		u32 length;
++		int i;
+ 
+ 		fw_region = (const struct mtk_wed_fw_region *)region_ptr;
+ 		length = le32_to_cpu(fw_region->len);
+-
+-		if (region->phy_addr != le32_to_cpu(fw_region->addr))
++		if (first_region_ptr < ptr + length)
+ 			goto next;
+ 
+-		if (region->size < length)
+-			goto next;
++		for (i = 0; i < ARRAY_SIZE(mem_region); i++) {
++			struct mtk_wed_wo_memory_region *region;
+ 
+-		if (first_region_ptr < ptr + length)
+-			goto next;
++			region = &mem_region[i];
++			if (region->phy_addr != le32_to_cpu(fw_region->addr))
++				continue;
+ 
+-		if (region->shared && region->consumed)
+-			return 0;
++			if (region->size < length)
++				continue;
+ 
+-		if (!region->shared || !region->consumed) {
+-			memcpy_toio(region->addr, ptr, length);
+-			region->consumed = true;
+-			return 0;
++			if (region->shared && region->consumed)
++				break;
++
++			if (!region->shared || !region->consumed) {
++				memcpy_toio(region->addr, ptr, length);
++				region->consumed = true;
++				break;
++			}
+ 		}
++
++		if (i == ARRAY_SIZE(mem_region))
++			return -EINVAL;
+ next:
+ 		region_ptr += sizeof(*fw_region);
+ 		ptr += length;
+ 	}
+ 
+-	return -EINVAL;
++	return 0;
+ }
+ 
+ static int
+@@ -360,11 +364,9 @@ mtk_wed_mcu_load_firmware(struct mtk_wed_wo *wo)
+ 	dev_info(wo->hw->dev, "MTK WED WO Chip ID %02x Region %d\n",
+ 		 trailer->chip_id, trailer->num_region);
+ 
+-	for (i = 0; i < ARRAY_SIZE(mem_region); i++) {
+-		ret = mtk_wed_mcu_run_firmware(wo, fw, &mem_region[i]);
+-		if (ret)
+-			goto out;
+-	}
++	ret = mtk_wed_mcu_run_firmware(wo, fw);
++	if (ret)
++		goto out;
+ 
+ 	/* set the start address */
+ 	if (!mtk_wed_is_v3_or_greater(wo->hw) && wo->hw->index)
