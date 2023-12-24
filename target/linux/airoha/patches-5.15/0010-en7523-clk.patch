@@ -1,0 +1,47 @@
+--- a/drivers/clk/clk-en7523.c
++++ b/drivers/clk/clk-en7523.c
+@@ -195,6 +195,19 @@ static int en7523_pci_is_enabled(struct
+ 	return !!(readl(cg->base + REG_PCI_CONTROL) & REG_PCI_CONTROL_REFCLK_EN1);
+ }
+ 
++void __iomem *npScu_base=NULL;
++
++u32 get_np_scu_data(u32 reg)
++{
++	return readl(npScu_base + reg);
++}
++
++void set_np_scu_data(u32 reg, u32 val)
++{
++	writel(val, npScu_base + reg); 
++}
++
++
+ static int en7523_pci_prepare(struct clk_hw *hw)
+ {
+ 	struct en_clk_gate *cg = container_of(hw, struct en_clk_gate, hw);
+@@ -309,6 +322,7 @@ static int en7523_clk_probe(struct platf
+ 	void __iomem *base, *np_base;
+ 	int r;
+ 
++	printk("\n=========en7523_clk_probe====11==========\n");
+ 	base = devm_platform_ioremap_resource(pdev, 0);
+ 	if (IS_ERR(base))
+ 		return PTR_ERR(base);
+@@ -316,6 +330,8 @@ static int en7523_clk_probe(struct platf
+ 	np_base = devm_platform_ioremap_resource(pdev, 1);
+ 	if (IS_ERR(np_base))
+ 		return PTR_ERR(np_base);
++	npScu_base = np_base;
++	printk("\n=========en7523_clk_probe====22=npScu_base=%x========\n",npScu_base);
+ 
+ 	clk_data = devm_kzalloc(&pdev->dev,
+ 				struct_size(clk_data, hws, EN7523_NUM_CLOCKS),
+@@ -324,6 +340,7 @@ static int en7523_clk_probe(struct platf
+ 		return -ENOMEM;
+ 
+ 	en7523_register_clocks(&pdev->dev, clk_data, base, np_base);
++	printk("\n=========en7523_clk_probe====33==========\n");
+ 
+ 	r = of_clk_add_hw_provider(node, of_clk_hw_onecell_get, clk_data);
+ 	if (r)
