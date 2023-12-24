@@ -3,7 +3,6 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/gpio/gpio.h>
-#include <dt-bindings/clock/en7523-clk.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -144,76 +143,181 @@
 		#gpio-cells = <2>;
 	};
 
-	pcie0: pcie@1fa91000 {
-		compatible = "airoha,en7523-pcie", "mediatek,mt7622-pcie";
-		device_type = "pci";
-		reg = <0x1fa91000 0x1000>;
-		reg-names = "port0";
-		linux,pci-domain = <0>;
-		#address-cells = <3>;
-		#size-cells = <2>;
-		interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "pcie_irq";
-		clocks = <&scu EN7523_CLK_PCIE>;
-		clock-names = "sys_ck0";
-		bus-range = <0x00 0xff>;
-		ranges = <0x82000000 0 0x20000000  0x20000000  0 0x8000000>;
-		status = "disabled";
+	pcie@0x1fa91000 {
+	  compatible = "ecnt,pcie-ecnt";
+	  device_type = "pci";
+	  reg = <0x1fa91000 0x1000>,
+		      <0x1fa92000 0x1000>,
+		      <0x1fa90000 0x1000>,	/* pcie top*/
+		      <0x1a100000 0x1000>,	/* switch lane */
+		      <0x1a148000 0x1000>,	/* 4, rc0 phy base, for change xtal setting */
+		      <0x1a14a000 0x1000>;	/* 5, rc1 phy base, for change xtal setting */
+    interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>,  //23+16
+          		   <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;  //24+16
+	  bus-range = <0x00 0xff>;
+	  #address-cells = <3>;
+	  #size-cells = <2>;
+	  /* change xtal for 40M, default is 25M */
+	  /* change-xtal; */
+	  /* disable io coherent for RC and EP default. */
+	  /*dma-coherent;*/
+	  ranges = <0x82000000 0 0x20000000  0x20000000  0 0x4000000>;
 
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0 0 0 7>;
-		interrupt-map = <0 0 0 1 &pcie_intc0 0>,
-				<0 0 0 2 &pcie_intc0 1>,
-				<0 0 0 3 &pcie_intc0 2>,
-				<0 0 0 4 &pcie_intc0 3>;
-		pcie_intc0: interrupt-controller {
-			interrupt-controller;
-			#address-cells = <0>;
+	  pcie0: pcie@0,0 {
+	    device_type = "pci";
+	    reg = <0x0000 0 0 0 0>;
+	    #address-cells = <3>;
+	    #size-cells = <2>;
+	    #interrupt-cells = <1>;
+	    ranges;
+	    interrupt-map-mask = <0 0 0 7>;
+	    interrupt-map = <0 0 0 1 &pcie_intc0 1>,
+			    		        <0 0 0 2 &pcie_intc0 2>,
+					            <0 0 0 3 &pcie_intc0 3>,
+					            <0 0 0 4 &pcie_intc0 4>;
+	    pcie-port = <0>;
+	    num-lanes = <1>;
+	    status = "okay";
+	    pcie_intc0: interrupt-controller {
+	          	      interrupt-controller;
+				            #address-cells = <0>;
+				            #interrupt-cells = <1>;
+			            };
+	  };
+
+	  pcie1: pcie@1,0 {
+			device_type = "pci";
+			reg = <0x0800 0 0 0 0>;
+			#address-cells = <3>;
+			#size-cells = <2>;
 			#interrupt-cells = <1>;
-		};
-	};
-
-	pcie1: pcie@1fa92000 {
-		compatible = "airoha,en7523-pcie", "mediatek,mt7622-pcie";
-		device_type = "pci";
-		reg = <0x1fa92000 0x1000>;
-		reg-names = "port1";
-		linux,pci-domain = <1>;
-		#address-cells = <3>;
-		#size-cells = <2>;
-		interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-names = "pcie_irq";
-		clocks = <&scu EN7523_CLK_PCIE>;
-		clock-names = "sys_ck1";
-		bus-range = <0x00 0xff>;
-		ranges = <0x82000000 0 0x28000000  0x28000000  0 0x8000000>;
-		status = "disabled";
-
-		#interrupt-cells = <1>;
-		interrupt-map-mask = <0 0 0 7>;
-		interrupt-map = <0 0 0 1 &pcie_intc1 0>,
-				<0 0 0 2 &pcie_intc1 1>,
-				<0 0 0 3 &pcie_intc1 2>,
-				<0 0 0 4 &pcie_intc1 3>;
-		pcie_intc1: interrupt-controller {
-			interrupt-controller;
-			#address-cells = <0>;
-			#interrupt-cells = <1>;
+			ranges;
+			interrupt-map-mask = <0 0 0 7>;
+			interrupt-map = <0 0 0 1 &pcie_intc1 1>,
+			            		<0 0 0 2 &pcie_intc1 2>,
+					            <0 0 0 3 &pcie_intc1 3>,
+					            <0 0 0 4 &pcie_intc1 4>;
+			pcie-port = <1>;
+			num-lanes = <1>;
+			status = "okay";
+			pcie_intc1: interrupt-controller {
+				            interrupt-controller;
+				            #address-cells = <0>;
+				            #interrupt-cells = <1>;
+			            };
 		};
 	};
 
 	spi_ctrl: spi_controller@1fa10000 {
-		compatible = "airoha,en7523-spi";
-		reg = <0x1fa10000 0x140>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-		spi-rx-bus-width = <2>;
-		spi-tx-bus-width = <2>;
+		compatible = "econet,ecnt-spi_ctrl";
+		reg = <0x1fa10000 0x140>,		//SPI Controller Base
+			  <0x00000000 0x1000>;		//SPI Controller auto read interrupt test
+		interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+	};
 
-		nand: nand@0 {
-			compatible = "spi-nand";
-			reg = <0>;
-			nand-ecc-engine = <&nand>;
+	spi_spi2nfi: spi_spi2nfi@1fa11000 {
+		compatible = "econet,ecnt-spi2nfi";
+		reg = <0x1fa11000 0x160>;	//NFI2SPI
+	};
+
+	spi_ecc: spi_ecc@1fa12000 {
+		compatible = "econet,ecnt-spi_ecc";
+		reg = <0x1fa12000 0x150>;	//NFI ECC
+	};
+
+	nand_flash: nand@1fa10000 {
+		compatible = "econet,ecnt-nand";
+		spi-controller = <&spi_ctrl>;
+		spi2nfi = <&spi_spi2nfi>;
+		spi-ecc = <&spi_ecc>;
+	};
+	
+	partition@1fa10000 {
+		compatible = "econet,ecnt-partition";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			bootloader@0 {
+				label = "bootloader";
+				reg = <0x00000000 0x00080000>;
+			};
+			art@80000 {
+				label = "art";
+				reg = <0x00080000 0x00040000>;
+			};
+			tclinux@c0000 {
+				label = "tclinux";
+				reg = <0x000c0000 0x02800000>;
+			};
+			tclinux_slave@28c0000 {
+				label = "tclinux_slave";
+				reg = <0x028c0000 0x02800000>;
+			};		
+			rootfs_data@50c0000 {
+				label = "rootfs_data";
+				reg = <0x050c0000 0x00800000>;
+			};
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		internet {
+			label = "internet";
+			gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		phy_tx_power_disable {
+			label = "phy_tx_power_disable";
+			gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "dsldev";
+		};
+		power {
+			label = "power";
+			gpios = <&gpio0 11 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "dsldev";
+		};
+		usb_0 {
+			label = "usb_0";
+			gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		voip_hook {
+			label = "voip_hook";
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		voip_hook2 {
+			label = "voip_hook2";
+			gpios = <&gpio0 27 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		wlan {
+			label = "wlan";
+			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		wps {
+			label = "wps";
+			gpios = <&gpio0 26 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		xponLos {
+			label = "xponLos";
+			gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
+		};
+		
+		xponStatus {
+			label = "xponStatus";
+			gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "dsldev";
 		};
 	};
 };
