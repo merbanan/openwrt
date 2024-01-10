@@ -1,0 +1,41 @@
+diff -Naur a/arch/arm64/boot/dts/Makefile b/arch/arm64/boot/dts/Makefile
+--- a/arch/arm64/boot/dts/Makefile	2023-08-23 23:52:42.000000000 +0800
++++ b/arch/arm64/boot/dts/Makefile	2023-12-18 10:57:03.197396000 +0800
+@@ -32,3 +32,4 @@
+ subdir-y += ti
+ subdir-y += toshiba
+ subdir-y += xilinx
++subdir-y += airoha
+diff -Naur a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+--- a/arch/arm64/configs/defconfig	2023-08-23 23:52:42.000000000 +0800
++++ b/arch/arm64/configs/defconfig	2023-12-18 10:57:07.941420000 +0800
+@@ -32,6 +32,7 @@
+ CONFIG_PROFILING=y
+ CONFIG_ARCH_ACTIONS=y
+ CONFIG_ARCH_SUNXI=y
++CONFIG_ARCH_AIROHA=y
+ CONFIG_ARCH_ALPINE=y
+ CONFIG_ARCH_APPLE=y
+ CONFIG_ARCH_BCM=y
+diff -Naur a/arch/arm64/Kconfig.platforms b/arch/arm64/Kconfig.platforms
+--- a/arch/arm64/Kconfig.platforms	2023-08-23 23:52:42.000000000 +0800
++++ b/arch/arm64/Kconfig.platforms	2023-12-18 10:57:19.098428000 +0800
+@@ -162,6 +162,17 @@
+ 	  This enables support for MediaTek MT27xx, MT65xx, MT76xx
+ 	  & MT81xx ARMv8 SoCs
+ 
++config ARCH_AIROHA
++	bool "Airoha SoC Support"
++	select ARM_AMBA
++	select ARM_GIC
++	select ARM_GIC_V3
++	select ARM_PSCI
++	select HAVE_ARM_ARCH_TIMER
++	select COMMON_CLK
++	help
++	  Support for Airoha AN7581 SoCs
++
+ config ARCH_MESON
+ 	bool "Amlogic Platforms"
+ 	help
+

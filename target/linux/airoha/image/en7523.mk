@@ -1,3 +1,5 @@
+DTS_DIR := $(DTS_DIR)/airoha
+
 define Device/airoha_en7523-evb
   DEVICE_VENDOR := Airoha
   DEVICE_MODEL := EN7523 Evaluation Board
