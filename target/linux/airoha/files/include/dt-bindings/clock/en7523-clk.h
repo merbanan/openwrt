@@ -14,4 +14,7 @@
 
 #define EN7523_NUM_CLOCKS	8
 
+u32 get_np_scu_data(u32 reg);
+void set_np_scu_data(u32 reg, u32 val);
+
 #endif /* _DT_BINDINGS_CLOCK_AIROHA_EN7523_H_ */
