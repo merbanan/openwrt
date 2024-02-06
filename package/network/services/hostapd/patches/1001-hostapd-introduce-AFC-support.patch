@@ -1,5 +1,5 @@
-From 32a8612aaf1caecce835713a6e81331f55d6713a Mon Sep 17 00:00:00 2001
-Message-ID: <32a8612aaf1caecce835713a6e81331f55d6713a.1707141926.git.lorenzo@kernel.org>
+From 0cc55e01b8aad16d81ff322ee216c5aa4fc604a8 Mon Sep 17 00:00:00 2001
+Message-ID: <0cc55e01b8aad16d81ff322ee216c5aa4fc604a8.1707241513.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Wed, 17 Jan 2024 15:25:08 +0100
 Subject: [PATCH] hostapd: introduce AFC support
@@ -10,15 +10,16 @@ introduce communication channel with the frequency coordinator.
 Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
 ---
  hostapd/Makefile      |   6 +
- hostapd/config_file.c | 276 +++++++++++++
+ hostapd/config_file.c | 276 ++++++++++++++
  hostapd/defconfig     |   3 +
- hostapd/hostapd.conf  |  21 +
- src/ap/afc.c          | 872 ++++++++++++++++++++++++++++++++++++++++++
+ hostapd/hostapd.conf  |  21 ++
+ src/ap/afc.c          | 854 ++++++++++++++++++++++++++++++++++++++++++
  src/ap/ap_config.c    |  17 +
  src/ap/ap_config.h    |  48 +++
- src/ap/hostapd.c      |   6 +
- src/ap/hostapd.h      |   2 +
- 9 files changed, 1251 insertions(+)
+ src/ap/hostapd.c      |  10 +
+ src/ap/hostapd.h      |   6 +
+ src/drivers/driver.h  |  13 +
+ 10 files changed, 1254 insertions(+)
  create mode 100644 src/ap/afc.c
 
 diff --git a/hostapd/Makefile b/hostapd/Makefile
@@ -377,10 +378,10 @@ index 13576499a..af5237a4f 100644
  #ieee80211be: Whether IEEE 802.11be (EHT) is enabled
 diff --git a/src/ap/afc.c b/src/ap/afc.c
 new file mode 100644
-index 000000000..a5e076ea9
+index 000000000..046ddccef
 --- /dev/null
 +++ b/src/ap/afc.c
-@@ -0,0 +1,872 @@
+@@ -0,0 +1,854 @@
 +/*
 + * Automated Frequency Coordination
 + * Copyright (c) 2024, Lorenzo Bianconi <lorenzo@kernel.org>
@@ -397,9 +398,10 @@ index 000000000..a5e076ea9
 +#include "utils/common.h"
 +#include "utils/eloop.h"
 +#include "hostapd.h"
++#include "acs.h"
 +
 +#define CURL_TIMEOUT			60
-+#define HOSTAPD_AFC_RETRY_TIMEOUT	90
++#define HOSTAPD_AFC_RETRY_TIMEOUT	180
 +#define HOSTAPD_AFC_TIMEOUT		86400 /* 24h */
 +
 +struct afc_curl_ctx {
@@ -869,10 +871,12 @@ index 000000000..a5e076ea9
 +				break;
 +		}
 +
-+		if (j == count)
++		if (j == count) {
 +			chan->flag |= HOSTAPD_CHAN_DISABLED;
-+		else
++		} else {
 +			chan->flag &= ~HOSTAPD_CHAN_DISABLED;
++			chan->max_eirp_psd = f[j].max_psd;
++		}
 +	}
 +	free(f);
 +
@@ -963,8 +967,7 @@ index 000000000..a5e076ea9
 +				chan->flag |= HOSTAPD_CHAN_DISABLED;
 +			} else {
 +				chan->flag &= ~HOSTAPD_CHAN_DISABLED;
-+				if (chan->max_tx_power > c[n].power)
-+					chan->max_tx_power = c[n].power;
++				chan->max_eirp_power = c[n].power;
 +			}
 +		}
 +
@@ -1113,11 +1116,15 @@ index 000000000..a5e076ea9
 +	};
 +	struct curl_slist *headers = NULL;
 +	json_object *json_obj;
++	int ret = -EINVAL;
 +	CURL *curl;
-+	int ret;
++
++	if (eloop_is_timeout_registered(hostapd_afc_timeout_handler,
++					iface, NULL))
++		return 0;
 +
 +	if (!iface->current_mode)
-+		return -EINVAL;
++		goto resched;
 +
 +	if (!iface->conf->afc.url || !iface->conf->afc.bearer_token)
 +		return -EINVAL;
@@ -1170,88 +1177,64 @@ index 000000000..a5e076ea9
 +	json_object_put(json_obj);
 +	curl_easy_cleanup(curl);
 +	curl_global_cleanup();
-+
-+	eloop_register_timeout(ctx.timeout, 0,
-+			       hostapd_afc_timeout_handler, iface, NULL);
 +	free(ctx.buf);
-+
++resched:
++	eloop_register_timeout(ctx.timeout, 0, hostapd_afc_timeout_handler,
++			       iface, NULL);
 +	return ret;
-+}
-+
-+
-+static int hostapd_afc_get_fallback_channel(struct hostapd_iface *iface)
-+{
-+	int i;
-+
-+	for (i = 0; i < iface->current_mode->num_channels; i++) {
-+		struct hostapd_channel_data *chan =
-+			&iface->current_mode->channels[i];
-+		u8 op_class, channel;
-+
-+		if (chan->flag & HOSTAPD_CHAN_DISABLED)
-+			continue;
-+
-+		if (!is_6ghz_freq(chan->freq))
-+			continue;
-+
-+		ieee80211_freq_to_channel_ext(chan->freq, 0,
-+					      CONF_OPER_CHWIDTH_USE_HT,
-+					      &op_class, &channel);
-+		if (op_class != 131) /* fallback to opcalss 131 */
-+			continue;
-+
-+		iface->freq = chan->freq;
-+		iface->conf->op_class = op_class;
-+		iface->conf->channel = channel;
-+		iface->conf->secondary_channel = 0;
-+		hostapd_set_oper_centr_freq_seg0_idx(iface->conf, 0);
-+		hostapd_set_oper_centr_freq_seg1_idx(iface->conf, 0);
-+		return 0;
-+	}
-+
-+	return -1;
-+}
-+
-+
-+static void hostapd_afc_timeout_handler(void *eloop_ctx, void *timeout_ctx)
-+{
-+	struct hostapd_iface *iface = (struct hostapd_iface *)eloop_ctx;
-+	int i;
-+
-+	if (hostapd_afc_send_receive(iface) < 0)
-+		return;
-+
-+	if (!iface->current_mode)
-+		return;
-+
-+	for (i = 0; i < iface->current_mode->num_channels; i++) {
-+		struct hostapd_channel_data *chan =
-+			&iface->current_mode->channels[i];
-+
-+		if (chan->chan != iface->conf->channel)
-+			continue;
-+
-+		if (!(chan->flag & HOSTAPD_CHAN_DISABLED))
-+			continue;
-+
-+		/* Current channel is no more available. */
-+		 wpa_printf(MSG_DEBUG, "chan %d is no more available",
-+			    chan->freq);
-+
-+		if (!hostapd_afc_get_fallback_channel(iface)) {
-+			hostapd_setup_interface_complete(iface, 0);
-+			return;
-+		}
-+	}
 +}
 +
 +
 +int hostapd_afc_handle_request(struct hostapd_iface *iface)
 +{
-+	if (!is_6ghz_freq(iface->freq))
-+		return 0;
++	int ret;
 +
-+	return hostapd_afc_send_receive(iface);
++	if (iface->afc_completed)
++		return 1;
++
++	if (!is_6ghz_op_class(iface->conf->op_class) ||
++	    !is_6ghz_freq(iface->freq))
++		return 1;
++
++	ret = hostapd_afc_send_receive(iface);
++	if (ret)
++		return ret;
++
++	/* Trigger a ACS freq scan */
++	iface->freq = 0;
++	iface->conf->channel = 0;
++	iface->afc_completed = true;
++
++	if (acs_init(iface) != HOSTAPD_CHAN_ACS) {
++		wpa_printf(MSG_ERROR, "Could not start ACS");
++		ret = -EINVAL;
++	}
++
++	return ret;
++}
++
++
++static void hostapd_afc_timeout_handler(void *eloop_ctx, void *timeout_ctx)
++{
++	struct hostapd_iface *iface = eloop_ctx;
++
++	if (!hostapd_afc_send_receive(iface)) {
++		int i;
++
++		for (i = 0; i < iface->current_mode->num_channels; i++) {
++			struct hostapd_channel_data *chan =
++				&iface->current_mode->channels[i];
++
++			if (chan->freq == iface->freq &&
++			    !(chan->flag & HOSTAPD_CHAN_DISABLED))
++				return;
++		}
++	}
++
++	/* Toggle interface to trigger new AFC connection */
++	iface->afc_completed = false;
++	hostapd_disable_iface(iface);
++	hostapd_enable_iface(iface);
 +}
 diff --git a/src/ap/ap_config.c b/src/ap/ap_config.c
 index f760e340b..209cde5f4 100644
@@ -1341,27 +1324,38 @@ index de02ddafd..afc23fb9e 100644
  
  
 diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
-index cb464f670..0474f36f5 100644
+index cb464f670..9d2de4456 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -2406,6 +2406,12 @@ static int hostapd_setup_interface_complete_sync(struct hostapd_iface *iface,
+@@ -2406,6 +2406,16 @@ static int hostapd_setup_interface_complete_sync(struct hostapd_iface *iface,
  		}
  #endif /* CONFIG_MESH */
  
 +#ifdef CONFIG_AFC
 +		/* check AFC for 6GHz channels. */
-+		if (hostapd_afc_handle_request(iface) < 0)
-+			goto fail;
++		res = hostapd_afc_handle_request(iface);
++		if (res <= 0) {
++			if (res < 0)
++				goto fail;
++			return res;
++		}
 +#endif /* CONFIG_AFC */
 +
  		if (!delay_apply_cfg &&
  		    hostapd_set_freq(hapd, hapd->iconf->hw_mode, iface->freq,
  				     hapd->iconf->channel,
 diff --git a/src/ap/hostapd.h b/src/ap/hostapd.h
-index 3dba121c6..346de1bb0 100644
+index 3dba121c6..33b24ae5e 100644
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -673,6 +673,8 @@ struct hostapd_iface {
+@@ -670,9 +670,15 @@ struct hostapd_iface {
+ 
+ 	/* Configured freq of interface is NO_IR */
+ 	bool is_no_ir;
++
++#ifdef CONFIG_AFC
++	bool afc_completed;
++#endif /* CONFIG_AFC */
  };
  
  /* hostapd.c */
@@ -1370,6 +1364,30 @@ index 3dba121c6..346de1bb0 100644
  int hostapd_for_each_interface(struct hapd_interfaces *interfaces,
  			       int (*cb)(struct hostapd_iface *iface,
  					 void *ctx), void *ctx);
+diff --git a/src/drivers/driver.h b/src/drivers/driver.h
+index bff7502f1..072d7b28a 100644
+--- a/src/drivers/driver.h
++++ b/src/drivers/driver.h
+@@ -175,6 +175,19 @@ struct hostapd_channel_data {
+ 	 * punct_bitmap - RU puncturing bitmap
+ 	 */
+ 	u16 punct_bitmap;
++
++#ifdef CONFIG_AFC
++	/**
++	 * max eirp power spectral density received from the AFC
++	 * coordinator for the channel
++	 */
++	s8 max_eirp_psd;
++	/**
++	 * max eirp power received from the AFC coordinator
++	 * for the channel
++	 */
++	s8 max_eirp_power;
++#endif
+ };
+ 
+ #define HE_MAC_CAPAB_0		0
 -- 
 2.43.0
 
