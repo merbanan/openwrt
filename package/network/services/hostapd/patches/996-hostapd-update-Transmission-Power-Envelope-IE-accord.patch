@@ -1,0 +1,100 @@
+From cab31c180993ce55cb14debd32905bb2b3980399 Mon Sep 17 00:00:00 2001
+Message-ID: <cab31c180993ce55cb14debd32905bb2b3980399.1707263605.git.lorenzo@kernel.org>
+In-Reply-To: <24f83ec146e6d267d9a8c54f153e699489887373.1707263605.git.lorenzo@kernel.org>
+References: <24f83ec146e6d267d9a8c54f153e699489887373.1707263605.git.lorenzo@kernel.org>
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Wed, 7 Feb 2024 00:08:18 +0100
+Subject: [PATCH 2/2] hostapd: update Transmission Power Envelope IE according
+ to AFC
+
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+---
+ src/ap/hostapd.c    | 30 +++++++++++++++++++++++++++++
+ src/ap/hostapd.h    |  2 ++
+ src/ap/ieee802_11.c | 47 ++++++++++++++++++++++++++++-----------------
+ 3 files changed, 61 insertions(+), 18 deletions(-)
+
+--- a/src/ap/hostapd.c
++++ b/src/ap/hostapd.c
+@@ -4344,3 +4344,33 @@ struct hostapd_data * hostapd_mld_get_li
+ 	return NULL;
+ }
+ #endif /* CONFIG_IEEE80211BE */
++
++
++int hostap_afc_get_chan_max_eirp_power(struct hostapd_iface *iface, bool psd,
++				       int *power)
++{
++#ifdef CONFIG_AFC
++	struct hostapd_hw_modes *mode = iface->current_mode;
++	int i;
++
++	if (!he_reg_is_sp(iface->conf->he_6ghz_reg_pwr_type))
++		return -EINVAL;
++
++	if (!mode)
++		return -EINVAL;
++
++	for (i = 0; i < mode->num_channels; i++) {
++		struct hostapd_channel_data *chan = &mode->channels[i];
++
++		if (chan->freq == iface->freq) {
++			int val;
++
++			val = psd ? chan->max_eirp_psd : chan->max_eirp_power;
++			*power = 2 * val;
++
++			return 0;
++		}
++	}
++#endif /* CONFIG_AFC */
++	return -EINVAL;
++}
+--- a/src/ap/hostapd.h
++++ b/src/ap/hostapd.h
+@@ -697,6 +697,8 @@ struct hostapd_iface {
+ };
+ 
+ /* hostapd.c */
++int hostap_afc_get_chan_max_eirp_power(struct hostapd_iface *iface, bool psd,
++				       int *power);
+ int hostapd_afc_handle_request(struct hostapd_iface *iface);
+ 
+ int hostapd_for_each_interface(struct hapd_interfaces *interfaces,
+--- a/src/ap/ieee802_11.c
++++ b/src/ap/ieee802_11.c
+@@ -6976,25 +6976,29 @@ u8 * hostapd_eid_txpower_envelope(struct
+ 	 */
+ 	if (is_6ghz_op_class(iconf->op_class)) {
+ 		enum max_tx_pwr_interpretation tx_pwr_intrpn;
++		int err, max_eirp_psd;
+ 
+ 		/* Same Maximum Transmit Power for all 20 MHz bands */
+ 		tx_pwr_count = 0;
+ 		tx_pwr_intrpn = REGULATORY_CLIENT_EIRP_PSD;
+ 
+ 		/* Default Transmit Power Envelope for Global Operating Class */
+-		tx_pwr = REG_PSD_MAX_TXPOWER_FOR_DEFAULT_CLIENT * 2;
++		err = hostap_afc_get_chan_max_eirp_power(iface, true,
++							 &max_eirp_psd);
++		if (err < 0)
++			max_eirp_psd = REG_PSD_MAX_TXPOWER_FOR_DEFAULT_CLIENT * 2;
+ 		eid = hostapd_add_tpe_info(eid, tx_pwr_count, tx_pwr_intrpn,
+-					   REG_DEFAULT_CLIENT, tx_pwr);
++					   REG_DEFAULT_CLIENT, max_eirp_psd);
+ 
+ 		/* Indoor Access Point must include an additional TPE for
+ 		 * subordinate devices */
+ 		if (iconf->he_6ghz_reg_pwr_type == HE_6GHZ_INDOOR_AP) {
+-			/* TODO: Extract PSD limits from channel data */
+-			tx_pwr = REG_PSD_MAX_TXPOWER_FOR_SUBORDINATE_CLIENT * 2;
++			if (err < 0)
++				max_eirp_psd = REG_PSD_MAX_TXPOWER_FOR_SUBORDINATE_CLIENT * 2;
+ 			eid = hostapd_add_tpe_info(eid, tx_pwr_count,
+ 						   tx_pwr_intrpn,
+ 						   REG_SUBORDINATE_CLIENT,
+-						   tx_pwr);
++						   max_eirp_psd);
+ 		}
+ 
+ 		return eid;

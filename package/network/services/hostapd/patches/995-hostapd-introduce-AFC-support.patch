@@ -1,8 +1,8 @@
-From 0cc55e01b8aad16d81ff322ee216c5aa4fc604a8 Mon Sep 17 00:00:00 2001
-Message-ID: <0cc55e01b8aad16d81ff322ee216c5aa4fc604a8.1707241513.git.lorenzo@kernel.org>
+From 24f83ec146e6d267d9a8c54f153e699489887373 Mon Sep 17 00:00:00 2001
+Message-ID: <24f83ec146e6d267d9a8c54f153e699489887373.1707263605.git.lorenzo@kernel.org>
 From: Lorenzo Bianconi <lorenzo@kernel.org>
 Date: Wed, 17 Jan 2024 15:25:08 +0100
-Subject: [PATCH] hostapd: introduce AFC support
+Subject: [PATCH 1/2] hostapd: introduce AFC support
 
 Add Automated Frequency Coordination for 6GHz outdoor. This patch
 introduce communication channel with the frequency coordinator.
@@ -13,20 +13,18 @@ Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
  hostapd/config_file.c | 276 ++++++++++++++
  hostapd/defconfig     |   3 +
  hostapd/hostapd.conf  |  21 ++
- src/ap/afc.c          | 854 ++++++++++++++++++++++++++++++++++++++++++
+ src/ap/afc.c          | 858 ++++++++++++++++++++++++++++++++++++++++++
  src/ap/ap_config.c    |  17 +
  src/ap/ap_config.h    |  48 +++
  src/ap/hostapd.c      |  10 +
  src/ap/hostapd.h      |   6 +
  src/drivers/driver.h  |  13 +
- 10 files changed, 1254 insertions(+)
+ 10 files changed, 1258 insertions(+)
  create mode 100644 src/ap/afc.c
 
-diff --git a/hostapd/Makefile b/hostapd/Makefile
-index bfafe73b7..1fc0d0483 100644
 --- a/hostapd/Makefile
 +++ b/hostapd/Makefile
-@@ -103,6 +103,12 @@ CFLAGS += -DCONFIG_TAXONOMY
+@@ -108,6 +108,12 @@ CFLAGS += -DCONFIG_TAXONOMY
  OBJS += ../src/ap/taxonomy.o
  endif
  
@@ -39,12 +37,10 @@ index bfafe73b7..1fc0d0483 100644
  ifdef CONFIG_MODULE_TESTS
  CFLAGS += -DCONFIG_MODULE_TESTS
  OBJS += hapd_module_tests.o
-diff --git a/hostapd/config_file.c b/hostapd/config_file.c
-index 1af083917..b52bf9618 100644
 --- a/hostapd/config_file.c
 +++ b/hostapd/config_file.c
-@@ -2436,6 +2436,191 @@ static int get_u16(const char *pos, int line, u16 *ret_val)
- #endif /* CONFIG_IEEE80211BE */
+@@ -2309,6 +2309,191 @@ static int get_hex_config(u8 *buf, size_
+ }
  
  
 +#ifdef CONFIG_AFC
@@ -235,7 +231,7 @@ index 1af083917..b52bf9618 100644
  static int hostapd_config_fill(struct hostapd_config *conf,
  			       struct hostapd_bss_config *bss,
  			       const char *buf, char *pos, int line)
-@@ -3800,6 +3985,97 @@ static int hostapd_config_fill(struct hostapd_config *conf,
+@@ -3668,6 +3853,97 @@ static int hostapd_config_fill(struct ho
  			return 1;
  		}
  		bss->unsol_bcast_probe_resp_interval = val;
@@ -333,22 +329,18 @@ index 1af083917..b52bf9618 100644
  	} else if (os_strcmp(buf, "mbssid") == 0) {
  		int mbssid = atoi(pos);
  		if (mbssid < 0 || mbssid > ENHANCED_MBSSID_ENABLED) {
-diff --git a/hostapd/defconfig b/hostapd/defconfig
-index 36c147682..5ced8c093 100644
 --- a/hostapd/defconfig
 +++ b/hostapd/defconfig
-@@ -419,3 +419,6 @@ CONFIG_DPP2=y
+@@ -433,3 +433,6 @@ CONFIG_DPP2=y
  # DPP version 3 support (experimental and still changing; do not enable for
  # production use)
  #CONFIG_DPP3=y
 +
 +# Enable Automated Frequency Coordination for 6GHz outdoor
 +#CONFIG_AFC=y
-diff --git a/hostapd/hostapd.conf b/hostapd/hostapd.conf
-index 13576499a..af5237a4f 100644
 --- a/hostapd/hostapd.conf
 +++ b/hostapd/hostapd.conf
-@@ -1005,6 +1005,27 @@ wmm_ac_vo_acm=0
+@@ -993,6 +993,27 @@ wmm_ac_vo_acm=0
  # Valid range: 0..20 TUs; default is 0 (disabled)
  #unsol_bcast_probe_resp_interval=0
  
@@ -376,12 +368,9 @@ index 13576499a..af5237a4f 100644
  ##### IEEE 802.11be related configuration #####################################
  
  #ieee80211be: Whether IEEE 802.11be (EHT) is enabled
-diff --git a/src/ap/afc.c b/src/ap/afc.c
-new file mode 100644
-index 000000000..046ddccef
 --- /dev/null
 +++ b/src/ap/afc.c
-@@ -0,0 +1,854 @@
+@@ -0,0 +1,858 @@
 +/*
 + * Automated Frequency Coordination
 + * Copyright (c) 2024, Lorenzo Bianconi <lorenzo@kernel.org>
@@ -418,15 +407,15 @@ index 000000000..046ddccef
 +{
 +	struct json_object *location_obj, *center_obj, *ellipse_obj;
 +	struct json_object *elevation_obj, *str_obj;
-+	struct hostapd_config *conf = iface->conf;
++	struct hostapd_config *iconf = iface->conf;
 +
 +	location_obj = json_object_new_object();
 +	if (!location_obj)
 +		return NULL;
 +
-+	if (conf->afc.location.type != LINEAR_POLYGON) {
++	if (iconf->afc.location.type != LINEAR_POLYGON) {
 +		struct afc_linear_polygon *lp =
-+			&conf->afc.location.linear_polygon_data[0];
++			&iconf->afc.location.linear_polygon_data[0];
 +
 +		ellipse_obj = json_object_new_object();
 +		if (!ellipse_obj)
@@ -451,7 +440,7 @@ index 000000000..046ddccef
 +
 +	}
 +
-+	switch (conf->afc.location.type) {
++	switch (iconf->afc.location.type) {
 +	case LINEAR_POLYGON: {
 +		struct json_object *outer_boundary_obj;
 +		int i;
@@ -469,9 +458,9 @@ index 000000000..046ddccef
 +		json_object_object_add(outer_boundary_obj, "outerBoundary",
 +				       ellipse_obj);
 +		for (i = 0;
-+		     i < conf->afc.location.n_linear_polygon_data; i++) {
++		     i < iconf->afc.location.n_linear_polygon_data; i++) {
 +			struct afc_linear_polygon *lp =
-+				&conf->afc.location.linear_polygon_data[i];
++				&iconf->afc.location.linear_polygon_data[i];
 +
 +			center_obj = json_object_new_object();
 +			if (!center_obj)
@@ -507,9 +496,9 @@ index 000000000..046ddccef
 +		json_object_object_add(ellipse_obj, "outerBoundary",
 +				       outer_boundary_obj);
 +		for (i = 0;
-+		     i < conf->afc.location.n_radial_polygon_data; i++) {
++		     i < iconf->afc.location.n_radial_polygon_data; i++) {
 +			struct afc_radial_polygon *rp =
-+				&conf->afc.location.radial_polygon_data[i];
++				&iconf->afc.location.radial_polygon_data[i];
 +			struct json_object *angle_obj;
 +
 +			angle_obj = json_object_new_object();
@@ -535,17 +524,17 @@ index 000000000..046ddccef
 +	default:
 +		json_object_object_add(location_obj, "ellipse", ellipse_obj);
 +
-+		str_obj = json_object_new_int(conf->afc.location.major_axis);
++		str_obj = json_object_new_int(iconf->afc.location.major_axis);
 +		if (!str_obj)
 +			goto error;
 +
 +		json_object_object_add(ellipse_obj, "majorAxis", str_obj);
-+		str_obj = json_object_new_int(conf->afc.location.minor_axis);
++		str_obj = json_object_new_int(iconf->afc.location.minor_axis);
 +		if (!str_obj)
 +			goto error;
 +
 +		json_object_object_add(ellipse_obj, "minorAxis", str_obj);
-+		str_obj = json_object_new_int(conf->afc.location.orientation);
++		str_obj = json_object_new_int(iconf->afc.location.orientation);
 +		if (!str_obj)
 +			goto error;
 +
@@ -559,23 +548,23 @@ index 000000000..046ddccef
 +
 +	json_object_object_add(location_obj, "elevation",
 +			       elevation_obj);
-+	str_obj = json_object_new_double(conf->afc.location.height);
++	str_obj = json_object_new_double(iconf->afc.location.height);
 +	if (!str_obj)
 +		goto error;
 +
 +	json_object_object_add(elevation_obj, "height", str_obj);
-+	str_obj = json_object_new_string(conf->afc.location.height_type);
++	str_obj = json_object_new_string(iconf->afc.location.height_type);
 +	if (!str_obj)
 +		goto error;
 +
 +	json_object_object_add(elevation_obj, "heightType", str_obj);
-+	str_obj = json_object_new_int(conf->afc.location.vertical_tolerance);
++	str_obj = json_object_new_int(iconf->afc.location.vertical_tolerance);
 +	if (!str_obj)
 +		goto error;
 +
 +	json_object_object_add(elevation_obj, "verticalUncertainty",
 +			       str_obj);
-+	str_obj = json_object_new_int(conf->afc.location.indoor);
++	str_obj = json_object_new_int(iconf->afc.location.indoor);
 +	if (!str_obj)
 +		goto error;
 +
@@ -593,13 +582,12 @@ index 000000000..046ddccef
 +hostapd_afc_get_opclass_chan_list(struct hostapd_iface *iface, u8 op_class,
 +				  u8 *chan_list, u16 *n_chan_list)
 +{
++	struct hostapd_hw_modes *mode = iface->current_mode;
 +	int i, count = 0;
 +
-+	memset(chan_list, 0,
-+	       iface->current_mode->num_channels * sizeof(*chan_list));
-+	for (i = 0; i < iface->current_mode->num_channels; i++) {
-+		struct hostapd_channel_data *chan =
-+			&iface->current_mode->channels[i];
++	memset(chan_list, 0, mode->num_channels * sizeof(*chan_list));
++	for (i = 0; i < mode->num_channels; i++) {
++		struct hostapd_channel_data *chan = &mode->channels[i];
 +
 +		if (!is_6ghz_freq(chan->freq))
 +			continue;
@@ -619,7 +607,8 @@ index 000000000..046ddccef
 +{
 +	struct json_object *l1_obj, *l2_obj, *la1_obj, *la2_obj;
 +	struct json_object *s2_obj, *str_obj, *location_obj;
-+	struct hostapd_config *conf = iface->conf;
++	struct hostapd_hw_modes *mode = iface->current_mode;
++	struct hostapd_config *iconf = iface->conf;
 +	u8 *chan_list = NULL;
 +	int i;
 +
@@ -627,8 +616,8 @@ index 000000000..046ddccef
 +	if (!l1_obj)
 +		return NULL;
 +
-+	if (conf->afc.version) {
-+		str_obj = json_object_new_string(conf->afc.version);
++	if (iconf->afc.version) {
++		str_obj = json_object_new_string(iconf->afc.version);
 +		if (!str_obj)
 +			goto error;
 +
@@ -646,8 +635,8 @@ index 000000000..046ddccef
 +		goto error;
 +
 +	json_object_array_add(la1_obj, l2_obj);
-+	if (conf->afc.request_id) {
-+		str_obj = json_object_new_string(conf->afc.request_id);
++	if (iconf->afc.request_id) {
++		str_obj = json_object_new_string(iconf->afc.request_id);
 +		if (!str_obj)
 +			goto error;
 +
@@ -659,8 +648,8 @@ index 000000000..046ddccef
 +		goto error;
 +
 +	json_object_object_add(l2_obj, "deviceDescriptor", s2_obj);
-+	if (conf->afc.serial_number) {
-+		str_obj = json_object_new_string(conf->afc.serial_number);
++	if (iconf->afc.serial_number) {
++		str_obj = json_object_new_string(iconf->afc.serial_number);
 +		if (!str_obj)
 +			goto error;
 +
@@ -672,7 +661,7 @@ index 000000000..046ddccef
 +		goto error;
 +
 +	json_object_object_add(s2_obj, "certificationId", la2_obj);
-+	for (i = 0; i < conf->afc.n_cert_ids; i++) {
++	for (i = 0; i < iconf->afc.n_cert_ids; i++) {
 +		struct json_object *obj;
 +
 +		obj = json_object_new_object();
@@ -681,12 +670,12 @@ index 000000000..046ddccef
 +
 +		json_object_array_add(la2_obj, obj);
 +		str_obj =
-+			json_object_new_string(conf->afc.cert_ids[i].rulset);
++			json_object_new_string(iconf->afc.cert_ids[i].rulset);
 +		if (!str_obj)
 +			goto error;
 +
 +		json_object_object_add(obj, "rulesetId", str_obj);
-+		str_obj = json_object_new_string(conf->afc.cert_ids[i].id);
++		str_obj = json_object_new_string(iconf->afc.cert_ids[i].id);
 +		if (!str_obj)
 +			goto error;
 +
@@ -698,13 +687,13 @@ index 000000000..046ddccef
 +		goto error;
 +
 +	json_object_object_add(l2_obj, "location", location_obj);
-+	str_obj = json_object_new_int(conf->afc.min_power);
++	str_obj = json_object_new_int(iconf->afc.min_power);
 +	if (!str_obj)
 +		goto error;
 +
 +	json_object_object_add(l2_obj, "minDesiredPower", str_obj);
 +
-+	if (conf->afc.n_freq_range) {
++	if (iconf->afc.n_freq_range) {
 +		struct json_object *freq_obj;
 +
 +		freq_obj = json_object_new_array();
@@ -713,8 +702,8 @@ index 000000000..046ddccef
 +
 +		json_object_object_add(l2_obj, "inquiredFrequencyRange",
 +				       freq_obj);
-+		for (i = 0; i < conf->afc.n_freq_range; i++) {
-+			struct afc_freq_range *fr = &conf->afc.freq_range[i];
++		for (i = 0; i < iconf->afc.n_freq_range; i++) {
++			struct afc_freq_range *fr = &iconf->afc.freq_range[i];
 +			struct json_object *obj;
 +
 +			obj = json_object_new_object();
@@ -735,11 +724,10 @@ index 000000000..046ddccef
 +		}
 +	}
 +
-+	if (conf->afc.n_op_class) {
++	if (iconf->afc.n_op_class) {
 +		struct json_object *op_class_list_obj;
 +
-+		chan_list = os_malloc(iface->current_mode->num_channels *
-+				      sizeof(*chan_list));
++		chan_list = os_malloc(mode->num_channels * sizeof(*chan_list));
 +		if (!chan_list)
 +			goto error;
 +
@@ -749,13 +737,13 @@ index 000000000..046ddccef
 +
 +		json_object_object_add(l2_obj, "inquiredChannels",
 +				       op_class_list_obj);
-+		for (i = 0; i < conf->afc.n_op_class; i++) {
++		for (i = 0; i < iconf->afc.n_op_class; i++) {
 +			struct json_object *op_class_obj, *chan_list_obj;
 +			u16 n_chan_list = 0;
 +			int j;
 +
 +			hostapd_afc_get_opclass_chan_list(
-+					iface, conf->afc.op_class[i],
++					iface, iconf->afc.op_class[i],
 +					chan_list, &n_chan_list);
 +			if (!n_chan_list)
 +				continue;
@@ -765,7 +753,7 @@ index 000000000..046ddccef
 +				goto error;
 +
 +			json_object_array_add(op_class_list_obj, op_class_obj);
-+			str_obj = json_object_new_int(conf->afc.op_class[i]);
++			str_obj = json_object_new_int(iconf->afc.op_class[i]);
 +			if (!str_obj)
 +				goto error;
 +
@@ -806,6 +794,7 @@ index 000000000..046ddccef
 +hostad_afc_parse_available_freq_info(struct hostapd_iface *iface,
 +				     struct json_object *reply_elem_obj)
 +{
++	struct hostapd_hw_modes *mode = iface->current_mode;
 +	struct json_object *obj;
 +	struct freq_range_elem {
 +		int low_freq;
@@ -854,9 +843,8 @@ index 000000000..046ddccef
 +		f[count++].max_psd = json_object_get_int(max_psd_obj);
 +	}
 +
-+	for (i = 0; i < iface->current_mode->num_channels; i++) {
-+		struct hostapd_channel_data *chan =
-+			&iface->current_mode->channels[i];
++	for (i = 0; i < mode->num_channels; i++) {
++		struct hostapd_channel_data *chan = &mode->channels[i];
 +		int j;
 +
 +		if (chan->flag & HOSTAPD_CHAN_DISABLED)
@@ -896,6 +884,7 @@ index 000000000..046ddccef
 +		return 0;
 +
 +	for (i = 0; i < json_object_array_length(obj); i++) {
++		struct hostapd_hw_modes *mode = iface->current_mode;
 +		struct json_object *range_elem_obj, *op_class_obj;
 +		struct json_object *chan_cfi_obj, *max_eirp_obj;
 +		int j, ch, op_class, count = 0;
@@ -947,9 +936,8 @@ index 000000000..046ddccef
 +			c[count++].power = power;
 +		}
 +
-+		for (j = 0; j < iface->current_mode->num_channels; j++) {
-+			struct hostapd_channel_data *chan =
-+				&iface->current_mode->channels[j];
++		for (j = 0; j < mode->num_channels; j++) {
++			struct hostapd_channel_data *chan = &mode->channels[j];
 +			int n;
 +
 +			if (chan->flag & HOSTAPD_CHAN_DISABLED)
@@ -1002,7 +990,7 @@ index 000000000..046ddccef
 +				   struct afc_curl_ctx *ctx)
 +{
 +	struct json_object *payload_obj, *reply_obj, *version_obj;
-+	struct hostapd_config *conf = iface->conf;
++	struct hostapd_config *iconf = iface->conf;
 +	int i, ret = -EINVAL;
 +
 +	wpa_printf(MSG_DEBUG, "Received AFC reply: %s", ctx->buf);
@@ -1013,8 +1001,8 @@ index 000000000..046ddccef
 +	if (!json_object_object_get_ex(payload_obj, "version", &version_obj))
 +		return -EINVAL;
 +
-+	if (conf->afc.version &&
-+	    os_strcmp(conf->afc.version, json_object_get_string(version_obj)))
++	if (iconf->afc.version &&
++	    os_strcmp(iconf->afc.version, json_object_get_string(version_obj)))
 +	    return -EINVAL;
 +
 +	if (!json_object_object_get_ex(payload_obj,
@@ -1034,8 +1022,8 @@ index 000000000..046ddccef
 +					       &obj))
 +			continue;
 +
-+		if (conf->afc.request_id &&
-+		    os_strcmp(conf->afc.request_id,
++		if (iconf->afc.request_id &&
++		    os_strcmp(iconf->afc.request_id,
 +			      json_object_get_string(obj)))
 +			continue;
 +
@@ -1043,13 +1031,13 @@ index 000000000..046ddccef
 +					       &obj))
 +			continue;
 +
-+		for (j = 0; j < conf->afc.n_cert_ids; j++) {
-+			if (!os_strcmp(conf->afc.cert_ids[j].rulset,
++		for (j = 0; j < iconf->afc.n_cert_ids; j++) {
++			if (!os_strcmp(iconf->afc.cert_ids[j].rulset,
 +				       json_object_get_string(obj)))
 +				break;
 +		}
 +
-+		if (j == conf->afc.n_cert_ids)
++		if (j == iconf->afc.n_cert_ids)
 +			continue;
 +
 +		if (!json_object_object_get_ex(reply_elem_obj, "response",
@@ -1114,6 +1102,7 @@ index 000000000..046ddccef
 +	struct afc_curl_ctx ctx = {
 +		.timeout = HOSTAPD_AFC_RETRY_TIMEOUT,
 +	};
++	struct hostapd_config *iconf = iface->conf;
 +	struct curl_slist *headers = NULL;
 +	json_object *json_obj;
 +	int ret = -EINVAL;
@@ -1126,11 +1115,11 @@ index 000000000..046ddccef
 +	if (!iface->current_mode)
 +		goto resched;
 +
-+	if (!iface->conf->afc.url || !iface->conf->afc.bearer_token)
++	if (!iconf->afc.url || !iconf->afc.bearer_token)
 +		return -EINVAL;
 +
 +	wpa_printf(MSG_DEBUG, "Sending AFC requst to %s (freq %dMHz)",
-+		   iface->conf->afc.url, iface->freq);
++		   iconf->afc.url, iface->freq);
 +
 +	curl_global_init(CURL_GLOBAL_ALL);
 +	curl = curl_easy_init();
@@ -1143,7 +1132,7 @@ index 000000000..046ddccef
 +	headers  = curl_slist_append(headers, "charset: utf-8");
 +
 +	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-+	curl_easy_setopt(curl, CURLOPT_URL, iface->conf->afc.url);
++	curl_easy_setopt(curl, CURLOPT_URL, iconf->afc.url);
 +	curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 +	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,
 +			 hostapd_afc_curl_cb_write);
@@ -1152,7 +1141,7 @@ index 000000000..046ddccef
 +	curl_easy_setopt(curl, CURLOPT_TIMEOUT, CURL_TIMEOUT);
 +	curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
 +	curl_easy_setopt(curl, CURLOPT_XOAUTH2_BEARER,
-+			 iface->conf->afc.bearer_token);
++			 iconf->afc.bearer_token);
 +	curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BEARER);
 +	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
 +	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 1L);
@@ -1187,13 +1176,17 @@ index 000000000..046ddccef
 +
 +int hostapd_afc_handle_request(struct hostapd_iface *iface)
 +{
++	struct hostapd_config *iconf = iface->conf;
 +	int ret;
 +
 +	if (iface->afc_completed)
 +		return 1;
 +
-+	if (!is_6ghz_op_class(iface->conf->op_class) ||
-+	    !is_6ghz_freq(iface->freq))
++	/* AFC is required just for standard power AP */
++	if (!he_reg_is_sp(iconf->he_6ghz_reg_pwr_type))
++		return 1;
++
++	if (!is_6ghz_op_class(iconf->op_class) || !is_6ghz_freq(iface->freq))
 +		return 1;
 +
 +	ret = hostapd_afc_send_receive(iface);
@@ -1202,7 +1195,7 @@ index 000000000..046ddccef
 +
 +	/* Trigger a ACS freq scan */
 +	iface->freq = 0;
-+	iface->conf->channel = 0;
++	iconf->channel = 0;
 +	iface->afc_completed = true;
 +
 +	if (acs_init(iface) != HOSTAPD_CHAN_ACS) {
@@ -1219,11 +1212,11 @@ index 000000000..046ddccef
 +	struct hostapd_iface *iface = eloop_ctx;
 +
 +	if (!hostapd_afc_send_receive(iface)) {
++		struct hostapd_hw_modes *mode = iface->current_mode;
 +		int i;
 +
-+		for (i = 0; i < iface->current_mode->num_channels; i++) {
-+			struct hostapd_channel_data *chan =
-+				&iface->current_mode->channels[i];
++		for (i = 0; i < mode->num_channels; i++) {
++			struct hostapd_channel_data *chan = &mode->channels[i];
 +
 +			if (chan->freq == iface->freq &&
 +			    !(chan->flag & HOSTAPD_CHAN_DISABLED))
@@ -1236,11 +1229,9 @@ index 000000000..046ddccef
 +	hostapd_disable_iface(iface);
 +	hostapd_enable_iface(iface);
 +}
-diff --git a/src/ap/ap_config.c b/src/ap/ap_config.c
-index f760e340b..209cde5f4 100644
 --- a/src/ap/ap_config.c
 +++ b/src/ap/ap_config.c
-@@ -1029,6 +1029,23 @@ void hostapd_config_free(struct hostapd_config *conf)
+@@ -1009,6 +1009,23 @@ void hostapd_config_free(struct hostapd_
  #endif /* CONFIG_ACS */
  	wpabuf_free(conf->lci);
  	wpabuf_free(conf->civic);
@@ -1264,11 +1255,9 @@ index f760e340b..209cde5f4 100644
  
  	os_free(conf);
  }
-diff --git a/src/ap/ap_config.h b/src/ap/ap_config.h
-index de02ddafd..afc23fb9e 100644
 --- a/src/ap/ap_config.h
 +++ b/src/ap/ap_config.h
-@@ -1217,6 +1217,54 @@ struct hostapd_config {
+@@ -1192,6 +1192,54 @@ struct hostapd_config {
  		MBSSID_ENABLED = 1,
  		ENHANCED_MBSSID_ENABLED = 2,
  	} mbssid;
@@ -1323,11 +1312,9 @@ index de02ddafd..afc23fb9e 100644
  };
  
  
-diff --git a/src/ap/hostapd.c b/src/ap/hostapd.c
-index cb464f670..9d2de4456 100644
 --- a/src/ap/hostapd.c
 +++ b/src/ap/hostapd.c
-@@ -2406,6 +2406,16 @@ static int hostapd_setup_interface_complete_sync(struct hostapd_iface *iface,
+@@ -2357,6 +2357,16 @@ static int hostapd_setup_interface_compl
  		}
  #endif /* CONFIG_MESH */
  
@@ -1344,11 +1331,9 @@ index cb464f670..9d2de4456 100644
  		if (!delay_apply_cfg &&
  		    hostapd_set_freq(hapd, hapd->iconf->hw_mode, iface->freq,
  				     hapd->iconf->channel,
-diff --git a/src/ap/hostapd.h b/src/ap/hostapd.h
-index 3dba121c6..33b24ae5e 100644
 --- a/src/ap/hostapd.h
 +++ b/src/ap/hostapd.h
-@@ -670,9 +670,15 @@ struct hostapd_iface {
+@@ -690,9 +690,15 @@ struct hostapd_iface {
  
  	/* Configured freq of interface is NO_IR */
  	bool is_no_ir;
@@ -1364,11 +1349,9 @@ index 3dba121c6..33b24ae5e 100644
  int hostapd_for_each_interface(struct hapd_interfaces *interfaces,
  			       int (*cb)(struct hostapd_iface *iface,
  					 void *ctx), void *ctx);
-diff --git a/src/drivers/driver.h b/src/drivers/driver.h
-index bff7502f1..072d7b28a 100644
 --- a/src/drivers/driver.h
 +++ b/src/drivers/driver.h
-@@ -175,6 +175,19 @@ struct hostapd_channel_data {
+@@ -176,6 +176,19 @@ struct hostapd_channel_data {
  	 * punct_bitmap - RU puncturing bitmap
  	 */
  	u16 punct_bitmap;
@@ -1388,6 +1371,17 @@ index bff7502f1..072d7b28a 100644
  };
  
  #define HE_MAC_CAPAB_0		0
--- 
-2.43.0
-
+--- a/src/common/ieee802_11_defs.h
++++ b/src/common/ieee802_11_defs.h
+@@ -2408,6 +2408,11 @@ enum he_6ghz_ap_type {
+ 	HE_6GHZ_STANDARD_POWER_AP	= 1,
+ };
+ 
++static inline bool he_reg_is_sp(enum he_6ghz_ap_type type)
++{
++	return type == HE_6GHZ_STANDARD_POWER_AP;
++}
++
+ /* Spatial Reuse defines */
+ #define SPATIAL_REUSE_SRP_DISALLOWED		BIT(0)
+ #define SPATIAL_REUSE_NON_SRG_OBSS_PD_SR_DISALLOWED	BIT(1)
