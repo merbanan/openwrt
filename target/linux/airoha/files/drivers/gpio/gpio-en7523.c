@@ -35,16 +35,15 @@ static int airoha_dir_set(struct gpio_chip *gc, unsigned int gpio,
 			  int val, int out)
 {
 	struct airoha_gpio_ctrl *ctrl = gc_to_ctrl(gc);
-	u32 dir = ioread32(ctrl->dir[gpio / 16]);
 	u32 output = ioread32(ctrl->output);
-	u32 mask = BIT((gpio % 16) * 2);
+	u32 dir = ioread32(ctrl->dir[gpio / 16]);
+	u32 shift = (gpio % 16) * 2;
 
+	dir &= ~(0x3 << shift);
+	output &= ~BIT(gpio);
 	if (out) {
-		dir |= mask;
+		dir |= (0x1 << shift);
 		output |= BIT(gpio);
-	} else {
-		dir &= ~mask;
-		output &= ~BIT(gpio);
 	}
 
 	iowrite32(dir, ctrl->dir[gpio / 16]);
@@ -72,9 +71,18 @@ static int airoha_get_dir(struct gpio_chip *gc, unsigned int gpio)
 {
 	struct airoha_gpio_ctrl *ctrl = gc_to_ctrl(gc);
 	u32 dir = ioread32(ctrl->dir[gpio / 16]);
-	u32 mask = BIT((gpio % 16) * 2);
+	u32 shift = (gpio % 16) * 2;
 
-	return (dir & mask) ? GPIO_LINE_DIRECTION_OUT : GPIO_LINE_DIRECTION_IN;
+	switch ((dir >> shift) & 0x03) {
+	case 0:
+		return GPIO_LINE_DIRECTION_IN;
+	case 1:
+		return GPIO_LINE_DIRECTION_OUT;
+	default:
+		break;
+	}
+
+	return -EINVAL;
 }
 
 static int airoha_gpio_probe(struct platform_device *pdev)
