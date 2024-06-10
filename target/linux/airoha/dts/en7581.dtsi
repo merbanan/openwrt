@@ -278,9 +278,18 @@
 			reg = <0 0x1fbf0204 0 0x4>,
 			      <0 0x1fbf0200 0 0x4>,
 			      <0 0x1fbf0220 0 0x4>,
-			      <0 0x1fbf0214 0 0x4>;
+			      <0 0x1fbf0214 0 0x4>,
+			      <0 0x1fbf0208 0 0x4>, /* Interrupt status register */
+			      <0 0x1fbf0210 0 0x4>, /* Level 0 */
+			      <0 0x1fbf028C 0 0x4>, /* Level 1 */
+			      <0 0x1fbf020C 0 0x4>, /* Edge 0 */
+			      <0 0x1fbf0280 0 0x4>; /* Edge 1 */
 			gpio-controller;
 			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		gpio1: gpio@1fbf0270 {
@@ -288,9 +297,18 @@
 			reg = <0 0x1fbf0270 0 0x4>,
 			      <0 0x1fbf0260 0 0x4>,
 			      <0 0x1fbf0264 0 0x4>,
-			      <0 0x1fbf0278 0 0x4>;
+			      <0 0x1fbf0278 0 0x4>,
+			      <0 0x1fbf027C 0 0x4>, /* Interrupt status register */
+			      <0 0x1fbf0290 0 0x4>, /* Level 0 */
+			      <0 0x1fbf0294 0 0x4>, /* Level 1 */
+			      <0 0x1fbf0284 0 0x4>, /* Edge 0 */
+			      <0 0x1fbf0288 0 0x4>; /* Edge 1 */
 			gpio-controller;
 			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		pciephy: phy@1fa5a000 {
