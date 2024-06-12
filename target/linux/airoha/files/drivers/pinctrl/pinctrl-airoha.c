@@ -288,6 +288,22 @@ static const int port2_led0_pins[] = { 49 };
 static const int port2_led1_pins[] = { 59 };
 static const int port3_led0_pins[] = { 56 };
 static const int port3_led1_pins[] = { 60 };
+static const int pwm0_pins[] = { 14 };
+static const int pwm1_pins[] = { 15 };
+static const int pwm2_pins[] = { 16 };
+static const int pwm3_pins[] = { 17 };
+static const int pwm4_pins[] = { 18 };
+static const int pwm5_pins[] = { 19 };
+static const int pwm6_pins[] = { 20 };
+static const int pwm7_pins[] = { 21 };
+static const int pwm8_pins[] = { 22 };
+static const int pwm9_pins[] = { 23 };
+static const int pwm10_pins[] = { 24 };
+static const int pwm11_pins[] = { 25 };
+static const int pwm12_pins[] = { 26 };
+static const int pwm13_pins[] = { 27 };
+static const int pwm14_pins[] = { 28 };
+static const int pwm15_pins[] = { 29 };
 
 static const struct pingroup airoha_pinctrl_groups[] = {
 	PINCTRL_PIN_GROUP("pon0", pon0),
@@ -332,6 +348,22 @@ static const struct pingroup airoha_pinctrl_groups[] = {
 	PINCTRL_PIN_GROUP("port2_led1", port2_led1),
 	PINCTRL_PIN_GROUP("port3_led0", port3_led0),
 	PINCTRL_PIN_GROUP("port3_led1", port3_led1),
+	PINCTRL_PIN_GROUP("pwm0", pwm0),
+	PINCTRL_PIN_GROUP("pwm1", pwm1),
+	PINCTRL_PIN_GROUP("pwm2", pwm2),
+	PINCTRL_PIN_GROUP("pwm3", pwm3),
+	PINCTRL_PIN_GROUP("pwm4", pwm4),
+	PINCTRL_PIN_GROUP("pwm5", pwm5),
+	PINCTRL_PIN_GROUP("pwm6", pwm6),
+	PINCTRL_PIN_GROUP("pwm7", pwm7),
+	PINCTRL_PIN_GROUP("pwm8", pwm8),
+	PINCTRL_PIN_GROUP("pwm9", pwm9),
+	PINCTRL_PIN_GROUP("pwm10", pwm10),
+	PINCTRL_PIN_GROUP("pwm11", pwm11),
+	PINCTRL_PIN_GROUP("pwm12", pwm12),
+	PINCTRL_PIN_GROUP("pwm13", pwm13),
+	PINCTRL_PIN_GROUP("pwm14", pwm14),
+	PINCTRL_PIN_GROUP("pwm15", pwm15),
 };
 
 static const char *const pon0_groups[] = { "pon0" };
@@ -375,6 +407,22 @@ static const char *const port2_led0_groups[] = { "port2_led0" };
 static const char *const port2_led1_groups[] = { "port2_led1" };
 static const char *const port3_led0_groups[] = { "port3_led0" };
 static const char *const port3_led1_groups[] = { "port3_led1" };
+static const char *const pwm0_groups[] = { "pwm0" };
+static const char *const pwm1_groups[] = { "pwm1" };
+static const char *const pwm2_groups[] = { "pwm2" };
+static const char *const pwm3_groups[] = { "pwm3" };
+static const char *const pwm4_groups[] = { "pwm4" };
+static const char *const pwm5_groups[] = { "pwm5" };
+static const char *const pwm6_groups[] = { "pwm6" };
+static const char *const pwm7_groups[] = { "pwm7" };
+static const char *const pwm8_groups[] = { "pwm8" };
+static const char *const pwm9_groups[] = { "pwm9" };
+static const char *const pwm10_groups[] = { "pwm10" };
+static const char *const pwm11_groups[] = { "pwm11" };
+static const char *const pwm12_groups[] = { "pwm12" };
+static const char *const pwm13_groups[] = { "pwm13" };
+static const char *const pwm14_groups[] = { "pwm14" };
+static const char *const pwm15_groups[] = { "pwm15" };
 
 static const struct airoha_pinctrl_reg pon0_func_regmap[] = {
 	{ REG_GPIO_PON_MODE, GPIO_PON_MODE_MASK },
@@ -511,6 +559,7 @@ static const struct airoha_pinctrl_reg port3_led0_func_regmap[] = {
 static const struct airoha_pinctrl_reg port3_led1_func_regmap[] = {
 	{ REG_GPIO_2ND_I2C_MODE, GPIO_PORT3_LED1_MODE_MASK },
 };
+
 
 static const struct airoha_pinctrl_func airoha_pinctrl_funcs[] = {
 	PINCTRL_FUNC_DESC("pon0", pon0),
