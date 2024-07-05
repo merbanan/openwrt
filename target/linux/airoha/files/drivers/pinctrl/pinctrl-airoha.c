@@ -1139,7 +1139,7 @@ static int airoha_pinctrl_get_gpio_from_pin(struct pinctrl_dev *pctrl_dev,
 	struct pinctrl_gpio_range *range;
 	int gpio;
 
-	range = pinctrl_find_gpio_range_from_pin(pctrl_dev, pin);
+	range = pinctrl_find_gpio_range_from_pin_nolock(pctrl_dev, pin);
 	if (!range)
 		return -EINVAL;
 
@@ -1254,8 +1254,6 @@ static int airoha_pinconf_get(struct pinctrl_dev *pctrl_dev,
 	struct airoha_pinctrl *pinctrl = pinctrl_dev_get_drvdata(pctrl_dev);
 	enum pin_config_param param = pinconf_to_config_param(*config);
 	u32 arg;
-
-	dev_err(pctrl_dev->dev, "get conf for pin %d\n", pin);
 
 	switch (param) {
 	case PIN_CONFIG_BIAS_PULL_DOWN:
