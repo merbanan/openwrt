@@ -355,8 +355,8 @@ config SL28CPLD_WATCHDOG
 # ARM Architecture
 
 config AIROHA_WATCHDOG
-	tristate "ARM SP805 Watchdog"
-	depends on ARM || ARM64 || COMPILE_TEST
+	tristate "Airoha EN7581 Watchdog"
+	depends on ARCH_AIROHA || COMPILE_TEST
 	select WATCHDOG_CORE
 	help
 	  Watchdog timer embedded into Airoha SoC. This will reboot your
