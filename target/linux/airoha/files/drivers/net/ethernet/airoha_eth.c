@@ -7,6 +7,7 @@
 #include <linux/etherdevice.h>
 #include <linux/iopoll.h>
 #include <linux/kernel.h>
+#include <linux/mutex.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
 #include <linux/of_net.h>
@@ -751,12 +752,38 @@ struct airoha_tx_irq_queue {
 	u16 head;
 };
 
+struct airoha_hw_stats {
+	struct mutex mutex;
+
+	/* get_stats64 */
+	u64 rx_ok_pkts;
+	u64 tx_ok_pkts;
+	u64 rx_ok_bytes;
+	u64 tx_ok_bytes;
+	u64 rx_drops;
+	u64 tx_drops;
+	u64 rx_crc_error;
+	/* ethtool stats */
+	u64 tx_pkts;
+	u64 tx_bytes;
+	u64 tx_broadcast;
+	u64 tx_multicast;
+	u64 tx_len[8];
+	u64 rx_pkts;
+	u64 rx_bytes;
+	u64 rx_broadcast;
+	u64 rx_multicast;
+	u64 rx_fragment;
+	u64 rx_jabber;
+	u64 rx_len[8];
+};
+
 struct airoha_gdm_port {
 	struct net_device *dev;
 	struct airoha_eth *eth;
 	int id;
 
-	u64 *hw_stats;
+	struct airoha_hw_stats stats;
 };
 
 struct airoha_eth {
@@ -2069,6 +2096,160 @@ static void airoha_qdma_start_napi(struct airoha_eth *eth)
 	}
 }
 
+static void airoha_update_hw_stats(struct airoha_gdm_port *port)
+{
+	struct airoha_eth *eth = port->eth;
+	u32 val, i = 0;
+
+	lockdep_assert_held(&port->stats.mutex);
+
+	/* TX */
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_PKT_CNT_H(port->id));
+	port->stats.tx_pkts += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_PKT_CNT_L(port->id));
+	port->stats.tx_pkts += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_BYTE_CNT_H(port->id));
+	port->stats.tx_bytes += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_BYTE_CNT_L(port->id));
+	port->stats.tx_bytes += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_PKT_CNT_H(port->id));
+	port->stats.tx_ok_pkts += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_PKT_CNT_L(port->id));
+	port->stats.tx_ok_pkts += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_BYTE_CNT_H(port->id));
+	port->stats.tx_ok_bytes += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_BYTE_CNT_L(port->id));
+	port->stats.tx_ok_bytes += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_DROP_CNT(port->id));
+	port->stats.tx_drops += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_BC_CNT(port->id));
+	port->stats.tx_broadcast += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_MC_CNT(port->id));
+	port->stats.tx_multicast += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_RUNT_CNT(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_E64_CNT_H(port->id));
+	port->stats.tx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_E64_CNT_L(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L64_CNT_H(port->id));
+	port->stats.tx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L64_CNT_L(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L127_CNT_H(port->id));
+	port->stats.tx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L127_CNT_L(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L255_CNT_H(port->id));
+	port->stats.tx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L255_CNT_L(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L511_CNT_H(port->id));
+	port->stats.tx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L511_CNT_L(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L1023_CNT_H(port->id));
+	port->stats.tx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L1023_CNT_L(port->id));
+	port->stats.tx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_LONG_CNT(port->id));
+	port->stats.tx_len[i++] += val;
+
+	/* RX */
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_PKT_CNT_H(port->id));
+	port->stats.rx_pkts += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_PKT_CNT_L(port->id));
+	port->stats.rx_pkts += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_BYTE_CNT_H(port->id));
+	port->stats.rx_bytes += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_BYTE_CNT_L(port->id));
+	port->stats.rx_bytes += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_PKT_CNT_H(port->id));
+	port->stats.rx_ok_pkts += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_PKT_CNT_L(port->id));
+	port->stats.rx_ok_pkts += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_BYTE_CNT_H(port->id));
+	port->stats.rx_ok_bytes += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_BYTE_CNT_L(port->id));
+	port->stats.rx_ok_bytes += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_DROP_CNT(port->id));
+	port->stats.rx_drops += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_BC_CNT(port->id));
+	port->stats.rx_broadcast += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_MC_CNT(port->id));
+	port->stats.rx_multicast += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_CRC_ERR_CNT(port->id));
+	port->stats.rx_crc_error += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_FRAG_CNT(port->id));
+	port->stats.rx_fragment += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_JABBER_CNT(port->id));
+	port->stats.rx_jabber += val;
+
+	i = 0;
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_RUNT_CNT(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_E64_CNT_H(port->id));
+	port->stats.rx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_E64_CNT_L(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L64_CNT_H(port->id));
+	port->stats.rx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L64_CNT_L(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L127_CNT_H(port->id));
+	port->stats.rx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L127_CNT_L(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L255_CNT_H(port->id));
+	port->stats.rx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L255_CNT_L(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L511_CNT_H(port->id));
+	port->stats.rx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L511_CNT_L(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L1023_CNT_H(port->id));
+	port->stats.rx_len[i] += ((u64)val << 32);
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L1023_CNT_L(port->id));
+	port->stats.rx_len[i++] += val;
+
+	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_LONG_CNT(port->id));
+	port->stats.rx_len[i++] += val;
+
+	/* reset mib counters */
+	airoha_fe_set(eth, REG_FE_GDM_MIB_CLEAR(port->id),
+		      FE_GDM_MIB_RX_CLEAR_MASK | FE_GDM_MIB_TX_CLEAR_MASK);
+}
+
 static int airoha_dev_open(struct net_device *dev)
 {
 	struct airoha_gdm_port *port = netdev_priv(dev);
@@ -2131,6 +2312,26 @@ static int airoha_dev_init(struct net_device *dev)
 	airoha_set_macaddr(port->eth, dev->dev_addr);
 
 	return 0;
+}
+
+static void airoha_dev_get_stats64(struct net_device *dev,
+				   struct rtnl_link_stats64 *storage)
+{
+	struct airoha_gdm_port *port = netdev_priv(dev);
+
+	mutex_lock(&port->stats.mutex);
+
+	airoha_update_hw_stats(port);
+	storage->rx_packets = port->stats.rx_ok_pkts;
+	storage->tx_packets = port->stats.tx_ok_pkts;
+	storage->rx_bytes = port->stats.rx_ok_bytes;
+	storage->tx_bytes = port->stats.tx_ok_bytes;
+	storage->multicast = port->stats.rx_multicast;
+	storage->rx_dropped = port->stats.rx_drops;
+	storage->tx_dropped = port->stats.tx_drops;
+	storage->rx_crc_errors = port->stats.rx_crc_error;
+
+	mutex_unlock(&port->stats.mutex);
 }
 
 static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
@@ -2253,9 +2454,6 @@ error:
 static const char * const airoha_ethtool_stats_name[] = {
 	"tx_eth_pkt_cnt",
 	"tx_eth_byte_cnt",
-	"tx_ok_pkt_cnt",
-	"tx_ok_byte_cnt",
-	"tx_eth_drop_cnt",
 	"tx_eth_bc_cnt",
 	"tx_eth_mc_cnt",
 	"tx_eth_lt64_cnt",
@@ -2268,12 +2466,8 @@ static const char * const airoha_ethtool_stats_name[] = {
 	"tx_eth_gt1518_cnt",
 	"rx_eth_pkt_cnt",
 	"rx_eth_byte_cnt",
-	"rx_ok_pkt_cnt",
-	"rx_ok_byte_cnt",
-	"rx_eth_drop_cnt",
 	"rx_eth_bc_cnt",
 	"rx_eth_mc_cnt",
-	"rx_eth_crc_drop_cnt",
 	"rx_eth_frag_cnt",
 	"rx_eth_jabber_cnt",
 	"rx_eth_lt64_cnt",
@@ -2285,6 +2479,18 @@ static const char * const airoha_ethtool_stats_name[] = {
 	"rx_eth_1024_1518_cnt",
 	"rx_eth_gt1518_cnt",
 };
+
+static void airoha_ethtool_get_drvinfo(struct net_device *dev,
+				       struct ethtool_drvinfo *info)
+{
+	struct airoha_gdm_port *port = netdev_priv(dev);
+	struct airoha_eth *eth = port->eth;
+
+	strscpy(info->driver, eth->dev->driver->name, sizeof(info->driver));
+	strscpy(info->bus_info, dev_name(eth->dev), sizeof(info->bus_info));
+	info->n_stats = ARRAY_SIZE(airoha_ethtool_stats_name) +
+			page_pool_ethtool_stats_get_count();
+}
 
 static void airoha_ethtool_get_strings(struct net_device *dev, u32 sset,
 				       u8 *data)
@@ -2312,168 +2518,24 @@ static int airoha_ethtool_get_sset_count(struct net_device *dev, int sset)
 	       page_pool_ethtool_stats_get_count();
 }
 
-static void airoha_update_hw_stats(struct airoha_gdm_port *port)
-{
-	struct airoha_eth *eth = port->eth;
-	u32 val, i = 0;
-
-	/* TX */
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_PKT_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_PKT_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_BYTE_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_BYTE_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_PKT_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_PKT_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_BYTE_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_BYTE_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_DROP_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_BC_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_MC_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_RUNT_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_E64_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_E64_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L64_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L64_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L127_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L127_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L255_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L255_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L511_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L511_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L1023_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_L1023_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_LONG_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	/* RX */
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_PKT_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_PKT_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_BYTE_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_BYTE_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_PKT_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_PKT_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_BYTE_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_OK_BYTE_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_DROP_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_BC_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_MC_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_CRC_ERR_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_FRAG_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_JABBER_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_RUNT_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_E64_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_E64_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L64_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L64_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L127_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L127_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L255_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L255_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L511_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L511_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L1023_CNT_H(port->id));
-	port->hw_stats[i] += ((u64)val << 32);
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_L1023_CNT_L(port->id));
-	port->hw_stats[i++] += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_LONG_CNT(port->id));
-	port->hw_stats[i++] += val;
-
-	/* reset mib counters */
-	airoha_fe_set(eth, REG_FE_GDM_MIB_CLEAR(port->id),
-		      FE_GDM_MIB_RX_CLEAR_MASK | FE_GDM_MIB_TX_CLEAR_MASK);
-}
-
 static void airoha_ethtool_get_stats(struct net_device *dev,
 				     struct ethtool_stats *stats, u64 *data)
 {
+	size_t off = offsetof(struct airoha_hw_stats, tx_pkts) / sizeof(u64);
 	struct airoha_gdm_port *port = netdev_priv(dev);
+	u64 *hw_stats = (u64 *)&port->stats + off;
 	struct page_pool_stats pp_stats = {};
 	struct airoha_eth *eth = port->eth;
 	int i;
 
+	BUILD_BUG_ON(ARRAY_SIZE(airoha_ethtool_stats_name) + off !=
+		     sizeof(struct airoha_hw_stats) / sizeof(u64));
+
+	mutex_lock(&port->stats.mutex);
+
 	airoha_update_hw_stats(port);
 	for (i = 0; i < ARRAY_SIZE(airoha_ethtool_stats_name); i++)
-		*data++ = port->hw_stats[i];
+		*data++ = hw_stats[i];
 
 	for (i = 0; i < ARRAY_SIZE(eth->q_rx); i++) {
 		if (!eth->q_rx[i].ndesc)
@@ -2482,6 +2544,8 @@ static void airoha_ethtool_get_stats(struct net_device *dev,
 		page_pool_get_stats(eth->q_rx[i].page_pool, &pp_stats);
 	}
 	page_pool_ethtool_stats_get(data, &pp_stats);
+
+	mutex_unlock(&port->stats.mutex);
 }
 
 static const struct net_device_ops airoha_netdev_ops = {
@@ -2489,10 +2553,12 @@ static const struct net_device_ops airoha_netdev_ops = {
 	.ndo_open		= airoha_dev_open,
 	.ndo_stop		= airoha_dev_stop,
 	.ndo_start_xmit		= airoha_dev_xmit,
+	.ndo_get_stats64        = airoha_dev_get_stats64,
 	.ndo_set_mac_address	= airoha_dev_set_macaddr,
 };
 
 static const struct ethtool_ops airoha_ethtool_ops = {
+	.get_drvinfo		= airoha_ethtool_get_drvinfo,
 	.get_strings		= airoha_ethtool_get_strings,
 	.get_sset_count		= airoha_ethtool_get_sset_count,
 	.get_ethtool_stats	= airoha_ethtool_get_stats,
@@ -2650,15 +2716,10 @@ static int airoha_alloc_gdm_port(struct airoha_eth *eth, struct device_node *np)
 	}
 
 	port = netdev_priv(dev);
+	mutex_init(&port->stats.mutex);
 	port->dev = dev;
 	port->eth = eth;
 	port->id = id;
-
-	port->hw_stats = devm_kcalloc(eth->dev,
-				      ARRAY_SIZE(airoha_ethtool_stats_name),
-				      sizeof(*port->hw_stats), GFP_KERNEL);
-	if (!port->hw_stats)
-		return -ENOMEM;
 
 	err = register_netdev(dev);
 	if (err)
