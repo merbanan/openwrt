@@ -17,76 +17,42 @@
 #include <linux/platform_device.h>
 #include <linux/sched.h>
 
-struct airoha_mdio_priv {
-	struct mii_bus *mii_bus;
-};
-
-static int airoha_mdio_read(struct mii_bus *bus, int phy_id, int reg)
+static int airoha_mdio_read_c22(struct mii_bus *bus, int phy_id, int reg)
 {
-//	int read_data;
-//
-//#if defined(RDKB_BUILD)
-//	read_data = ETHER_MDIO_READ(phy_id, reg);
-//#endif
-//    return read_data;
-	return 0;
+	return reg;
 }
 
-static int airoha_mdio_write(struct mii_bus *bus, int phy_id,
-			    int reg, u16 val)
+static int airoha_mdio_write_c22(struct mii_bus *bus, int phy_id,
+				 int reg, u16 val)
 {	
-#if defined(RDKB_BUILD)
-	ETHER_MDIO_WRITE(phy_id, reg, val);
-#endif
 	return 0;
 }
 
 static int airoha_mdio_probe(struct platform_device *pdev)
 {
-	struct airoha_mdio_priv *priv;
 	struct mii_bus *bus;
-	int rc;
+	int err;
 
-	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
-	if (!priv) 
-		return -ENOMEM;
-
-	priv->mii_bus = mdiobus_alloc();
-	if (!priv->mii_bus) {
+	bus = devm_mdiobus_alloc(&pdev->dev);
+	if (!bus) {
 		dev_err(&pdev->dev, "MDIO bus alloc failed\n");
 		return -ENOMEM;
 	}
 
-	bus = priv->mii_bus;
-	bus->priv = priv;
-	bus->name = "airoha mdio bus";
-	snprintf(bus->id, MII_BUS_ID_SIZE, "%s-%d", pdev->name, pdev->id);
+	//bus->priv = priv;
+	bus->name = "airoha-mdio";
 	bus->parent = &pdev->dev;
-	bus->read = airoha_mdio_read;
-	bus->write = airoha_mdio_write;
+	bus->read = airoha_mdio_read_c22;
+	bus->write = airoha_mdio_write_c22;
+	snprintf(bus->id, MII_BUS_ID_SIZE, "%s-%d", pdev->name, pdev->id);
+	platform_set_drvdata(pdev, bus);
 
-
-	rc = of_mdiobus_register(bus, pdev->dev.of_node);
-	if (rc) {
+	err = devm_of_mdiobus_register(&pdev->dev, bus, pdev->dev.of_node);
+	if (err) {
 		dev_err(&pdev->dev, "MDIO bus registration failed\n");
-		goto err_airoha_mdio;
+		platform_set_drvdata(pdev, NULL);
+		return err;
 	}
-
-	platform_set_drvdata(pdev, priv);
-
-	return 0;
-
-err_airoha_mdio:
-	mdiobus_free(bus);
-	return rc;
-}
-
-static int airoha_mdio_remove(struct platform_device *pdev)
-{
-	struct airoha_mdio_priv *priv = platform_get_drvdata(pdev);
-
-	mdiobus_unregister(priv->mii_bus);
-	mdiobus_free(priv->mii_bus);
 
 	return 0;
 }
@@ -99,11 +65,10 @@ MODULE_DEVICE_TABLE(of, airoha_mdio_of_match);
 
 static struct platform_driver airoha_mdio_driver = {
 	.driver = {
-		.name = "arht-mdio",
+		.name = "airoha-mdio",
 		.of_match_table = airoha_mdio_of_match,
 	},
 	.probe = airoha_mdio_probe,
-	.remove = airoha_mdio_remove,
 };
 module_platform_driver(airoha_mdio_driver);
 
