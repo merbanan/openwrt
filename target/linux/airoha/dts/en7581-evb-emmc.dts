@@ -208,7 +208,7 @@
 	status = "okay";
 };
 
-&eth0 {
+&eth {
 	status = "okay";
 };
 

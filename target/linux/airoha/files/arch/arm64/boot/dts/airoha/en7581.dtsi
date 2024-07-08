@@ -154,6 +154,13 @@
 			clock-frequency = <1843200>;
 		};
 
+		watchdog@1fbf0100 {
+			compatible = "airoha,en7581-wdt";
+			reg = <0x1fbf0100 0x8>;
+			clocks = <&scuclk EN7523_CLK_BUS>;
+			clock-names = "bus";
+		};
+
 		uart2: serial@1fbf0300 {
 			compatible = "airoha,en7523-uart";
 			reg = <0x0 0x1fbf0300 0x0 0x30>;
@@ -408,7 +415,7 @@
 			};
 		};
 
-		eth0: ethernet@1fb50000 {
+		eth: ethernet@1fb50000 {
 			compatible = "airoha,en7581-eth";
 			reg = <0 0x1fb50000 0 0x2600>,
 			      <0 0x1fb54000 0 0x2000>,
@@ -443,7 +450,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			gdm1: mac@1 {
+			gdm1: ethernet@1 {
 				compatible = "airoha,eth-mac";
 				reg = <1>;
 				phy-mode = "internal";

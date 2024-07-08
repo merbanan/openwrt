@@ -138,7 +138,7 @@
 
 #define REG_CDM1_CRSN_QSEL(_n)		(CDM1_BASE + 0x10 + ((_n) << 2))
 #define CDM1_CRSN_QSEL_REASON_MASK(_n)	\
-	GENMASK(4 + (((_n) % 4) << 3), (((_n) % 4 ) << 3))
+	GENMASK(4 + (((_n) % 4) << 3),	(((_n) % 4) << 3))
 
 #define REG_CDM2_FWD_CFG		(CDM2_BASE + 0x08)
 #define CDM2_OAM_QSEL_MASK		GENMASK(31, 27)
@@ -146,7 +146,7 @@
 
 #define REG_CDM2_CRSN_QSEL(_n)		(CDM2_BASE + 0x10 + ((_n) << 2))
 #define CDM2_CRSN_QSEL_REASON_MASK(_n)	\
-	GENMASK(4 + (((_n) % 4) << 3), (((_n) % 4 ) << 3))
+	GENMASK(4 + (((_n) % 4) << 3),	(((_n) % 4) << 3))
 
 #define REG_GDM_FWD_CFG(_n)		GDM_BASE(_n)
 #define GDM_DROP_CRC_ERR		BIT(23)
@@ -588,7 +588,7 @@
 
 /* CTRL */
 #define QDMA_DESC_DONE_MASK		BIT(31)
-#define QDMA_DESC_DROP_MASK		BIT(30) /* tx: drop pkt - rx: overflow */
+#define QDMA_DESC_DROP_MASK		BIT(30) /* tx: drop - rx: overflow */
 #define QDMA_DESC_MORE_MASK		BIT(29) /* more SG elements */
 #define QDMA_DESC_DEI_MASK		BIT(25)
 #define QDMA_DESC_NO_DROP_MASK		BIT(24)
@@ -608,14 +608,14 @@
 #define QDMA_ETH_TXMSG_QUEUE_MASK	GENMASK(2, 0)
 /* TX MSG1 */
 #define QDMA_ETH_TXMSG_NO_DROP		BIT(31)
-#define QDMA_ETH_TXMSG_METER_MASK	GENMASK(30, 24)	/* 0x7f means do not apply meters */
+#define QDMA_ETH_TXMSG_METER_MASK	GENMASK(30, 24)	/* 0x7f no meters */
 #define QDMA_ETH_TXMSG_FPORT_MASK	GENMASK(23, 20)
 #define QDMA_ETH_TXMSG_NBOQ_MASK	GENMASK(19, 15)
 #define QDMA_ETH_TXMSG_HWF_MASK		BIT(14)
 #define QDMA_ETH_TXMSG_HOP_MASK		BIT(13)
 #define QDMA_ETH_TXMSG_PTP_MASK		BIT(12)
-#define QDMA_ETH_TXMSG_ACNT_G1_MASK	GENMASK(10, 6)	/* 0x1f means do not count */
-#define QDMA_ETH_TXMSG_ACNT_G0_MASK	GENMASK(5, 0)	/* 0x3f means do not count */
+#define QDMA_ETH_TXMSG_ACNT_G1_MASK	GENMASK(10, 6)	/* 0x1f do not count */
+#define QDMA_ETH_TXMSG_ACNT_G0_MASK	GENMASK(5, 0)	/* 0x3f do not count */
 
 /* RX MSG1 */
 #define QDMA_ETH_RXMSG_DEI_MASK		BIT(31)
@@ -730,6 +730,7 @@ struct airoha_queue_entry {
 struct airoha_queue {
 	struct airoha_eth *eth;
 
+	/* protect concurrent queue accesses */
 	spinlock_t lock;
 	struct airoha_queue_entry *entry;
 	struct airoha_qdma_desc *desc;
@@ -757,6 +758,7 @@ struct airoha_tx_irq_queue {
 };
 
 struct airoha_hw_stats {
+	/* protect concurrent hw_stats accesses */
 	struct mutex mutex;
 
 	/* get_stats64 */
@@ -798,6 +800,7 @@ struct airoha_eth {
 	void __iomem *qdma_regs;
 	void __iomem *fe_regs;
 
+	/* protect concurrent irqmask accesses */
 	spinlock_t irq_lock;
 	u32 irqmask[QDMA_INT_REG_MAX];
 	int irq;
@@ -1027,17 +1030,20 @@ static void airoha_fe_vip_setup(struct airoha_eth *eth)
 		     PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 1) |
 		     PATN_EN_MASK);
 
-	airoha_fe_wr(eth, REG_FE_VIP_PATN(8), 0x43); /* BOOTP (0x43) */
+	/* BOOTP (0x43) */
+	airoha_fe_wr(eth, REG_FE_VIP_PATN(8), 0x43);
 	airoha_fe_wr(eth, REG_FE_VIP_EN(8),
 		     PATN_FCPU_EN_MASK | PATN_SP_EN_MASK |
 		     FIELD_PREP(PATN_TYPE_MASK, 4) | PATN_EN_MASK);
 
-	airoha_fe_wr(eth, REG_FE_VIP_PATN(9), 0x44); /* BOOTP (0x44) */
+	/* BOOTP (0x44) */
+	airoha_fe_wr(eth, REG_FE_VIP_PATN(9), 0x44);
 	airoha_fe_wr(eth, REG_FE_VIP_EN(9),
 		     PATN_FCPU_EN_MASK | PATN_SP_EN_MASK |
 		     FIELD_PREP(PATN_TYPE_MASK, 4) | PATN_EN_MASK);
 
-	airoha_fe_wr(eth, REG_FE_VIP_PATN(10), 0x1f401f4); /* ISAKMP */
+	/* ISAKMP */
+	airoha_fe_wr(eth, REG_FE_VIP_PATN(10), 0x1f401f4);
 	airoha_fe_wr(eth, REG_FE_VIP_EN(10),
 		     PATN_FCPU_EN_MASK | PATN_DP_EN_MASK | PATN_SP_EN_MASK |
 		     FIELD_PREP(PATN_TYPE_MASK, 4) | PATN_EN_MASK);
@@ -1047,7 +1053,8 @@ static void airoha_fe_vip_setup(struct airoha_eth *eth)
 		     PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 1) |
 		     PATN_EN_MASK);
 
-	airoha_fe_wr(eth, REG_FE_VIP_PATN(12), 0x2220223); /* DHCPv6 */
+	/* DHCPv6 */
+	airoha_fe_wr(eth, REG_FE_VIP_PATN(12), 0x2220223);
 	airoha_fe_wr(eth, REG_FE_VIP_EN(12),
 		     PATN_FCPU_EN_MASK | PATN_DP_EN_MASK | PATN_SP_EN_MASK |
 		     FIELD_PREP(PATN_TYPE_MASK, 4) | PATN_EN_MASK);
@@ -1057,7 +1064,8 @@ static void airoha_fe_vip_setup(struct airoha_eth *eth)
 		     PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 1) |
 		     PATN_EN_MASK);
 
-	airoha_fe_wr(eth, REG_FE_VIP_PATN(20), 0x893a); /* ETH->ETH_P_1905 (0x893a) */
+	/* ETH->ETH_P_1905 (0x893a) */
+	airoha_fe_wr(eth, REG_FE_VIP_PATN(20), 0x893a);
 	airoha_fe_wr(eth, REG_FE_VIP_EN(20),
 		     PATN_FCPU_EN_MASK | PATN_EN_MASK);
 
@@ -1230,8 +1238,9 @@ static int airoha_fe_mc_vlan_clear(struct airoha_eth *eth)
 			airoha_fe_wr(eth, REG_MC_VLAN_CFG, val);
 			err = read_poll_timeout(airoha_fe_rr, val,
 						val & MC_VLAN_CFG_CMD_DONE_MASK,
-						USEC_PER_MSEC, 5 * USEC_PER_MSEC,
-						false, eth, REG_MC_VLAN_CFG);
+						USEC_PER_MSEC,
+						5 * USEC_PER_MSEC, false, eth,
+						REG_MC_VLAN_CFG);
 			if (err)
 				return err;
 		}
@@ -1878,8 +1887,9 @@ static void airoha_qdma_init_qos(struct airoha_eth *eth)
 
 	/* ratelimit init */
 	airoha_qdma_set(eth, REG_GLB_TRTCM_CFG, GLB_TRTCM_EN_MASK);
+	/* fast-tick 25us */
 	airoha_qdma_rmw(eth, REG_GLB_TRTCM_CFG, GLB_FAST_TICK_MASK,
-			FIELD_PREP(GLB_FAST_TICK_MASK, 25)); /* fast-tick 25us */
+			FIELD_PREP(GLB_FAST_TICK_MASK, 25));
 	airoha_qdma_rmw(eth, REG_GLB_TRTCM_CFG, GLB_SLOW_TICK_RATIO_MASK,
 			FIELD_PREP(GLB_SLOW_TICK_RATIO_MASK, 40));
 

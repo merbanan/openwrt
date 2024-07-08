@@ -415,7 +415,7 @@
 			};
 		};
 
-		eth0: ethernet@1fb50000 {
+		eth: ethernet@1fb50000 {
 			compatible = "airoha,en7581-eth";
 			reg = <0 0x1fb50000 0 0x2600>,
 			      <0 0x1fb54000 0 0x2000>,
@@ -450,7 +450,7 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			gdm1: mac@1 {
+			gdm1: ethernet@1 {
 				compatible = "airoha,eth-mac";
 				reg = <1>;
 				phy-mode = "internal";
