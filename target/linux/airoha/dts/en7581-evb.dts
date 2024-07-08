@@ -6,6 +6,7 @@
 
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
 #include "en7581.dtsi"
 
 / {
@@ -66,6 +67,16 @@
 		rootfs_data@5080000 {
 			label = "rootfs_data";
 			reg = <0x1980000 0x400000>;
+		};
+	};
+
+	gpio-keys-polled {
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
+		btn0 {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&pio 0 GPIO_ACTIVE_LOW>;
 		};
 	};
 
