@@ -16,15 +16,16 @@
 #define   CNT_TRANS			GENMASK(15, 8)
 #define   SAMPLE_RDY			BIT(0)
 #define TRNG_NS_SEK_AND_DAT_EN		0x804
-#define	  RNG_EN			BIT(31) /* ??? called ring_en */
+#define	  RNG_EN			BIT(31) /* referenced as ring_en */
 #define	  RAW_DATA_EN			BIT(16)
 #define TRNG_HEALTH_TEST_SW_RST		0x808
-#define   SW_RST			BIT(0)
+#define   SW_RST			BIT(0) /* Active High */
 #define TRNG_INTR_EN			0x818
 #define   INTR_MASK			BIT(16)
 #define   CONTINUOUS_HEALTH_INITR_EN	BIT(2)
 #define   SW_STARTUP_INITR_EN		BIT(1)
 #define   RST_STARTUP_INITR_EN		BIT(0)
+/* Notice that Health Test are done only out of Reset and with RNG_EN */
 #define TRNG_HEALTH_TEST_STATUS		0x824
 #define   CONTINUOUS_HEALTH_AP_TEST_FAIL BIT(23)
 #define   CONTINUOUS_HEALTH_RC_TEST_FAIL BIT(22)
@@ -40,56 +41,15 @@
 
 #define TRNG_CNT_TRANS_VALID		0x80
 #define BUSY_LOOP_SLEEP			10
-#define BUSY_LOOP_TIMEOUT		(BUSY_LOOP_SLEEP * 100)
+#define BUSY_LOOP_TIMEOUT		(BUSY_LOOP_SLEEP * 10000)
 
 struct airoha_trng {
 	void __iomem *base;
 	struct hwrng rng;
+	struct device *dev;
 
 	struct completion rng_op_done;
 };
-
-static int airoha_trng_init(struct hwrng *rng)
-{
-	struct airoha_trng *trng = container_of(rng, struct airoha_trng, rng);
-	u32 val;
-
-	/* Enable RNG and set output to raw data */
-	val = readl(trng->base + TRNG_NS_SEK_AND_DAT_EN);
-	val |= RNG_EN | RAW_DATA_EN;
-	writel(val, trng->base + TRNG_NS_SEK_AND_DAT_EN);
-
-	return 0;
-}
-
-static void airoha_trng_cleanup(struct hwrng *rng)
-{
-	struct airoha_trng *trng = container_of(rng, struct airoha_trng, rng);
-	u32 val;
-
-	val = readl(trng->base + TRNG_NS_SEK_AND_DAT_EN);
-	val &= ~RNG_EN;
-	writel(val, trng->base + TRNG_NS_SEK_AND_DAT_EN);
-}
-
-static int airoha_trng_read(struct hwrng *rng, void *buf, size_t max, bool wait)
-{
-	struct airoha_trng *trng = container_of(rng, struct airoha_trng, rng);
-	u32 *data = buf;
-	u32 status;
-	int ret;
-
-	ret = readl_poll_timeout(trng->base + TRNG_HEALTH_TEST_STATUS, status,
-				 status & RAW_DATA_VALID, 10, 1000);
-	if (ret) {
-		pr_err("Tiemout waiting for TRNG RAW Data valid\n");
-		return ret;
-	}
-
-	*data = readl(trng->base + TRNG_RAW_DATA_OUT);
-
-	return 4;
-}
 
 static int airoha_trng_irq_mask(struct airoha_trng *trng)
 {
@@ -111,6 +71,87 @@ static int airoha_trng_irq_unmask(struct airoha_trng *trng)
 	writel(val, trng->base + TRNG_INTR_EN);
 
 	return 0;
+}
+
+static int airoha_trng_init(struct hwrng *rng)
+{
+	struct airoha_trng *trng = container_of(rng, struct airoha_trng, rng);
+	int ret;
+	u32 val;
+
+	val = readl(trng->base + TRNG_NS_SEK_AND_DAT_EN);
+	val |= RNG_EN;
+	writel(val, trng->base + TRNG_NS_SEK_AND_DAT_EN);
+
+	/* Set out of SW Reset */
+	airoha_trng_irq_unmask(trng);
+	writel(0, trng->base + TRNG_HEALTH_TEST_SW_RST);
+
+	ret = wait_for_completion_timeout(&trng->rng_op_done, BUSY_LOOP_TIMEOUT);
+	if (ret <= 0) {
+		dev_err(trng->dev, "Timeout waiting for Health Check\n");
+		airoha_trng_irq_mask(trng);
+		return -ENODEV;
+	}
+
+	/* Check if Health Test Failed */
+	val = readl(trng->base + TRNG_HEALTH_TEST_STATUS);
+	if (val & (RST_STARTUP_AP_TEST_FAIL | RST_STARTUP_RC_TEST_FAIL)) {
+		dev_err(trng->dev, "Health Check fail: %s test fail\n",
+			val & RST_STARTUP_AP_TEST_FAIL ? "AP" : "RC");
+		return -ENODEV;
+	}
+
+	/* Check if IP is ready */
+	ret = readl_poll_timeout(trng->base + TRNG_IP_RDY, val,
+				 val & SAMPLE_RDY, 10, 1000);
+	if (ret < 0) {
+		dev_err(trng->dev, "Timeout waiting for IP ready");
+		return -ENODEV;
+	}
+
+	/* CNT_TRANS must be 0x80 for IP to be considered ready */
+	ret = readl_poll_timeout(trng->base + TRNG_IP_RDY, val,
+				 FIELD_GET(CNT_TRANS, val) == TRNG_CNT_TRANS_VALID,
+				 10, 1000);
+	if (ret < 0) {
+		dev_err(trng->dev, "Timeout waiting for IP ready");
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
+static void airoha_trng_cleanup(struct hwrng *rng)
+{
+	struct airoha_trng *trng = container_of(rng, struct airoha_trng, rng);
+	u32 val;
+
+	val = readl(trng->base + TRNG_NS_SEK_AND_DAT_EN);
+	val &= ~RNG_EN;
+	writel(val, trng->base + TRNG_NS_SEK_AND_DAT_EN);
+
+	/* Put it in SW Reset */
+	writel(SW_RST, trng->base + TRNG_HEALTH_TEST_SW_RST);
+}
+
+static int airoha_trng_read(struct hwrng *rng, void *buf, size_t max, bool wait)
+{
+	struct airoha_trng *trng = container_of(rng, struct airoha_trng, rng);
+	u32 *data = buf;
+	u32 status;
+	int ret;
+
+	ret = readl_poll_timeout(trng->base + TRNG_HEALTH_TEST_STATUS, status,
+				 status & RAW_DATA_VALID, 10, 1000);
+	if (ret < 0) {
+		dev_err(trng->dev, "Timeout waiting for TRNG RAW Data valid\n");
+		return ret;
+	}
+
+	*data = readl(trng->base + TRNG_RAW_DATA_OUT);
+
+	return 4;
 }
 
 static irqreturn_t airoha_trng_irq(int irq, void *priv)
@@ -157,43 +198,16 @@ static int airoha_trng_probe(struct platform_device *pdev)
 	val = readl(trng->base + TRNG_INTR_EN);
 	val |= RST_STARTUP_INITR_EN;
 	writel(val, trng->base + TRNG_INTR_EN);
-	airoha_trng_irq_unmask(trng);
 
-	/* Trigger SW reset for Health Check */
+	/* Set output to raw data */
+	val = readl(trng->base + TRNG_NS_SEK_AND_DAT_EN);
+	val |= RAW_DATA_EN;
+	writel(val, trng->base + TRNG_NS_SEK_AND_DAT_EN);
+
+	/* Put it in SW Reset */
 	writel(SW_RST, trng->base + TRNG_HEALTH_TEST_SW_RST);
-	ret = wait_for_completion_timeout(&trng->rng_op_done,
-					  msecs_to_jiffies(BUSY_LOOP_TIMEOUT));
-	if (!ret) {
-		dev_err(dev, "Timeout waiting for Health Check\n");
-		airoha_trng_irq_mask(trng);
-		return -ENODEV;
-	}
 
-	/* Check if Health Test Failed */
-	val = readl(trng->base + TRNG_HEALTH_TEST_STATUS);
-	if (val & (RST_STARTUP_AP_TEST_FAIL | RST_STARTUP_RC_TEST_FAIL)) {
-		dev_err(dev, "Health Check fail: %s test fail\n",
-			val & RST_STARTUP_AP_TEST_FAIL ? "AP" : "RC");
-		return -ENODEV;
-	}
-
-	/* Check if IP is ready */
-	ret = readl_poll_timeout(trng->base + TRNG_IP_RDY, val,
-				 val & SAMPLE_RDY, 10, 1000);
-	if (ret) {
-		dev_err(dev, "Timeout waiting for IP ready");
-		return -ENODEV;
-	}
-
-	/* CNT_TRANS must be 0x80 for IP to be considered ready */
-	ret = readl_poll_timeout(trng->base + TRNG_IP_RDY, val,
-				 FIELD_GET(CNT_TRANS, val) == TRNG_CNT_TRANS_VALID,
-				 10, 1000);
-	if (ret) {
-		dev_err(dev, "Timeout waiting for IP ready");
-		return -ENODEV;
-	}
-
+	trng->dev = dev;
 	trng->rng.name = pdev->name;
 	trng->rng.init = airoha_trng_init;
 	trng->rng.cleanup = airoha_trng_cleanup;
