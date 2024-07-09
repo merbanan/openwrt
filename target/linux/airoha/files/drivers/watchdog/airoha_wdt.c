@@ -34,7 +34,7 @@
 /* Airoha watchdog structure description */
 struct airoha_wdt_desc {
 	struct watchdog_device wdog_dev;
-	unsigned long wdt_freq;
+	unsigned int wdt_freq;
 	void __iomem *base;
 };
 
@@ -127,7 +127,6 @@ static int airoha_wdt_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct watchdog_device *wdog_dev;
 	struct airoha_wdt_desc *airoha_wdt;
-	struct clk *bus_clk;
 	int ret;
 
 	airoha_wdt = devm_kzalloc(dev, sizeof(*airoha_wdt), GFP_KERNEL);
@@ -138,12 +137,9 @@ static int airoha_wdt_probe(struct platform_device *pdev)
 	if (IS_ERR(airoha_wdt->base))
 		return PTR_ERR(airoha_wdt->base);
 
-	bus_clk = devm_clk_get_enabled(&pdev->dev, "bus");
-	if (IS_ERR(bus_clk))
-		return PTR_ERR(bus_clk);
-
-	airoha_wdt->wdt_freq = clk_get_rate(bus_clk);
-	if (!airoha_wdt->wdt_freq)
+	ret = device_property_read_u32(dev, "clock-frequency",
+				       &airoha_wdt->wdt_freq);
+	if (ret)
 		return -EINVAL;
 
 	/* Watchdog ticks at half the bus rate */
