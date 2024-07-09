@@ -138,12 +138,9 @@ static int airoha_wdt_probe(struct platform_device *pdev)
 	if (IS_ERR(airoha_wdt->base))
 		return PTR_ERR(airoha_wdt->base);
 
-	bus_clk = devm_clk_get_enabled(&pdev->dev, "bus");
-	if (IS_ERR(bus_clk))
-		return PTR_ERR(bus_clk);
-
-	airoha_wdt->wdt_freq = clk_get_rate(bus_clk);
-	if (!airoha_wdt->wdt_freq)
+	ret = device_property_read_u32(dev, "clock-frequency",
+				       &airoha_wdt->wdt_freq);
+	if (ret)
 		return -EINVAL;
 
 	/* Watchdog ticks at half the bus rate */
