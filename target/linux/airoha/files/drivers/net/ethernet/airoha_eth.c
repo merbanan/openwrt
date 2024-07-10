@@ -1536,7 +1536,7 @@ static int airoha_qdma_rx_napi_poll(struct napi_struct *napi, int budget)
 static int airoha_qdma_init_rx_queue(struct airoha_eth *eth,
 				     struct airoha_queue *q, int ndesc)
 {
-	struct page_pool_params pp_params = {
+	const struct page_pool_params pp_params = {
 		.order = 0,
 		.pool_size = 256,
 		.flags = PP_FLAG_DMA_MAP | PP_FLAG_DMA_SYNC_DEV |
@@ -2725,14 +2725,9 @@ static int airoha_alloc_gdm_port(struct airoha_eth *eth, struct device_node *np)
 	port->dev = dev;
 	port->eth = eth;
 	port->id = id;
-
-	err = register_netdev(dev);
-	if (err)
-		return err;
-
 	eth->ports[index] = port;
 
-	return 0;
+	return register_netdev(dev);
 }
 
 static int airoha_probe(struct platform_device *pdev)
@@ -2824,8 +2819,10 @@ static int airoha_probe(struct platform_device *pdev)
 error:
 	airoha_hw_cleanup(eth);
 	for (i = 0; i < ARRAY_SIZE(eth->ports); i++) {
-		if (eth->ports[i])
-			unregister_netdev(eth->ports[i]->dev);
+		struct airoha_gdm_port *port = eth->ports[i];
+
+		if (port && port->dev->reg_state == NETREG_REGISTERED)
+			unregister_netdev(port->dev);
 	}
 	platform_set_drvdata(pdev, NULL);
 
