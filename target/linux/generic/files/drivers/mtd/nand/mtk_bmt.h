@@ -77,7 +77,6 @@ extern struct bmt_desc bmtd;
 extern const struct mtk_bmt_ops mtk_bmt_v2_ops;
 extern const struct mtk_bmt_ops mtk_bmt_bbt_ops;
 extern const struct mtk_bmt_ops mtk_bmt_nmbm_ops;
-extern const struct mtk_bmt_ops airoha_bmt_ops;
 
 static inline u32 blk_pg(u16 block)
 {

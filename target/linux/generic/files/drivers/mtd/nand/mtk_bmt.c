@@ -421,8 +421,6 @@ int mtk_bmt_attach(struct mtd_info *mtd)
 		bmtd.ops = &mtk_bmt_nmbm_ops;
 	else if (of_property_read_bool(np, "mediatek,bbt"))
 		bmtd.ops = &mtk_bmt_bbt_ops;
-	else if (of_property_read_bool(np, "airoha,bmt"))
-		bmtd.ops = &airoha_bmt_ops;
 	else
 		return 0;
 
