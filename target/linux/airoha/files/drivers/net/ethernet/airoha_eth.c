@@ -7,13 +7,13 @@
 #include <linux/etherdevice.h>
 #include <linux/iopoll.h>
 #include <linux/kernel.h>
-#include <linux/mutex.h>
 #include <linux/netdevice.h>
 #include <linux/of.h>
 #include <linux/of_net.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 #include <linux/tcp.h>
+#include <linux/u64_stats_sync.h>
 #include <net/dsa.h>
 #include <net/page_pool.h>
 #include <uapi/linux/ppp_defs.h>
@@ -759,7 +759,8 @@ struct airoha_tx_irq_queue {
 
 struct airoha_hw_stats {
 	/* protect concurrent hw_stats accesses */
-	struct mutex mutex;
+	spinlock_t lock;
+	struct u64_stats_sync syncp;
 
 	/* get_stats64 */
 	u64 rx_ok_pkts;
@@ -775,13 +776,11 @@ struct airoha_hw_stats {
 	/* ethtool stats */
 	u64 tx_broadcast;
 	u64 tx_multicast;
-	u64 tx_len[8];
+	u64 tx_len[7];
 	u64 rx_broadcast;
 	u64 rx_fragment;
 	u64 rx_jabber;
-	u64 rx_fc_drops;
-	u64 rx_rc_drops;
-	u64 rx_len[8];
+	u64 rx_len[7];
 };
 
 struct airoha_gdm_port {
@@ -1732,7 +1731,7 @@ static int airoha_qdma_init_tx_queue(struct airoha_eth *eth,
 	spin_lock_init(&q->lock);
 	q->ndesc = size;
 	q->eth = eth;
-	q->free_thr = MAX_SKB_FRAGS;
+	q->free_thr = 1 + MAX_SKB_FRAGS;
 
 	q->entry = devm_kzalloc(eth->dev, q->ndesc * sizeof(*q->entry),
 				GFP_KERNEL);
@@ -2078,14 +2077,17 @@ static void airoha_hw_cleanup(struct airoha_eth *eth)
 		if (!eth->q_rx[i].ndesc)
 			continue;
 
+		napi_disable(&eth->q_rx[i].napi);
 		netif_napi_del(&eth->q_rx[i].napi);
 		airoha_qdma_cleanup_rx_queue(&eth->q_rx[i]);
 		if (eth->q_rx[i].page_pool)
 			page_pool_destroy(eth->q_rx[i].page_pool);
 	}
 
-	for (i = 0; i < ARRAY_SIZE(eth->q_tx_irq); i++)
+	for (i = 0; i < ARRAY_SIZE(eth->q_tx_irq); i++) {
+		napi_disable(&eth->q_tx_irq[i].napi);
 		netif_napi_del(&eth->q_tx_irq[i].napi);
+	}
 
 	for (i = 0; i < ARRAY_SIZE(eth->q_tx); i++) {
 		if (!eth->q_tx[i].ndesc)
@@ -2115,7 +2117,8 @@ static void airoha_update_hw_stats(struct airoha_gdm_port *port)
 	struct airoha_eth *eth = port->eth;
 	u32 val, i = 0;
 
-	lockdep_assert_held(&port->stats.mutex);
+	spin_lock(&port->stats.lock);
+	u64_stats_update_begin(&port->stats.syncp);
 
 	/* TX */
 	val = airoha_fe_rr(eth, REG_FE_GDM_TX_OK_PKT_CNT_H(port->id));
@@ -2138,7 +2141,7 @@ static void airoha_update_hw_stats(struct airoha_gdm_port *port)
 	port->stats.tx_multicast += val;
 
 	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_RUNT_CNT(port->id));
-	port->stats.tx_len[i++] += val;
+	port->stats.tx_len[i] += val;
 
 	val = airoha_fe_rr(eth, REG_FE_GDM_TX_ETH_E64_CNT_H(port->id));
 	port->stats.tx_len[i] += ((u64)val << 32);
@@ -2208,15 +2211,9 @@ static void airoha_update_hw_stats(struct airoha_gdm_port *port)
 	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_JABBER_CNT(port->id));
 	port->stats.rx_jabber += val;
 
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_FC_DROP_CNT(port->id));
-	port->stats.rx_fc_drops += val;
-
-	val = airoha_fe_rr(eth, REG_FE_GDM_RX_RC_DROP_CNT(port->id));
-	port->stats.rx_rc_drops += val;
-
 	i = 0;
 	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_RUNT_CNT(port->id));
-	port->stats.rx_len[i++] += val;
+	port->stats.rx_len[i] += val;
 
 	val = airoha_fe_rr(eth, REG_FE_GDM_RX_ETH_E64_CNT_H(port->id));
 	port->stats.rx_len[i] += ((u64)val << 32);
@@ -2254,6 +2251,9 @@ static void airoha_update_hw_stats(struct airoha_gdm_port *port)
 	/* reset mib counters */
 	airoha_fe_set(eth, REG_FE_GDM_MIB_CLEAR(port->id),
 		      FE_GDM_MIB_RX_CLEAR_MASK | FE_GDM_MIB_TX_CLEAR_MASK);
+
+	u64_stats_update_end(&port->stats.syncp);
+	spin_unlock(&port->stats.lock);
 }
 
 static int airoha_dev_open(struct net_device *dev)
@@ -2324,22 +2324,22 @@ static void airoha_dev_get_stats64(struct net_device *dev,
 				   struct rtnl_link_stats64 *storage)
 {
 	struct airoha_gdm_port *port = netdev_priv(dev);
-
-	mutex_lock(&port->stats.mutex);
+	unsigned int start;
 
 	airoha_update_hw_stats(port);
-	storage->rx_packets = port->stats.rx_ok_pkts;
-	storage->tx_packets = port->stats.tx_ok_pkts;
-	storage->rx_bytes = port->stats.rx_ok_bytes;
-	storage->tx_bytes = port->stats.tx_ok_bytes;
-	storage->multicast = port->stats.rx_multicast;
-	storage->rx_errors = port->stats.rx_errors;
-	storage->rx_dropped = port->stats.rx_drops;
-	storage->tx_dropped = port->stats.tx_drops;
-	storage->rx_crc_errors = port->stats.rx_crc_error;
-	storage->rx_over_errors = port->stats.rx_over_errors;
-
-	mutex_unlock(&port->stats.mutex);
+	do {
+		start = u64_stats_fetch_begin(&port->stats.syncp);
+		storage->rx_packets = port->stats.rx_ok_pkts;
+		storage->tx_packets = port->stats.tx_ok_pkts;
+		storage->rx_bytes = port->stats.rx_ok_bytes;
+		storage->tx_bytes = port->stats.tx_ok_bytes;
+		storage->multicast = port->stats.rx_multicast;
+		storage->rx_errors = port->stats.rx_errors;
+		storage->rx_dropped = port->stats.rx_drops;
+		storage->tx_dropped = port->stats.tx_drops;
+		storage->rx_crc_errors = port->stats.rx_crc_error;
+		storage->rx_over_errors = port->stats.rx_over_errors;
+	} while (u64_stats_fetch_retry(&port->stats.syncp, start));
 }
 
 static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
@@ -2347,10 +2347,10 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
 {
 	struct skb_shared_info *sinfo = skb_shinfo(skb);
 	struct airoha_gdm_port *port = netdev_priv(dev);
+	u32 msg0 = 0, msg1, len = skb_headlen(skb);
 	int i, qid = skb_get_queue_mapping(skb);
 	struct airoha_eth *eth = port->eth;
-	u32 nr_frags, msg0 = 0, msg1;
-	u32 len = skb_headlen(skb);
+	u32 nr_frags = 1 + sinfo->nr_frags;
 	struct netdev_queue *txq;
 	struct airoha_queue *q;
 	void *data = skb->data;
@@ -2379,21 +2379,11 @@ static netdev_tx_t airoha_dev_xmit(struct sk_buff *skb,
 	msg1 = FIELD_PREP(QDMA_ETH_TXMSG_FPORT_MASK, fport) |
 	       FIELD_PREP(QDMA_ETH_TXMSG_METER_MASK, 0x7f);
 
-	if (WARN_ON_ONCE(qid >= ARRAY_SIZE(eth->q_tx)))
-		qid = 0;
-
 	q = &eth->q_tx[qid];
 	if (WARN_ON_ONCE(!q->ndesc))
 		goto error;
 
 	spin_lock_bh(&q->lock);
-
-	nr_frags = 1 + sinfo->nr_frags;
-	if (q->queued + nr_frags > q->ndesc) {
-		/* not enough space in the queue */
-		spin_unlock_bh(&q->lock);
-		return NETDEV_TX_BUSY;
-	}
 
 	index = q->head;
 	for (i = 0; i < nr_frags; i++) {
@@ -2459,32 +2449,6 @@ error:
 	return NETDEV_TX_OK;
 }
 
-static const char * const airoha_ethtool_stats_name[] = {
-	"tx_eth_bc_cnt",
-	"tx_eth_mc_cnt",
-	"tx_eth_lt64_cnt",
-	"tx_eth_eq64_cnt",
-	"tx_eth_65_127_cnt",
-	"tx_eth_128_255_cnt",
-	"tx_eth_256_511_cnt",
-	"tx_eth_512_1023_cnt",
-	"tx_eth_1024_1518_cnt",
-	"tx_eth_gt1518_cnt",
-	"rx_eth_bc_cnt",
-	"rx_eth_frag_cnt",
-	"rx_eth_jabber_cnt",
-	"rx_eth_fc_drops",
-	"rx_eth_rc_drops",
-	"rx_eth_lt64_cnt",
-	"rx_eth_eq64_cnt",
-	"rx_eth_65_127_cnt",
-	"rx_eth_128_255_cnt",
-	"rx_eth_256_511_cnt",
-	"rx_eth_512_1023_cnt",
-	"rx_eth_1024_1518_cnt",
-	"rx_eth_gt1518_cnt",
-};
-
 static void airoha_ethtool_get_drvinfo(struct net_device *dev,
 				       struct ethtool_drvinfo *info)
 {
@@ -2493,64 +2457,62 @@ static void airoha_ethtool_get_drvinfo(struct net_device *dev,
 
 	strscpy(info->driver, eth->dev->driver->name, sizeof(info->driver));
 	strscpy(info->bus_info, dev_name(eth->dev), sizeof(info->bus_info));
-	info->n_stats = ARRAY_SIZE(airoha_ethtool_stats_name) +
-			page_pool_ethtool_stats_get_count();
 }
 
-static void airoha_ethtool_get_strings(struct net_device *dev, u32 sset,
-				       u8 *data)
+static void airoha_ethtool_get_mac_stats(struct net_device *dev,
+					 struct ethtool_eth_mac_stats *stats)
 {
-	int i;
-
-	if (sset != ETH_SS_STATS)
-		return;
-
-	for (i = 0; i < ARRAY_SIZE(airoha_ethtool_stats_name); i++) {
-		memcpy(data + i * ETH_GSTRING_LEN,
-		       airoha_ethtool_stats_name[i], ETH_GSTRING_LEN);
-	}
-
-	data += ETH_GSTRING_LEN * ARRAY_SIZE(airoha_ethtool_stats_name);
-	page_pool_ethtool_stats_get_strings(data);
-}
-
-static int airoha_ethtool_get_sset_count(struct net_device *dev, int sset)
-{
-	if (sset != ETH_SS_STATS)
-		return -EOPNOTSUPP;
-
-	return ARRAY_SIZE(airoha_ethtool_stats_name) +
-	       page_pool_ethtool_stats_get_count();
-}
-
-static void airoha_ethtool_get_stats(struct net_device *dev,
-				     struct ethtool_stats *stats, u64 *data)
-{
-	int off = offsetof(struct airoha_hw_stats, tx_broadcast) / sizeof(u64);
 	struct airoha_gdm_port *port = netdev_priv(dev);
-	u64 *hw_stats = (u64 *)&port->stats + off;
-	struct page_pool_stats pp_stats = {};
-	struct airoha_eth *eth = port->eth;
-	int i;
-
-	BUILD_BUG_ON(ARRAY_SIZE(airoha_ethtool_stats_name) + off !=
-		     sizeof(struct airoha_hw_stats) / sizeof(u64));
-
-	mutex_lock(&port->stats.mutex);
+	unsigned int start;
 
 	airoha_update_hw_stats(port);
-	for (i = 0; i < ARRAY_SIZE(airoha_ethtool_stats_name); i++)
-		*data++ = hw_stats[i];
+	do {
+		start = u64_stats_fetch_begin(&port->stats.syncp);
+		stats->MulticastFramesXmittedOK = port->stats.tx_multicast;
+		stats->BroadcastFramesXmittedOK = port->stats.tx_broadcast;
+		stats->BroadcastFramesReceivedOK = port->stats.rx_broadcast;
+	} while (u64_stats_fetch_retry(&port->stats.syncp, start));
+}
 
-	for (i = 0; i < ARRAY_SIZE(eth->q_rx); i++) {
-		if (!eth->q_rx[i].ndesc)
-			continue;
+static const struct ethtool_rmon_hist_range airoha_ethtool_rmon_ranges[] = {
+	{    0,    64 },
+	{   65,   127 },
+	{  128,   255 },
+	{  256,   511 },
+	{  512,  1023 },
+	{ 1024,  1518 },
+	{ 1519, 10239 },
+	{},
+};
 
-		page_pool_get_stats(eth->q_rx[i].page_pool, &pp_stats);
-	}
-	page_pool_ethtool_stats_get(data, &pp_stats);
+static void
+airoha_ethtool_get_rmon_stats(struct net_device *dev,
+			      struct ethtool_rmon_stats *stats,
+			      const struct ethtool_rmon_hist_range **ranges)
+{
+	struct airoha_gdm_port *port = netdev_priv(dev);
+	struct airoha_hw_stats *hw_stats = &port->stats;
+	unsigned int start;
 
-	mutex_unlock(&port->stats.mutex);
+	BUILD_BUG_ON(ARRAY_SIZE(airoha_ethtool_rmon_ranges) !=
+		     ARRAY_SIZE(hw_stats->tx_len) + 1);
+	BUILD_BUG_ON(ARRAY_SIZE(airoha_ethtool_rmon_ranges) !=
+		     ARRAY_SIZE(hw_stats->rx_len) + 1);
+
+	*ranges = airoha_ethtool_rmon_ranges;
+	airoha_update_hw_stats(port);
+	do {
+		int i;
+
+		start = u64_stats_fetch_begin(&port->stats.syncp);
+		stats->fragments = hw_stats->rx_fragment;
+		stats->jabbers = hw_stats->rx_jabber;
+		for (i = 0; i < ARRAY_SIZE(airoha_ethtool_rmon_ranges) - 1;
+		     i++) {
+			stats->hist[i] = hw_stats->rx_len[i];
+			stats->hist_tx[i] = hw_stats->tx_len[i];
+		}
+	} while (u64_stats_fetch_retry(&port->stats.syncp, start));
 }
 
 static const struct net_device_ops airoha_netdev_ops = {
@@ -2564,9 +2526,8 @@ static const struct net_device_ops airoha_netdev_ops = {
 
 static const struct ethtool_ops airoha_ethtool_ops = {
 	.get_drvinfo		= airoha_ethtool_get_drvinfo,
-	.get_strings		= airoha_ethtool_get_strings,
-	.get_sset_count		= airoha_ethtool_get_sset_count,
-	.get_ethtool_stats	= airoha_ethtool_get_stats,
+	.get_eth_mac_stats      = airoha_ethtool_get_mac_stats,
+	.get_rmon_stats		= airoha_ethtool_get_rmon_stats,
 };
 
 static int airoha_fe_reg_set(void *data, u64 val)
@@ -2721,7 +2682,8 @@ static int airoha_alloc_gdm_port(struct airoha_eth *eth, struct device_node *np)
 	}
 
 	port = netdev_priv(dev);
-	mutex_init(&port->stats.mutex);
+	u64_stats_init(&port->stats.syncp);
+	spin_lock_init(&port->stats.lock);
 	port->dev = dev;
 	port->eth = eth;
 	port->id = id;
@@ -2797,6 +2759,7 @@ static int airoha_probe(struct platform_device *pdev)
 	if (err)
 		goto error;
 
+	airoha_qdma_start_napi(eth);
 	for_each_child_of_node(pdev->dev.of_node, np) {
 		if (!of_device_is_compatible(np, "airoha,eth-mac"))
 			continue;
@@ -2811,7 +2774,6 @@ static int airoha_probe(struct platform_device *pdev)
 		}
 	}
 
-	airoha_qdma_start_napi(eth);
 	airoha_register_debugfs(eth);
 
 	return 0;
