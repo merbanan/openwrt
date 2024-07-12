@@ -68,34 +68,6 @@
 			reg = <0x1980000 0x400000>;
 		};
 	};
-
-	leds {
-		compatible = "gpio-leds";
-
-		pwr_led: led-0 {
-			label = "pwr";
-			color = <LED_COLOR_ID_RED>;
-			function = LED_FUNCTION_POWER;
-			gpios = <&pio 17 GPIO_ACTIVE_LOW>;
-			default-state = "on";
-		};
-
-		los_led: led-2 {
-			label = "los";
-			color = <LED_COLOR_ID_GREEN>;
-			function = LED_FUNCTION_STATUS;
-			gpios = <&pio 19 GPIO_ACTIVE_LOW>;
-			default-state = "on";
-		};
-
-		internet_led: led-3 {
-			label = "internet";
-			color = <LED_COLOR_ID_GREEN>;
-			function = LED_FUNCTION_STATUS;
-			gpios = <&pio 20 GPIO_ACTIVE_LOW>;
-			default-state = "on";
-		};
-	};
 };
 
 &pio {
