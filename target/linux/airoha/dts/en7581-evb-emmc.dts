@@ -69,18 +69,6 @@
 		};
 	};
 
-	pwmleds {
-		compatible = "pwm-leds";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pwm_gpio18_idx10_pins>;
-		lan4_green {
-			label = "pon:green";
-			pwms = <&pwm 10 4000000 0>;
-			max-brightness = <255>;
-		};
-	};
-
-
 	leds {
 		compatible = "gpio-leds";
 
@@ -160,12 +148,6 @@
 			function = "led";
 			pins = "gpio42";
 		};
-	};
-
-	pwm_gpio18_idx10_pins: pwm-gpio18-idx10-pins {
-		function = "pwm";
-		pins = "gpio18";
-		output-enable;
 	};
 
 	mmc_pins: mmc-pins {
