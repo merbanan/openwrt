@@ -124,6 +124,18 @@
 &pio {
 	gpio-ranges = <&pio 0 13 47>;
 
+	mdio_pins: mdio-pins {
+		mux {
+			function = "mdio";
+			groups = "mdio";
+		};
+
+		conf {
+			pins = "gpio2";
+			output-high;
+		};
+	};
+
 	i2c1_pins: i2c1-pins {
 		mux {
 			function = "i2c";
@@ -188,12 +200,6 @@
 	status = "okay";
 };
 
-&i2c1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c1_pins>;
-	status = "okay";
-};
-
 &pwm {
 	status = "okay";
 };
@@ -219,6 +225,8 @@
 };
 
 &switch {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mdio_pins>;
 	status = "okay";
 };
 
