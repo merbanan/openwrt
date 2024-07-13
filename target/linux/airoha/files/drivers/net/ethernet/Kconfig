@@ -41,7 +41,6 @@ config NET_AIROHA
 	depends on ARCH_AIROHA || COMPILE_TEST
 	depends on NET_DSA || !NET_DSA
 	select PAGE_POOL
-	select PAGE_POOL_STATS
 	help
 	  This driver supports the gigabit ethernet MACs in the
 	  Airoha SoC family.
