@@ -227,6 +227,11 @@
 			      <0x0 0x1fbf0268 0x0 0x4>,
 			      <0x0 0x1fa2001c 0x0 0x50>,
 			      <0x0 0x1fa2018c 0x0 0x4>,
+			      <0x0 0x1fbf0208 0x0 0x4>, /* Interrupt status register */
+			      <0x0 0x1fbf0210 0x0 0x4>, /* Level 0 */
+			      <0x0 0x1fbf028C 0x0 0x4>, /* Level 1 */
+			      <0x0 0x1fbf020C 0x0 0x4>, /* Edge 0 */
+			      <0x0 0x1fbf0280 0x0 0x4>, /* Edge 1 */
 			      <0x0 0x1fbf0204 0x0 0x4>,
 			      <0x0 0x1fbf0270 0x0 0x4>,
 			      <0x0 0x1fbf0200 0x0 0x4>,
@@ -238,6 +243,10 @@
 
 			gpio-controller;
 			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		pwm: pwm@1fbf0224 {
@@ -322,7 +331,7 @@
 					tclinux_slave@2880000 {
 						label = "tclinux_slave";
 						reg = <0x02880000 0x02800000>;
-					};		
+					};
 					rootfs_data@5080000 {
 						label = "rootfs_data";
 						reg = <0x5080000 0x00800000>;

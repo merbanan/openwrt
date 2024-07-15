@@ -70,13 +70,12 @@
 		};
 	};
 
-	gpio-keys-polled {
-		compatible = "gpio-keys-polled";
-		poll-interval = <100>;
+	gpio-keys {
+		compatible = "gpio-keys";
 		btn0 {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
-			gpios = <&pio 0 GPIO_ACTIVE_LOW>;
+			gpios = <&pio 21 GPIO_ACTIVE_LOW>;
 		};
 	};
 

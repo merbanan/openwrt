@@ -76,7 +76,7 @@
 		btn0 {
 			label = "reset";
 			linux,code = <KEY_RESTART>;
-			gpios = <&pio 0 GPIO_ACTIVE_LOW>;
+			gpios = <&pio 21 GPIO_ACTIVE_LOW>;
 		};
 	};
 
