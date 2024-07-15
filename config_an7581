@@ -3297,6 +3297,7 @@ CONFIG_PACKAGE_kmod-leds-pwm=y
 # CONFIG_PACKAGE_kmod-l2tp-eth is not set
 # CONFIG_PACKAGE_kmod-l2tp-ip is not set
 # CONFIG_PACKAGE_kmod-macsec is not set
+CONFIG_PACKAGE_kmod-mdio-netlink=y
 # CONFIG_PACKAGE_kmod-misdn is not set
 # CONFIG_PACKAGE_kmod-mpls is not set
 # CONFIG_PACKAGE_kmod-nat46 is not set
@@ -3804,7 +3805,7 @@ CONFIG_PACKAGE_libjson-c=y
 # CONFIG_PACKAGE_liblucihttp-ucode is not set
 # CONFIG_PACKAGE_liblzo is not set
 # CONFIG_PACKAGE_libmd is not set
-# CONFIG_PACKAGE_libmnl is not set
+CONFIG_PACKAGE_libmnl=y
 # CONFIG_PACKAGE_libmount is not set
 # CONFIG_PACKAGE_libmpg123 is not set
 # CONFIG_PACKAGE_libncurses is not set
@@ -4281,8 +4282,8 @@ CONFIG_PACKAGE_wpad-basic=y
 # CONFIG_PACKAGE_chat is not set
 # CONFIG_PACKAGE_ds-lite is not set
 # CONFIG_PACKAGE_etherwake is not set
-CONFIG_PACKAGE_ethtool=y
-# CONFIG_PACKAGE_ethtool-full is not set
+# CONFIG_PACKAGE_ethtool is not set
+CONFIG_PACKAGE_ethtool-full=y
 # CONFIG_PACKAGE_gre is not set
 # CONFIG_PACKAGE_iperf is not set
 CONFIG_PACKAGE_iperf3=y
@@ -4540,6 +4541,7 @@ CONFIG_PACKAGE_libjson-script=y
 # CONFIG_PACKAGE_lsns is not set
 # CONFIG_PACKAGE_mbedtls-util is not set
 # CONFIG_PACKAGE_mcookie is not set
+CONFIG_PACKAGE_mdio-tools=y
 # CONFIG_PACKAGE_more is not set
 # CONFIG_PACKAGE_mount-utils is not set
 # CONFIG_PACKAGE_namei is not set
