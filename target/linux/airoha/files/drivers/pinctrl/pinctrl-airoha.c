@@ -9,17 +9,17 @@
 #include <linux/gpio/driver.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/irqdomain.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
+#include <linux/of_irq.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinconf-generic.h>
 #include <linux/pinctrl/pinmux.h>
 #include <linux/platform_device.h>
-#include <linux/of_irq.h>
-#include <linux/irq.h>
-#include <linux/irqdomain.h>
 
 #include "core.h"
 #include "pinconf.h"
@@ -2173,8 +2173,6 @@ static void airoha_gpio_irq_unmask(struct irq_data *data)
 	u32 tmp;
 	u32 mask = BIT((pin % 16) * 2) | (BIT((pin % 16) * 2) << 1);
 
-	printk("airoha_gpio_irq_unmask: pin = %d mask = %x\n", pin, mask);
-
 	spin_lock_irqsave(&ctrl->lock, flags);
 
 	tmp = ioread32(ctrl->edge[(pin / 16) % 2]);
@@ -2204,8 +2202,6 @@ static void airoha_gpio_irq_mask(struct irq_data *data)
 	u32 tmp;
 	u32 mask = BIT((pin % 16) * 2) | (BIT((pin % 16) * 2) << 1);
 
-	printk("airoha_gpio_irq_mask: pin = %d mask = %x\n", pin, mask);
-
 	spin_lock_irqsave(&ctrl->lock, flags);
 
 	tmp = ioread32(ctrl->edge[(pin / 16) % 2]);
@@ -2225,8 +2221,6 @@ static int airoha_gpio_irq_type(struct irq_data *data, unsigned int type)
 	int pin = data->hwirq;
 	unsigned long flags;
 	u32 mask = BIT(pin);
-
-	printk("airoha_gpio_irq_type: pin = %d mask = %x\n", pin, mask);
 
 	spin_lock_irqsave(&ctrl->lock, flags);
 
@@ -2260,10 +2254,6 @@ static int airoha_gpio_irq_type(struct irq_data *data, unsigned int type)
 		ctrl->level_low |= mask;
 		break;
 	}
-	printk("ctrl->rising: %x\n", ctrl->rising);
-	printk("ctrl->falling: %x\n", ctrl->falling);
-	printk("ctrl->level_high: %x\n", ctrl->level_high);
-	printk("ctrl->level_low: %x\n", ctrl->level_low);
 
 out:
 	spin_unlock_irqrestore(&ctrl->lock, flags);
