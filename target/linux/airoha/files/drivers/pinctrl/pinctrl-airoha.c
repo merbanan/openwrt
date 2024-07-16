@@ -25,7 +25,7 @@
 #include "pinconf.h"
 #include "pinmux.h"
 
-#define AIROHA_GPIO_MAX		32
+#define AIROHA_GPIO_BANK_MAX		32
 
 #define PINCTRL_PIN_GROUP(id)						\
 	PINCTRL_PINGROUP(#id, id##_pins, ARRAY_SIZE(id##_pins))
@@ -277,13 +277,13 @@ struct airoha_pinctrl {
 
 		int gpio_irq;
 		spinlock_t lock;
-		u32 rising;
-		u32 falling;
-		u32 level_high;
-		u32 level_low;
-		void __iomem *irqstatus;
-		void __iomem *level[2];
-		void __iomem *edge[2];
+		u64 rising;
+		u64 falling;
+		u64 level_high;
+		u64 level_low;
+		void __iomem *irqstatus[2];
+		void __iomem *level[4];
+		void __iomem *edge[4];
 	} gpiochip;
 
 };
@@ -2147,18 +2147,27 @@ static irqreturn_t airoha_gpio_irq_handler(int irq, void *data)
 	struct gpio_chip *chip = data;
 	struct airoha_gpiochip *ctrl = chip_to_ctrl(chip);
 
-	unsigned long pending;
+	unsigned long pending_lb, pending_hb;
+
 	int bit;
 
-	pending = ioread32(ctrl->irqstatus);
-	if(!pending)
+	pending_lb = ioread32(ctrl->irqstatus[0]);
+	pending_hb = ioread32(ctrl->irqstatus[1]);
+	if(!(pending_lb | pending_hb))
 		return IRQ_NONE;
 
-	for_each_set_bit(bit, &pending, AIROHA_GPIO_MAX) {
+	for_each_set_bit(bit, &pending_lb, AIROHA_GPIO_BANK_MAX) {
 		u32 map = irq_find_mapping(chip->irq.domain, bit);
 
 		generic_handle_irq(map);
-		iowrite32(BIT(bit), ctrl->irqstatus);
+		iowrite32(BIT(bit), ctrl->irqstatus[0]);
+	}
+
+	for_each_set_bit(bit, &pending_hb, AIROHA_GPIO_BANK_MAX) {
+		u32 map = irq_find_mapping(chip->irq.domain, bit + AIROHA_GPIO_BANK_MAX);
+
+		generic_handle_irq(map);
+		iowrite32(BIT(bit), ctrl->irqstatus[1]);
 	}
 
 	return IRQ_HANDLED;
@@ -2355,9 +2364,13 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 		}
 		pinctrl->gpiochip.gpio_irq = ret;
 
-		pinctrl->gpiochip.irqstatus = devm_platform_ioremap_resource(pdev, index++);
-		if (IS_ERR(pinctrl->gpiochip.irqstatus))
-			return PTR_ERR(pinctrl->gpiochip.irqstatus);
+		pinctrl->gpiochip.irqstatus[0] = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(pinctrl->gpiochip.irqstatus[0]))
+			return PTR_ERR(pinctrl->gpiochip.irqstatus[0]);
+
+		pinctrl->gpiochip.irqstatus[1] = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(pinctrl->gpiochip.irqstatus[1]))
+			return PTR_ERR(pinctrl->gpiochip.irqstatus[1]);
 
 		pinctrl->gpiochip.level[0] = devm_platform_ioremap_resource(pdev, index++);
 		if (IS_ERR(pinctrl->gpiochip.level[0]))
@@ -2367,6 +2380,14 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 		if (IS_ERR(pinctrl->gpiochip.level[1]))
 			return PTR_ERR(pinctrl->gpiochip.level[1]);
 
+		pinctrl->gpiochip.level[2] = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(pinctrl->gpiochip.level[2]))
+			return PTR_ERR(pinctrl->gpiochip.level[2]);
+
+		pinctrl->gpiochip.level[3] = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(pinctrl->gpiochip.level[3]))
+			return PTR_ERR(pinctrl->gpiochip.level[3]);
+
 		pinctrl->gpiochip.edge[0] = devm_platform_ioremap_resource(pdev, index++);
 		if (IS_ERR(pinctrl->gpiochip.edge[0]))
 			return PTR_ERR(pinctrl->gpiochip.edge[0]);
@@ -2375,6 +2396,13 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 		if (IS_ERR(pinctrl->gpiochip.edge[1]))
 			return PTR_ERR(pinctrl->gpiochip.edge[1]);
 
+		pinctrl->gpiochip.edge[2] = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(pinctrl->gpiochip.edge[2]))
+			return PTR_ERR(pinctrl->gpiochip.edge[2]);
+
+		pinctrl->gpiochip.edge[3] = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(pinctrl->gpiochip.edge[3]))
+			return PTR_ERR(pinctrl->gpiochip.edge[3]);
 		/*
 		 * Directly request the irq here instead of passing
 		 * a flow-handler because the irq is shared.
