@@ -40,6 +40,9 @@
 #define PSE_RSV_PAGES			128
 #define PSE_QUEUE_RSV_PAGES		64
 
+#define QDMA_METER_IDX(_n)		((_n) & 0xff)
+#define QDMA_METER_GROUP(_n)		(((_n) >> 8) & 0x3)
+
 /* FE */
 #define PSE_BASE			0x0100
 #define CSR_IFC_BASE			0x0200
@@ -539,6 +542,10 @@
 #define INGRESS_SLOW_TICK_RATIO_MASK	GENMASK(29, 16)
 #define INGRESS_FAST_TICK_MASK		GENMASK(15, 0)
 
+#define REG_INGRESS_TRTCM_PARAM_CFG	0x0074
+#define REG_INGRESS_TRTCM_DATA_LOW	0x0078
+#define REG_INGRESS_TRTCM_DATA_HIGH	0x007c
+
 #define REG_TXQ_DIS_CFG_BASE(_n)	((_n) ? 0x20a0 : 0x00a0)
 #define REG_TXQ_DIS_CFG(_n, _m)		(REG_TXQ_DIS_CFG_BASE((_n)) + (_m) << 2)
 
@@ -564,6 +571,18 @@
 #define EGRESS_TRTCM_MODE_MASK		BIT(30)
 #define EGRESS_SLOW_TICK_RATIO_MASK	GENMASK(29, 16)
 #define EGRESS_FAST_TICK_MASK		GENMASK(15, 0)
+
+#define RATE_LIMIT_PARAM_RW_MASK	BIT(31)
+#define RATE_LIMIT_PARAM_RW_DONE_MASK	BIT(30)
+#define RATE_LIMIT_PARAM_TYPE_MASK	GENMASK(29, 28)
+#define RATE_LIMIT_PARAM_INDEX_MASK	GENMASK(23, 16)
+
+#define TRTCM_PARAM_RW_MASK		BIT(31)
+#define TRTCM_PARAM_RW_DONE_MASK	BIT(30)
+#define TRTCM_PARAM_TYPE_MASK		GENMASK(29, 28)
+#define TRTCM_PARAM_METER_GROUP_MASK	BIT(26)
+#define TRTCM_PARAM_INDEX_MASK		GENMASK(22, 17)
+#define TRTCM_PARAM_RATE_TYPE_MASK	BIT(16)
 
 #define REG_TXWRR_MODE_CFG		0x1020
 #define TWRR_WEIGHT_SCALE_MASK		BIT(31)
@@ -718,6 +737,32 @@ enum {
 	FE_PSE_PORT_GDM4,
 	FE_PSE_PORT_CDM5,
 	FE_PSE_PORT_DROP = 0xf,
+};
+
+enum {
+	RATE_LIMIT_INGRESS_TRTCM,
+	RATE_LIMIT_SLA_TRTCM,
+	RATE_LIMIT_EGRESS_QUEUE,
+	RATE_LIMIT_EGRESS_TRTCM,
+	RATE_LIMIT_GLB_RATECTL,
+};
+
+enum {
+	TRTCM_MISC_MODE,
+	TRTCM_TOKEN_RATE_MODE,
+	TRTCM_BUCKETSIZE_SHIFT_MODE,
+	TRTCM_BUCKET_COUNTER_MODE,
+};
+
+#define DEFAULT_RX_METER_RATE		1000000
+
+#define TRTCM_TOKEN_RATE_MASK		GENMASK(23, 6)
+#define TRTCM_TOKEN_RATE_FRACTION_MASK	GENMASK(5, 0)
+
+enum {
+	TRTCM_METER_MODE = BIT(2),
+	TRTCM_PKT_MODE = BIT(1),
+	TRTCM_TICK_SEL = BIT(0),
 };
 
 struct airoha_queue_entry {
@@ -1859,54 +1904,203 @@ static int airoha_qdma_init_hfwd_queues(struct airoha_eth *eth)
 				 REG_LMGR_INIT_CFG);
 }
 
+static int airoha_qdma_get_rl_param(struct airoha_eth *eth, int qid, u32 addr,
+				    int param, u32 *val_low, u32 *val_high)
+{
+	u32 val, idx = QDMA_METER_IDX(qid), group = QDMA_METER_GROUP(qid);
+	u32 config = FIELD_PREP(RATE_LIMIT_PARAM_TYPE_MASK, param) |
+		     FIELD_PREP(TRTCM_PARAM_METER_GROUP_MASK, group) |
+		     FIELD_PREP(RATE_LIMIT_PARAM_INDEX_MASK, idx);
+
+	airoha_qdma_wr(eth, addr + 0x4, config);
+	if (read_poll_timeout(airoha_qdma_rr, val,
+			      val & TRTCM_PARAM_RW_DONE_MASK, USEC_PER_MSEC,
+			      10 * USEC_PER_MSEC, true, eth, addr + 0x4))
+		return -ETIMEDOUT;
+
+	*val_low = airoha_qdma_rr(eth, addr + 0x8);
+	if (val_high)
+		*val_high = airoha_qdma_rr(eth, addr + 0xc);
+
+	return 0;
+}
+
+static int airoha_qdma_set_rl_param(struct airoha_eth *eth, int qid, u32 addr,
+				    int param, u32 val)
+{
+	u32 idx = QDMA_METER_IDX(qid), group = QDMA_METER_GROUP(qid);
+	u32 config = RATE_LIMIT_PARAM_RW_MASK |
+		     FIELD_PREP(RATE_LIMIT_PARAM_TYPE_MASK, param) |
+		     FIELD_PREP(TRTCM_PARAM_METER_GROUP_MASK, group) |
+		     FIELD_PREP(RATE_LIMIT_PARAM_INDEX_MASK, idx);
+
+	airoha_qdma_wr(eth, addr + 0x8, val);
+	airoha_qdma_wr(eth, addr + 0x4, config);
+
+	return read_poll_timeout(airoha_qdma_rr, val,
+				 val & TRTCM_PARAM_RW_DONE_MASK,
+				 USEC_PER_MSEC, 10 * USEC_PER_MSEC, true,
+				 eth, addr + 0x4);
+}
+
+static int airoha_qdma_set_rl_config(struct airoha_eth *eth, int qid,
+				     u32 addr, bool enable,
+				     u32 enable_mask)
+{
+	u32 val;
+
+	if (airoha_qdma_get_rl_param(eth, qid, addr, TRTCM_MISC_MODE,
+				     &val, NULL))
+		return -EINVAL;
+
+	val = enable ? val | enable_mask : val & ~enable_mask;
+
+	return airoha_qdma_set_rl_param(eth, qid, addr, TRTCM_MISC_MODE, val);
+}
+
+static int airoha_qdma_set_rx_token_rate(struct airoha_eth *eth, int qid,
+					 u32 addr)
+{
+	u32 val, config, tick, unit, rate, rate_frac;
+
+	if (airoha_qdma_get_rl_param(eth, qid, addr, TRTCM_MISC_MODE,
+				     &config, NULL))
+		return -EINVAL;
+
+	val = airoha_qdma_rr(eth, addr);
+	tick = FIELD_GET(INGRESS_FAST_TICK_MASK, val);
+	if (config & TRTCM_TICK_SEL)
+		tick *= FIELD_GET(INGRESS_SLOW_TICK_RATIO_MASK, val);
+	if (!tick)
+		return -EINVAL;
+
+	unit = (config & TRTCM_PKT_MODE) ? 1000000 / tick : 8000 / tick;
+	if (!unit)
+		return -EINVAL;
+
+	rate = DEFAULT_RX_METER_RATE / unit;
+	rate_frac = DEFAULT_RX_METER_RATE % unit;
+	rate_frac = FIELD_PREP(TRTCM_TOKEN_RATE_MASK, rate_frac) / unit;
+	rate = FIELD_PREP(TRTCM_TOKEN_RATE_MASK, rate) |
+	       FIELD_PREP(TRTCM_TOKEN_RATE_FRACTION_MASK, rate_frac);
+
+	return airoha_qdma_set_rl_param(eth, qid, addr, TRTCM_TOKEN_RATE_MODE,
+					rate);
+}
+
+static int airoha_qdma_set_token_size(struct airoha_eth *eth, int qid, u32 addr)
+{
+	u32 unit, val;
+
+	if (airoha_qdma_get_rl_param(eth, qid, addr, TRTCM_MISC_MODE,
+				     &val, NULL))
+		return -EINVAL;
+
+	unit = (val & TRTCM_TICK_SEL) ? 256 : 1024;
+	/* FIXME compute token size shift */
+	val = unit / 2;
+
+	return airoha_qdma_set_rl_param(eth, qid, addr,
+					TRTCM_BUCKETSIZE_SHIFT_MODE, val);
+}
+
+static int airoha_qdma_init_rxq_meter(struct airoha_eth *eth, int qid)
+{
+	int err;
+
+	err = airoha_qdma_set_rl_config(eth, qid, REG_INGRESS_TRTCM_CFG,
+					true, TRTCM_METER_MODE);
+	if (err)
+		return err;
+
+	err = airoha_qdma_set_rl_config(eth, qid, REG_INGRESS_TRTCM_CFG,
+					true, TRTCM_PKT_MODE);
+	if (err)
+		return err;
+
+	return airoha_qdma_set_rl_config(eth, qid, REG_INGRESS_TRTCM_CFG,
+					 qid == 0 || qid == 2 || qid == 8,
+					 TRTCM_TICK_SEL);
+}
+
+static int airoha_qdma_init_rx_meter(struct airoha_eth *eth)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(eth->q_rx); i++) {
+		int err;
+
+		if (!eth->q_rx[i].ndesc)
+			continue;
+
+		err = airoha_qdma_init_rxq_meter(eth, i);
+		if (err)
+			return err;
+
+		err = airoha_qdma_set_rx_token_rate(eth, i,
+						    REG_INGRESS_TRTCM_CFG);
+		if (err)
+			return err;
+
+		err = airoha_qdma_set_token_size(eth, i,
+						 REG_INGRESS_TRTCM_CFG);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static void airoha_qdma_init_qos(struct airoha_eth *eth)
 {
 	airoha_qdma_clear(eth, REG_TXWRR_MODE_CFG, TWRR_WEIGHT_SCALE_MASK);
 	airoha_qdma_set(eth, REG_TXWRR_MODE_CFG, TWRR_WEIGHT_BASE_MASK);
 
-	airoha_qdma_clear(eth, REG_PSE_BUF_USAGE_CFG,
-			  PSE_BUF_ESTIMATE_EN_MASK);
-
-	airoha_qdma_set(eth, REG_EGRESS_RATE_METER_CFG,
-			EGRESS_RATE_METER_EN_MASK |
-			EGRESS_RATE_METER_EQ_RATE_EN_MASK);
 	/* 2047us x 31 = 63.457ms */
 	airoha_qdma_rmw(eth, REG_EGRESS_RATE_METER_CFG,
-			EGRESS_RATE_METER_WINDOW_SZ_MASK,
-			FIELD_PREP(EGRESS_RATE_METER_WINDOW_SZ_MASK, 0x1f));
-	airoha_qdma_rmw(eth, REG_EGRESS_RATE_METER_CFG,
+			EGRESS_RATE_METER_EN_MASK |
+			EGRESS_RATE_METER_EQ_RATE_EN_MASK |
+			EGRESS_RATE_METER_WINDOW_SZ_MASK |
 			EGRESS_RATE_METER_TIMESLICE_MASK,
+			EGRESS_RATE_METER_EN_MASK |
+			EGRESS_RATE_METER_EQ_RATE_EN_MASK |
+			FIELD_PREP(EGRESS_RATE_METER_WINDOW_SZ_MASK, 0x1f) |
 			FIELD_PREP(EGRESS_RATE_METER_TIMESLICE_MASK, 0x7ff));
 
-	/* ratelimit init */
-	airoha_qdma_set(eth, REG_GLB_TRTCM_CFG, GLB_TRTCM_EN_MASK);
-	/* fast-tick 25us */
-	airoha_qdma_rmw(eth, REG_GLB_TRTCM_CFG, GLB_FAST_TICK_MASK,
-			FIELD_PREP(GLB_FAST_TICK_MASK, 25));
-	airoha_qdma_rmw(eth, REG_GLB_TRTCM_CFG, GLB_SLOW_TICK_RATIO_MASK,
+	/* ratelimit init - fast-tick 25us */
+	airoha_qdma_rmw(eth, REG_GLB_TRTCM_CFG,
+			GLB_TRTCM_EN_MASK | GLB_FAST_TICK_MASK |
+			GLB_SLOW_TICK_RATIO_MASK,
+			GLB_TRTCM_EN_MASK |
+			FIELD_PREP(GLB_FAST_TICK_MASK, 25) |
 			FIELD_PREP(GLB_SLOW_TICK_RATIO_MASK, 40));
-
-	airoha_qdma_set(eth, REG_EGRESS_TRTCM_CFG, EGRESS_TRTCM_EN_MASK);
-	airoha_qdma_rmw(eth, REG_EGRESS_TRTCM_CFG, EGRESS_FAST_TICK_MASK,
-			FIELD_PREP(EGRESS_FAST_TICK_MASK, 25));
 	airoha_qdma_rmw(eth, REG_EGRESS_TRTCM_CFG,
+			EGRESS_TRTCM_EN_MASK | EGRESS_FAST_TICK_MASK |
 			EGRESS_SLOW_TICK_RATIO_MASK,
+			EGRESS_TRTCM_EN_MASK |
+			FIELD_PREP(EGRESS_FAST_TICK_MASK, 25) |
 			FIELD_PREP(EGRESS_SLOW_TICK_RATIO_MASK, 40));
+	airoha_qdma_rmw(eth, REG_INGRESS_TRTCM_CFG,
+			INGRESS_TRTCM_EN_MASK | INGRESS_FAST_TICK_MASK |
+			INGRESS_SLOW_TICK_RATIO_MASK,
+			INGRESS_TRTCM_EN_MASK |
+			FIELD_PREP(INGRESS_FAST_TICK_MASK, 125) |
+			FIELD_PREP(INGRESS_SLOW_TICK_RATIO_MASK, 8));
+	airoha_qdma_rmw(eth, REG_SLA_TRTCM_CFG,
+			SLA_TRTCM_EN_MASK | SLA_FAST_TICK_MASK |
+			SLA_SLOW_TICK_RATIO_MASK,
+			SLA_TRTCM_EN_MASK |
+			FIELD_PREP(SLA_FAST_TICK_MASK, 25) |
+			FIELD_PREP(SLA_SLOW_TICK_RATIO_MASK, 40));
 
-	airoha_qdma_set(eth, REG_INGRESS_TRTCM_CFG, INGRESS_TRTCM_EN_MASK);
 	airoha_qdma_clear(eth, REG_INGRESS_TRTCM_CFG,
 			  INGRESS_TRTCM_MODE_MASK);
-	airoha_qdma_rmw(eth, REG_INGRESS_TRTCM_CFG, INGRESS_FAST_TICK_MASK,
-			FIELD_PREP(INGRESS_FAST_TICK_MASK, 125));
-	airoha_qdma_rmw(eth, REG_INGRESS_TRTCM_CFG,
-			INGRESS_SLOW_TICK_RATIO_MASK,
-			FIELD_PREP(INGRESS_SLOW_TICK_RATIO_MASK, 8));
+	/* rx rate_limit default settings */
+	airoha_qdma_init_rx_meter(eth);
 
-	airoha_qdma_set(eth, REG_SLA_TRTCM_CFG, SLA_TRTCM_EN_MASK);
-	airoha_qdma_rmw(eth, REG_SLA_TRTCM_CFG, SLA_FAST_TICK_MASK,
-			FIELD_PREP(SLA_FAST_TICK_MASK, 25));
-	airoha_qdma_rmw(eth, REG_SLA_TRTCM_CFG, SLA_SLOW_TICK_RATIO_MASK,
-			FIELD_PREP(SLA_SLOW_TICK_RATIO_MASK, 40));
+	/* xmit ring drop default setting */
+	airoha_qdma_set(eth, REG_TX_RING_BLOCKING(0),
+			TX_RING_IRQ_BLOCKING_TX_DROP_EN_MASK);
 }
 
 static int airoha_qdma_hw_init(struct airoha_eth *eth)
