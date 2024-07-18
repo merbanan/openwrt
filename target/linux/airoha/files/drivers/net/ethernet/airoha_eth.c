@@ -1996,8 +1996,8 @@ static int airoha_qdma_set_token_size(struct airoha_eth *eth, int qid, u32 addr)
 				     &val, NULL))
 		return -EINVAL;
 
-	unit = (val & TRTCM_TICK_SEL) ? 256 : 1024;
-	/* FIXME compute token size shift */
+	unit = (val & TRTCM_TICK_SEL) ? 16 : 1024;
+	/* FIXME: compute token size shift */
 	val = unit / 2;
 
 	return airoha_qdma_set_rl_param(eth, qid, addr,
