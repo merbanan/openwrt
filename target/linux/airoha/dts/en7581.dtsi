@@ -156,8 +156,9 @@
 
 		watchdog@1fbf0100 {
 			compatible = "airoha,en7581-wdt";
-			reg = <0x0 0x1fbf0100 0x0 0x38>;
-			clock-frequency = <300000000>;
+			reg = <0x1fbf0100 0x8>;
+			clocks = <&scuclk EN7523_CLK_BUS>;
+			clock-names = "bus";
 		};
 
 		uart2: serial@1fbf0300 {
@@ -214,12 +215,6 @@
 			#reset-cells = <1>;
 		};
 
-		rng@1faa1000 {
-			compatible = "airoha,en7581-trng";
-			reg = <0x0 0x1faa1000 0x0 0xc04>;
-			interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
-		};
-
 		pio: pinctrl {
 			compatible = "airoha,en7581-pinctrl";
 			reg = <0x0 0x1fa20214 0x0 0x30>,
@@ -234,10 +229,25 @@
 			      <0x0 0x1fbf0260 0x0 0x4>,
 			      <0x0 0x1fbf0264 0x0 0x4>,
 			      <0x0 0x1fbf0214 0x0 0x4>,
-			      <0x0 0x1fbf0278 0x0 0x4>;
+			      <0x0 0x1fbf0278 0x0 0x4>,
+			      <0x0 0x1fbf0208 0x0 0x4>,
+			      <0x0 0x1fbf027c 0x0 0x4>,
+			      <0x0 0x1fbf0210 0x0 0x4>,
+			      <0x0 0x1fbf028c 0x0 0x4>,
+			      <0x0 0x1fbf0290 0x0 0x4>,
+			      <0x0 0x1fbf0294 0x0 0x4>,
+			      <0x0 0x1fbf020c 0x0 0x4>,
+			      <0x0 0x1fbf0280 0x0 0x4>,
+			      <0x0 0x1fbf0284 0x0 0x4>,
+			      <0x0 0x1fbf0288 0x0 0x4>;
 
 			gpio-controller;
 			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		pwm: pwm@1fbf0224 {
@@ -305,32 +315,9 @@
 				spi-tx-bus-width = <1>;
 				spi-rx-bus-width = <2>;
 				airoha,bmt;
-
 				partitions {
-					compatible = "airoha,airoha-partitions";
-					#address-cells = <1>;
-					#size-cells = <1>;
-
-					bootloader@0 {
-						label = "bootloader";
-						reg = <0x00000000 0x00080000>;
-					};
-					tclinux@80000 {
-						label = "tclinux";
-						reg = <0x00080000 0x02800000>;
-					};
-					tclinux_slave@2880000 {
-						label = "tclinux_slave";
-						reg = <0x02880000 0x02800000>;
-					};		
-					rootfs_data@5080000 {
-						label = "rootfs_data";
-						reg = <0x5080000 0x00800000>;
-					};
-					art@de80000 {
-						label = "art";
-						reg = <0xffffffff 0x00300000>;
-					};
+					compatible =
+						"airoha,airoha-partitions";
 				};
 			};
 		};

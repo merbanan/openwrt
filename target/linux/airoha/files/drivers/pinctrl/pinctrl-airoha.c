@@ -2,13 +2,18 @@
 /*
  * Author: Lorenzo Bianconi <lorenzo@kernel.org>
  * Author: Benjamin Larsson <benjamin.larsson@genexis.eu>
+ * Author: Markus Gothe <markus.gothe@genexis.eu>
  */
 
 #include <dt-bindings/pinctrl/mt65xx.h>
 #include <linux/gpio/driver.h>
+#include <linux/interrupt.h>
 #include <linux/io.h>
+#include <linux/irq.h>
+#include <linux/irqdomain.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
+#include <linux/of_irq.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinconf.h>
@@ -251,9 +256,26 @@ struct airoha_pinctrl_conf {
 	struct airoha_pinctrl_reg reg;
 };
 
+struct airoha_pinctrl_gpiochip {
+	struct gpio_chip chip;
+
+	void __iomem *data[2];
+	void __iomem *dir[4];
+	void __iomem *out[2];
+
+	/* protect concurrent register accesses */
+	spinlock_t lock;
+	void __iomem *status[2];
+	void __iomem *level[4];
+	void __iomem *edge[4];
+
+	u32 irq_type[AIROHA_NUM_GPIOS];
+};
+
 struct airoha_pinctrl {
 	struct pinctrl_dev *ctrl;
 
+	/* protect concurrent register accesses */
 	struct mutex mutex;
 	struct {
 		void __iomem *mux[3];
@@ -261,13 +283,7 @@ struct airoha_pinctrl {
 		void __iomem *pcie_rst;
 	} regs;
 
-	struct {
-		struct gpio_chip chip;
-
-		void __iomem *data[2];
-		void __iomem *dir[4];
-		void __iomem *out[2];
-	} gpiochip;
+	struct airoha_pinctrl_gpiochip gpiochip;
 };
 
 static struct pinctrl_pin_desc airoha_pinctrl_pins[] = {
@@ -1593,12 +1609,24 @@ static const struct airoha_pinctrl_conf airoha_pinctrl_pcie_rst_od_conf[] = {
 	PINCTRL_CONF_DESC(63, REG_PCIE_RESET_OD, PCIE2_RESET_OD_MASK),
 };
 
+static u32 airoha_pinctrl_rmw_unlock(void __iomem *addr, u32 mask, u32 val)
+{
+	val |= (readl(addr) & ~mask);
+	writel(val, addr);
+
+	return val;
+}
+
+#define airoha_pinctrl_set_unlock(addr, val)					\
+	airoha_pinctrl_rmw_unlock((addr), 0, (val))
+#define airoha_pinctrl_clear_unlock(addr, mask)					\
+	airoha_pinctrl_rmw_unlock((addr), (mask), (0))
+
 static u32 airoha_pinctrl_rmw(struct airoha_pinctrl *pinctrl,
 			      void __iomem *addr, u32 mask, u32 val)
 {
 	mutex_lock(&pinctrl->mutex);
-	val |= (readl(addr) & ~mask);
-	writel(val, addr);
+	val = airoha_pinctrl_rmw_unlock(addr, mask, val);
 	mutex_unlock(&pinctrl->mutex);
 
 	return val;
@@ -2068,14 +2096,119 @@ static int airoha_pinctrl_gpio_direction_output(struct gpio_chip *chip,
 	return 0;
 }
 
+static void airoha_pinctrl_gpio_irq_unmask(struct irq_data *data)
+{
+	u8 index = data->hwirq / AIROHA_REG_GPIOCTRL_NUM_GPIO;
+	u32 mask = GENMASK(2 * index + 1, 2 * index);
+	struct airoha_pinctrl_gpiochip *gpiochip;
+	u32 val = BIT(index);
+	unsigned long flags;
+
+	gpiochip = irq_data_get_irq_chip_data(data);
+	if (WARN_ON_ONCE(data->hwirq >= ARRAY_SIZE(gpiochip->irq_type)))
+		return;
+
+	spin_lock_irqsave(&gpiochip->lock, flags);
+
+	switch (gpiochip->irq_type[data->hwirq] & IRQ_TYPE_SENSE_MASK) {
+	case IRQ_TYPE_LEVEL_LOW:
+		val = val << 2;
+		fallthrough;
+	case IRQ_TYPE_LEVEL_HIGH:
+		airoha_pinctrl_rmw_unlock(gpiochip->level[index], mask, val);
+		break;
+	case IRQ_TYPE_EDGE_FALLING:
+		val = val << 2;
+		fallthrough;
+	case IRQ_TYPE_EDGE_RISING:
+		airoha_pinctrl_rmw_unlock(gpiochip->edge[index], mask, val);
+		break;
+	case IRQ_TYPE_EDGE_BOTH:
+		airoha_pinctrl_set_unlock(gpiochip->edge[index], mask);
+		break;
+	default:
+		break;
+	}
+
+	spin_unlock_irqrestore(&gpiochip->lock, flags);
+}
+
+static void airoha_pinctrl_gpio_irq_mask(struct irq_data *data)
+{
+	u8 index = data->hwirq / AIROHA_REG_GPIOCTRL_NUM_GPIO;
+	u32 mask = GENMASK(2 * index + 1, 2 * index);
+	struct airoha_pinctrl_gpiochip *gpiochip;
+	unsigned long flags;
+
+	gpiochip = irq_data_get_irq_chip_data(data);
+
+	spin_lock_irqsave(&gpiochip->lock, flags);
+
+	airoha_pinctrl_clear_unlock(gpiochip->edge[index], mask);
+	airoha_pinctrl_clear_unlock(gpiochip->level[index], mask);
+
+	spin_unlock_irqrestore(&gpiochip->lock, flags);
+}
+
+static int airoha_pinctrl_gpio_irq_type(struct irq_data *data,
+					unsigned int type)
+{
+	struct airoha_pinctrl_gpiochip *gpiochip;
+	unsigned long flags;
+
+	gpiochip = irq_data_get_irq_chip_data(data);
+	if (data->hwirq >= ARRAY_SIZE(gpiochip->irq_type))
+		return -EINVAL;
+
+	spin_lock_irqsave(&gpiochip->lock, flags);
+
+	if (type == IRQ_TYPE_PROBE) {
+		if (gpiochip->irq_type[data->hwirq])
+			goto unlock;
+
+		type = IRQ_TYPE_EDGE_RISING | IRQ_TYPE_EDGE_FALLING;
+	}
+	gpiochip->irq_type[data->hwirq] = type & IRQ_TYPE_SENSE_MASK;
+unlock:
+	spin_unlock_irqrestore(&gpiochip->lock, flags);
+
+	return 0;
+}
+
+static irqreturn_t airoha_pinctrl_gpio_irq_handler(int irq, void *data)
+{
+	struct airoha_pinctrl_gpiochip *gpiochip;
+	bool handled = false;
+	int i;
+
+	gpiochip = container_of(data, struct airoha_pinctrl_gpiochip, chip);
+	for (i = 0; i < ARRAY_SIZE(gpiochip->status); i++) {
+		unsigned long status = readl(gpiochip->status[i]);
+		struct gpio_irq_chip *girq = &gpiochip->chip.irq;
+		int irq;
+
+		for_each_set_bit(irq, &status, AIROHA_GPIO_BANK_SIZE) {
+			u32 offset = irq + i * AIROHA_GPIO_BANK_SIZE;
+
+			generic_handle_irq(irq_find_mapping(girq->domain,
+							    offset));
+			writel(BIT(irq), gpiochip->status[i]);
+		}
+		handled |= !!status;
+	}
+
+	return handled ? IRQ_HANDLED : IRQ_NONE;
+}
+
 static int airoha_pinctrl_add_gpiochip(struct airoha_pinctrl *pinctrl,
 				       struct platform_device *pdev,
 				       int index)
 {
 	struct gpio_chip *chip = &pinctrl->gpiochip.chip;
+	struct gpio_irq_chip *girq = &chip->irq;
 	struct device *dev = &pdev->dev;
 	void __iomem *ptr;
-	int i;
+	int i, irq, err;
 
 	for (i = 0; i < ARRAY_SIZE(pinctrl->gpiochip.data); i++) {
 		ptr = devm_platform_ioremap_resource(pdev, index++);
@@ -2115,6 +2248,61 @@ static int airoha_pinctrl_add_gpiochip(struct airoha_pinctrl *pinctrl,
 	chip->base = -1;
 	chip->ngpio = AIROHA_NUM_GPIOS;
 
+	if (!of_property_read_bool(dev->of_node, "interrupt-controller"))
+		goto out;
+
+	for (i = 0; i < ARRAY_SIZE(pinctrl->gpiochip.status); i++) {
+		ptr = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(ptr))
+			return dev_err_probe(dev, PTR_ERR(ptr),
+					     "failed to map irq status regs\n");
+
+		pinctrl->gpiochip.status[i] = ptr;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(pinctrl->gpiochip.level); i++) {
+		ptr = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(ptr))
+			return dev_err_probe(dev, PTR_ERR(ptr),
+					     "failed to map irq level regs\n");
+
+		pinctrl->gpiochip.level[i] = ptr;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(pinctrl->gpiochip.edge); i++) {
+		ptr = devm_platform_ioremap_resource(pdev, index++);
+		if (IS_ERR(ptr))
+			return dev_err_probe(dev, PTR_ERR(ptr),
+					     "failed to map irq edge regs\n");
+
+		pinctrl->gpiochip.edge[i] = ptr;
+	}
+
+	spin_lock_init(&pinctrl->gpiochip.lock);
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0)
+		return irq;
+
+	err = devm_request_irq(dev, irq, airoha_pinctrl_gpio_irq_handler,
+			       IRQF_SHARED, dev_name(dev), chip);
+	if (err) {
+		dev_err(dev, "error requesting irq %d: %d\n", irq, err);
+		return err;
+	}
+
+	girq->chip = devm_kzalloc(dev, sizeof(*girq->chip), GFP_KERNEL);
+	if (!girq->chip)
+		return -ENOMEM;
+
+	girq->chip->name = dev_name(dev);
+	girq->chip->irq_unmask = airoha_pinctrl_gpio_irq_unmask;
+	girq->chip->irq_mask = airoha_pinctrl_gpio_irq_mask;
+	girq->chip->irq_mask_ack = airoha_pinctrl_gpio_irq_mask;
+	girq->chip->irq_set_type = airoha_pinctrl_gpio_irq_type;
+	girq->chip->flags = IRQCHIP_SET_TYPE_MASKED;
+	girq->default_type = IRQ_TYPE_NONE;
+	girq->handler = handle_simple_irq;
+out:
 	return devm_gpiochip_add_data(dev, chip, pinctrl);
 }
 
@@ -2210,4 +2398,5 @@ module_platform_driver(airoha_pinctrl_driver);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Lorenzo Bianconi <lorenzo@kernel.org>");
 MODULE_AUTHOR("Benjamin Larsson <benjamin.larsson@genexis.eu>");
+MODULE_AUTHOR("Markus Gothe <markus.gothe@genexis.eu>");
 MODULE_DESCRIPTION("Pinctrl driver for Airoha SoC");
