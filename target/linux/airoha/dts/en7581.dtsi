@@ -315,10 +315,6 @@
 				spi-tx-bus-width = <1>;
 				spi-rx-bus-width = <2>;
 				airoha,bmt;
-				partitions {
-					compatible =
-						"airoha,airoha-partitions";
-				};
 			};
 		};
 
