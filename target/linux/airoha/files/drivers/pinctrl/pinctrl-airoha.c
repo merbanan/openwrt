@@ -101,6 +101,71 @@
 #define REG_FORCE_GPIO32_EN			0x18
 #define REG_INIC_MDIO_SLV_MOD			0x1c
 
+/* LED MAP */
+#define REG_LAN0_LED0_MAPPING			0x68
+#define LAN4_LED0_MAPPING_MASK 			GENMASK(18, 16)
+#define PORT4_LED0_PHY0_LED0_MAP		0
+#define PORT4_LED0_PHY1_LED0_MAP		BIT(16)
+#define PORT4_LED0_PHY2_LED0_MAP		BIT(17)
+#define PORT4_LED0_PHY3_LED0_MAP		(BIT(17)|BIT(16))
+#define PORT4_LED0_PHY4_LED0_MAP		BIT(18)
+#define LAN3_LED0_MAPPING_MASK 			GENMASK(14, 12)
+#define PORT3_LED0_PHY0_LED0_MAP		0
+#define PORT3_LED0_PHY1_LED0_MAP		BIT(12)
+#define PORT3_LED0_PHY2_LED0_MAP		BIT(13)
+#define PORT3_LED0_PHY3_LED0_MAP		(BIT(13)|BIT(12))
+#define PORT3_LED0_PHY4_LED0_MAP		BIT(14)
+#define LAN2_LED0_MAPPING_MASK 			GENMASK(10, 8)
+#define PORT2_LED0_PHY0_LED0_MAP		0
+#define PORT2_LED0_PHY1_LED0_MAP		BIT(10)
+#define PORT2_LED0_PHY2_LED0_MAP		BIT(11)
+#define PORT2_LED0_PHY3_LED0_MAP		(BIT(11)|BIT(10))
+#define PORT2_LED0_PHY4_LED0_MAP		BIT(12)
+#define LAN1_LED0_MAPPING_MASK 			GENMASK(6, 4)
+#define PORT1_LED0_PHY0_LED0_MAP		0)
+#define PORT1_LED0_PHY1_LED0_MAP		BIT(4)
+#define PORT1_LED0_PHY2_LED0_MAP		BIT(5)
+#define PORT1_LED0_PHY3_LED0_MAP		(BIT(5)|BIT(4))
+#define PORT1_LED0_PHY4_LED0_MAP		BIT(6)
+#define LAN0_LED0_MAPPING_MASK 			GENMASK(2, 0)
+#define PORT0_LED0_PHY0_LED0_MAP		0
+#define PORT0_LED0_PHY1_LED0_MAP		BIT(1)
+#define PORT0_LED0_PHY2_LED0_MAP		BIT(2)
+#define PORT0_LED0_PHY3_LED0_MAP		(BIT(2)|BIT(1))
+#define PORT0_LED0_PHY4_LED0_MAP		BIT(3)
+
+#define REG_LAN0_LED1_MAPPING			0x6C
+#define LAN4_LED1_MAPPING_MASK 			GENMASK(18, 16)
+#define PORT4_LED1_PHY0_LED1_MAP		0
+#define PORT4_LED1_PHY1_LED1_MAP		BIT(16)
+#define PORT4_LED1_PHY2_LED1_MAP		BIT(17)
+#define PORT4_LED1_PHY3_LED1_MAP		(BIT(17)|BIT(16))
+#define PORT4_LED1_PHY4_LED1_MAP		BIT(18)
+#define LAN3_LED1_MAPPING_MASK 			GENMASK(14, 12)
+#define PORT3_LED1_PHY0_LED1_MAP		0
+#define PORT3_LED1_PHY1_LED1_MAP		BIT(12)
+#define PORT3_LED1_PHY2_LED1_MAP		BIT(13)
+#define PORT3_LED1_PHY3_LED1_MAP		(BIT(13)|BIT(12))
+#define PORT3_LED1_PHY4_LED1_MAP		BIT(14)
+#define LAN2_LED1_MAPPING_MASK 			GENMASK(10, 8)
+#define PORT2_LED1_PHY0_LED1_MAP		0
+#define PORT2_LED1_PHY1_LED1_MAP		BIT(10)
+#define PORT2_LED1_PHY2_LED1_MAP		BIT(11)
+#define PORT2_LED1_PHY3_LED1_MAP		(BIT(11)|BIT(10))
+#define PORT2_LED1_PHY4_LED1_MAP		BIT(12)
+#define LAN1_LED1_MAPPING_MASK 			GENMASK(6, 4)
+#define PORT1_LED1_PHY0_LED1_MAP		0)
+#define PORT1_LED1_PHY1_LED1_MAP		BIT(4)
+#define PORT1_LED1_PHY2_LED1_MAP		BIT(5)
+#define PORT1_LED1_PHY3_LED1_MAP		(BIT(5)|BIT(4))
+#define PORT1_LED1_PHY4_LED1_MAP		BIT(6)
+#define LAN0_LED1_MAPPING_MASK 			GENMASK(2, 0)
+#define PORT0_LED1_PHY0_LED1_MAP		0
+#define PORT0_LED1_PHY1_LED1_MAP		BIT(1)
+#define PORT0_LED1_PHY2_LED1_MAP		BIT(2)
+#define PORT0_LED1_PHY3_LED1_MAP		(BIT(2)|BIT(1))
+#define PORT0_LED1_PHY4_LED1_MAP		BIT(3)
+
 /* CONF */
 #define REG_I2C_SDA_E2				0x00
 #define SPI_MISO_E2_MASK			BIT(14)
@@ -230,10 +295,12 @@
 struct airoha_pinctrl_reg {
 	u32 offset;
 	u32 mask;
+	u32 val;
 };
 
 enum airoha_pinctrl_mux_func {
 	AIROHA_FUNC_MUX,
+	AIROHA_FUNC_LED_MUX,
 	AIROHA_FUNC_PWM_MUX,
 	AIROHA_FUNC_PWM_EXT_MUX,
 };
@@ -278,7 +345,7 @@ struct airoha_pinctrl {
 	/* protect concurrent register accesses */
 	struct mutex mutex;
 	struct {
-		void __iomem *mux[3];
+		void __iomem *mux[4];
 		void __iomem *conf;
 		void __iomem *pcie_rst;
 	} regs;
@@ -537,11 +604,6 @@ static const char *const emmc_groups[] = { "emmc" };
 static const char *const pnand_groups[] = { "pnand" };
 static const char *const pcie_reset_groups[] = { "pcie_reset0", "pcie_reset1",
 						 "pcie_reset2" };
-static const char *const led_groups[] = { "gpio33", "gpio43",
-					  "gpio34", "gpio44",
-					  "gpio35", "gpio45",
-					  "gpio42", "gpio46" };
-
 static const char *const pwm_groups[] = { "gpio0", "gpio1",
 					  "gpio2", "gpio3",
 					  "gpio4", "gpio5",
@@ -564,6 +626,22 @@ static const char *const pwm_groups[] = { "gpio0", "gpio1",
 					  "gpio42", "gpio43",
 					  "gpio44", "gpio45",
 					  "gpio46", "gpio47" };
+static const char *const phy1_led0_groups[] = { "gpio33", "gpio34",
+					        "gpio35", "gpio42" };
+static const char *const phy2_led0_groups[] = { "gpio33", "gpio34",
+					        "gpio35", "gpio42" };
+static const char *const phy3_led0_groups[] = { "gpio33", "gpio34",
+					        "gpio35", "gpio42" };
+static const char *const phy4_led0_groups[] = { "gpio33", "gpio34",
+					        "gpio35", "gpio42" };
+static const char *const phy1_led1_groups[] = { "gpio43", "gpio44",
+					        "gpio45", "gpio46" };
+static const char *const phy2_led1_groups[] = { "gpio43", "gpio44",
+					        "gpio45", "gpio46" };
+static const char *const phy3_led1_groups[] = { "gpio43", "gpio44",
+					        "gpio45", "gpio46" };
+static const char *const phy4_led1_groups[] = { "gpio43", "gpio44",
+					        "gpio45", "gpio46" };
 
 static const struct airoha_pinctrl_func_group pon_func_group[] = {
 	{
@@ -571,6 +649,7 @@ static const struct airoha_pinctrl_func_group pon_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_PON_MODE_MASK,
 			GPIO_PON_MODE_MASK
 		},
 		.num_regs = 1,
@@ -583,6 +662,7 @@ static const struct airoha_pinctrl_func_group tod_1pps_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			PON_TOD_1PPS_MODE_MASK,
 			PON_TOD_1PPS_MODE_MASK
 		},
 		.num_regs = 1,
@@ -591,6 +671,7 @@ static const struct airoha_pinctrl_func_group tod_1pps_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GSW_TOD_1PPS_MODE_MASK,
 			GSW_TOD_1PPS_MODE_MASK
 		},
 		.num_regs = 1,
@@ -603,6 +684,7 @@ static const struct airoha_pinctrl_func_group sipo_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_SIPO_MODE_MASK | SIPO_RCLK_MODE_MASK,
 			GPIO_SIPO_MODE_MASK
 		},
 		.num_regs = 1,
@@ -611,6 +693,7 @@ static const struct airoha_pinctrl_func_group sipo_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_SIPO_MODE_MASK | SIPO_RCLK_MODE_MASK,
 			GPIO_SIPO_MODE_MASK | SIPO_RCLK_MODE_MASK
 		},
 		.num_regs = 1,
@@ -623,10 +706,12 @@ static const struct airoha_pinctrl_func_group mdio_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_SGMII_MDIO_MODE_MASK,
 			GPIO_SGMII_MDIO_MODE_MASK
 		},
 		.regs[1] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_MDC_IO_MASTER_MODE_MODE,
 			GPIO_MDC_IO_MASTER_MODE_MODE
 		},
 		.num_regs = 2,
@@ -639,6 +724,7 @@ static const struct airoha_pinctrl_func_group uart_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_UART2_MODE_MASK,
 			GPIO_UART2_MODE_MASK
 		},
 		.num_regs = 1,
@@ -647,6 +733,7 @@ static const struct airoha_pinctrl_func_group uart_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_UART2_MODE_MASK | GPIO_UART2_CTS_RTS_MODE_MASK,
 			GPIO_UART2_MODE_MASK | GPIO_UART2_CTS_RTS_MODE_MASK
 		},
 		.num_regs = 1,
@@ -655,6 +742,7 @@ static const struct airoha_pinctrl_func_group uart_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_HSUART_MODE_MASK | GPIO_HSUART_CTS_RTS_MODE_MASK,
 			GPIO_HSUART_MODE_MASK
 		},
 		.num_regs = 1,
@@ -664,6 +752,7 @@ static const struct airoha_pinctrl_func_group uart_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_HSUART_MODE_MASK | GPIO_HSUART_CTS_RTS_MODE_MASK,
 			GPIO_HSUART_MODE_MASK | GPIO_HSUART_CTS_RTS_MODE_MASK
 		},
 		.num_regs = 1,
@@ -672,6 +761,7 @@ static const struct airoha_pinctrl_func_group uart_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_UART4_MODE_MASK,
 			GPIO_UART4_MODE_MASK
 		},
 		.num_regs = 1,
@@ -680,6 +770,7 @@ static const struct airoha_pinctrl_func_group uart_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_UART5_MODE_MASK,
 			GPIO_UART5_MODE_MASK
 		},
 		.num_regs = 1,
@@ -692,6 +783,7 @@ static const struct airoha_pinctrl_func_group i2c_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_2ND_I2C_MODE_MASK,
 			GPIO_2ND_I2C_MODE_MASK
 		},
 		.num_regs = 1,
@@ -704,6 +796,7 @@ static const struct airoha_pinctrl_func_group jtag_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_NPU_UART_EN,
+			JTAG_UDI_EN_MASK,
 			JTAG_UDI_EN_MASK
 		},
 		.num_regs = 1,
@@ -712,6 +805,7 @@ static const struct airoha_pinctrl_func_group jtag_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_NPU_UART_EN,
+			JTAG_DFD_EN_MASK,
 			JTAG_DFD_EN_MASK
 		},
 		.num_regs = 1,
@@ -724,6 +818,7 @@ static const struct airoha_pinctrl_func_group pcm_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM1_MODE_MASK,
 			GPIO_PCM1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -732,6 +827,7 @@ static const struct airoha_pinctrl_func_group pcm_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM2_MODE_MASK,
 			GPIO_PCM2_MODE_MASK
 		},
 		.num_regs = 1,
@@ -744,6 +840,7 @@ static const struct airoha_pinctrl_func_group spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_SPI_QUAD_MODE_MASK,
 			GPIO_SPI_QUAD_MODE_MASK
 		},
 		.num_regs = 1,
@@ -752,6 +849,7 @@ static const struct airoha_pinctrl_func_group spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_SPI_CS1_MODE_MASK,
 			GPIO_SPI_CS1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -760,6 +858,7 @@ static const struct airoha_pinctrl_func_group spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_SPI_CS2_MODE_MASK,
 			GPIO_SPI_CS2_MODE_MASK
 		},
 		.num_regs = 1,
@@ -768,6 +867,7 @@ static const struct airoha_pinctrl_func_group spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_SPI_CS3_MODE_MASK,
 			GPIO_SPI_CS3_MODE_MASK
 		},
 		.num_regs = 1,
@@ -776,6 +876,7 @@ static const struct airoha_pinctrl_func_group spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_SPI_CS4_MODE_MASK,
 			GPIO_SPI_CS4_MODE_MASK
 		},
 		.num_regs = 1,
@@ -788,6 +889,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_SPI_MODE_MASK,
 			GPIO_PCM_SPI_MODE_MASK
 		},
 		.num_regs = 1,
@@ -796,6 +898,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_INT_MODE_MASK,
 			GPIO_PCM_INT_MODE_MASK
 		},
 		.num_regs = 1,
@@ -804,6 +907,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_RESET_MODE_MASK,
 			GPIO_PCM_RESET_MODE_MASK
 		},
 		.num_regs = 1,
@@ -812,6 +916,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_SPI_CS1_MODE_MASK,
 			GPIO_PCM_SPI_CS1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -820,6 +925,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_SPI_CS2_MODE_P128_MASK,
 			GPIO_PCM_SPI_CS2_MODE_P128_MASK
 		},
 		.num_regs = 1,
@@ -828,6 +934,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_SPI_CS2_MODE_P156_MASK,
 			GPIO_PCM_SPI_CS2_MODE_P156_MASK
 		},
 		.num_regs = 1,
@@ -836,6 +943,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_SPI_CS3_MODE_MASK,
 			GPIO_PCM_SPI_CS3_MODE_MASK
 		},
 		.num_regs = 1,
@@ -844,6 +952,7 @@ static const struct airoha_pinctrl_func_group pcm_spi_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_SPI_CS1_MODE,
+			GPIO_PCM_SPI_CS4_MODE_MASK,
 			GPIO_PCM_SPI_CS4_MODE_MASK
 		},
 		.num_regs = 1,
@@ -856,6 +965,7 @@ static const struct airoha_pinctrl_func_group i2s_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_I2S_MODE_MASK,
 			GPIO_I2S_MODE_MASK
 		},
 		.num_regs = 1,
@@ -868,6 +978,7 @@ static const struct airoha_pinctrl_func_group emmc_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_EMMC_MODE_MASK,
 			GPIO_EMMC_MODE_MASK
 		},
 		.num_regs = 1,
@@ -880,6 +991,7 @@ static const struct airoha_pinctrl_func_group pnand_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_PARALLEL_NAND_MODE_MASK,
 			GPIO_PARALLEL_NAND_MODE_MASK
 		},
 		.num_regs = 1,
@@ -892,6 +1004,7 @@ static const struct airoha_pinctrl_func_group pcie_reset_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_PCIE_RESET0_MASK,
 			GPIO_PCIE_RESET0_MASK
 		},
 		.num_regs = 1,
@@ -900,6 +1013,7 @@ static const struct airoha_pinctrl_func_group pcie_reset_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_PCIE_RESET1_MASK,
 			GPIO_PCIE_RESET1_MASK
 		},
 		.num_regs = 1,
@@ -908,6 +1022,7 @@ static const struct airoha_pinctrl_func_group pcie_reset_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_PON_MODE,
+			GPIO_PCIE_RESET2_MASK,
 			GPIO_PCIE_RESET2_MASK
 		},
 		.num_regs = 1,
@@ -921,6 +1036,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED0_MODE_MASK,
 			GPIO_LAN0_LED0_MODE_MASK
 		},
 		.num_regs = 1,
@@ -929,6 +1045,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED1_MODE_MASK,
 			GPIO_LAN0_LED1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -937,6 +1054,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED0_MODE_MASK,
 			GPIO_LAN1_LED0_MODE_MASK
 		},
 		.num_regs = 1,
@@ -945,6 +1063,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED1_MODE_MASK,
 			GPIO_LAN1_LED1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -953,6 +1072,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED0_MODE_MASK,
 			GPIO_LAN2_LED0_MODE_MASK
 		},
 		.num_regs = 1,
@@ -961,6 +1081,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED1_MODE_MASK,
 			GPIO_LAN2_LED1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -969,6 +1090,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
 			GPIO_LAN3_LED0_MODE_MASK
 		},
 		.num_regs = 1,
@@ -977,6 +1099,7 @@ static const struct airoha_pinctrl_func_group led_func_group[] = {
 		.mux_func = AIROHA_FUNC_MUX,
 		.regs[0] = {
 			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED1_MODE_MASK,
 			GPIO_LAN3_LED1_MODE_MASK
 		},
 		.num_regs = 1,
@@ -990,6 +1113,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO0_FLASH_MODE_CFG,
 			GPIO0_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -998,6 +1122,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO1_FLASH_MODE_CFG,
 			GPIO1_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1006,6 +1131,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO2_FLASH_MODE_CFG,
 			GPIO2_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1014,6 +1140,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO3_FLASH_MODE_CFG,
 			GPIO3_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1022,6 +1149,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO4_FLASH_MODE_CFG,
 			GPIO4_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1030,6 +1158,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO5_FLASH_MODE_CFG,
 			GPIO5_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1038,6 +1167,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO6_FLASH_MODE_CFG,
 			GPIO6_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1046,6 +1176,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO7_FLASH_MODE_CFG,
 			GPIO7_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1054,6 +1185,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO8_FLASH_MODE_CFG,
 			GPIO8_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1062,6 +1194,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO9_FLASH_MODE_CFG,
 			GPIO9_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1070,6 +1203,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO10_FLASH_MODE_CFG,
 			GPIO10_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1078,6 +1212,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO11_FLASH_MODE_CFG,
 			GPIO11_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1086,6 +1221,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO12_FLASH_MODE_CFG,
 			GPIO12_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1094,6 +1230,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO13_FLASH_MODE_CFG,
 			GPIO13_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1102,6 +1239,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO14_FLASH_MODE_CFG,
 			GPIO14_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1110,6 +1248,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG,
+			GPIO15_FLASH_MODE_CFG,
 			GPIO15_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1118,6 +1257,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO16_FLASH_MODE_CFG,
 			GPIO16_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1126,6 +1266,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO17_FLASH_MODE_CFG,
 			GPIO17_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1134,6 +1275,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO18_FLASH_MODE_CFG,
 			GPIO18_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1142,6 +1284,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO19_FLASH_MODE_CFG,
 			GPIO19_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1150,6 +1293,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO20_FLASH_MODE_CFG,
 			GPIO20_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1158,6 +1302,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO21_FLASH_MODE_CFG,
 			GPIO21_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1166,6 +1311,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO22_FLASH_MODE_CFG,
 			GPIO22_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1174,6 +1320,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO23_FLASH_MODE_CFG,
 			GPIO23_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1182,6 +1329,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO24_FLASH_MODE_CFG,
 			GPIO24_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1190,6 +1338,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO25_FLASH_MODE_CFG,
 			GPIO25_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1198,6 +1347,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO26_FLASH_MODE_CFG,
 			GPIO26_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1206,6 +1356,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO27_FLASH_MODE_CFG,
 			GPIO27_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1214,6 +1365,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO28_FLASH_MODE_CFG,
 			GPIO28_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1222,6 +1374,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO29_FLASH_MODE_CFG,
 			GPIO29_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1230,6 +1383,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO30_FLASH_MODE_CFG,
 			GPIO30_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1238,6 +1392,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO31_FLASH_MODE_CFG,
 			GPIO31_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1246,6 +1401,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO36_FLASH_MODE_CFG,
 			GPIO36_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1254,6 +1410,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO37_FLASH_MODE_CFG,
 			GPIO37_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1262,6 +1419,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO38_FLASH_MODE_CFG,
 			GPIO38_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1270,6 +1428,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO39_FLASH_MODE_CFG,
 			GPIO39_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1278,6 +1437,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO40_FLASH_MODE_CFG,
 			GPIO40_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1286,6 +1446,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO41_FLASH_MODE_CFG,
 			GPIO41_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1294,6 +1455,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO42_FLASH_MODE_CFG,
 			GPIO42_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1302,6 +1464,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO43_FLASH_MODE_CFG,
 			GPIO43_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1310,6 +1473,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO44_FLASH_MODE_CFG,
 			GPIO44_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1318,6 +1482,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO45_FLASH_MODE_CFG,
 			GPIO45_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1326,6 +1491,7 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO46_FLASH_MODE_CFG,
 			GPIO46_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
@@ -1334,9 +1500,488 @@ static const struct airoha_pinctrl_func_group pwm_func_group[] = {
 		.mux_func = AIROHA_FUNC_PWM_EXT_MUX,
 		.regs[0] = {
 			REG_GPIO_FLASH_MODE_CFG_EXT,
+			GPIO47_FLASH_MODE_CFG,
 			GPIO47_FLASH_MODE_CFG
 		},
 		.num_regs = 1,
+	},
+};
+
+static const struct airoha_pinctrl_func_group phy1_led0_func_group[] = {
+	{
+		.name = "gpio33",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED0_MODE_MASK,
+			GPIO_LAN0_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN1_LED0_MAPPING_MASK,
+			PORT1_LED0_PHY1_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio34",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED0_MODE_MASK,
+			GPIO_LAN1_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN2_LED0_MAPPING_MASK,
+			PORT2_LED0_PHY1_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio35",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED0_MODE_MASK,
+			GPIO_LAN2_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN3_LED0_MAPPING_MASK,
+			PORT3_LED0_PHY1_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio42",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN4_LED0_MAPPING_MASK,
+			PORT4_LED0_PHY1_LED0_MAP
+		},
+		.num_regs = 2,
+	},
+};
+
+static const struct airoha_pinctrl_func_group phy2_led0_func_group[] = {
+	{
+		.name = "gpio33",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED0_MODE_MASK,
+			GPIO_LAN0_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN1_LED0_MAPPING_MASK,
+			PORT1_LED0_PHY2_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio34",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED0_MODE_MASK,
+			GPIO_LAN1_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN2_LED0_MAPPING_MASK,
+			PORT2_LED0_PHY2_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio35",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED0_MODE_MASK,
+			GPIO_LAN2_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN3_LED0_MAPPING_MASK,
+			PORT3_LED0_PHY2_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio42",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN4_LED0_MAPPING_MASK,
+			PORT4_LED0_PHY2_LED0_MAP
+		},
+		.num_regs = 2,
+	},
+};
+
+static const struct airoha_pinctrl_func_group phy3_led0_func_group[] = {
+	{
+		.name = "gpio33",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED0_MODE_MASK,
+			GPIO_LAN0_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN1_LED0_MAPPING_MASK,
+			PORT1_LED0_PHY3_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio34",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED0_MODE_MASK,
+			GPIO_LAN1_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN2_LED0_MAPPING_MASK,
+			PORT2_LED0_PHY3_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio35",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED0_MODE_MASK,
+			GPIO_LAN2_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN3_LED0_MAPPING_MASK,
+			PORT3_LED0_PHY3_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio42",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN4_LED0_MAPPING_MASK,
+			PORT4_LED0_PHY3_LED0_MAP
+		},
+		.num_regs = 2,
+	},
+};
+
+static const struct airoha_pinctrl_func_group phy4_led0_func_group[] = {
+	{
+		.name = "gpio33",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED0_MODE_MASK,
+			GPIO_LAN0_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN1_LED0_MAPPING_MASK,
+			PORT1_LED0_PHY4_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio34",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED0_MODE_MASK,
+			GPIO_LAN1_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN2_LED0_MAPPING_MASK,
+			PORT2_LED0_PHY4_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio35",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED0_MODE_MASK,
+			GPIO_LAN2_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN3_LED0_MAPPING_MASK,
+			PORT3_LED0_PHY4_LED0_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio42",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED0_MAPPING,
+			LAN4_LED0_MAPPING_MASK,
+			PORT4_LED0_PHY4_LED0_MAP
+		},
+		.num_regs = 2,
+	},
+};
+
+static const struct airoha_pinctrl_func_group phy1_led1_func_group[] = {
+	{
+		.name = "gpio43",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED1_MODE_MASK,
+			GPIO_LAN0_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN1_LED1_MAPPING_MASK,
+			PORT1_LED1_PHY1_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio44",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED1_MODE_MASK,
+			GPIO_LAN1_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN2_LED1_MAPPING_MASK,
+			PORT2_LED1_PHY1_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio45",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED1_MODE_MASK,
+			GPIO_LAN2_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN3_LED1_MAPPING_MASK,
+			PORT3_LED1_PHY1_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio46",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN4_LED1_MAPPING_MASK,
+			PORT4_LED1_PHY1_LED1_MAP
+		},
+		.num_regs = 2,
+	},
+};
+
+static const struct airoha_pinctrl_func_group phy2_led1_func_group[] = {
+	{
+		.name = "gpio43",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED1_MODE_MASK,
+			GPIO_LAN0_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN1_LED1_MAPPING_MASK,
+			PORT1_LED1_PHY2_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio44",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED1_MODE_MASK,
+			GPIO_LAN1_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN2_LED1_MAPPING_MASK,
+			PORT2_LED1_PHY2_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio45",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED1_MODE_MASK,
+			GPIO_LAN2_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN3_LED1_MAPPING_MASK,
+			PORT3_LED1_PHY2_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio46",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN4_LED1_MAPPING_MASK,
+			PORT4_LED1_PHY2_LED1_MAP
+		},
+		.num_regs = 2,
+	},
+};
+static const struct airoha_pinctrl_func_group phy3_led1_func_group[] = {
+	{
+		.name = "gpio43",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED1_MODE_MASK,
+			GPIO_LAN0_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN1_LED1_MAPPING_MASK,
+			PORT1_LED1_PHY3_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio44",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED1_MODE_MASK,
+			GPIO_LAN1_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN2_LED1_MAPPING_MASK,
+			PORT2_LED1_PHY3_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio45",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED1_MODE_MASK,
+			GPIO_LAN2_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN3_LED1_MAPPING_MASK,
+			PORT3_LED1_PHY3_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio46",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN4_LED1_MAPPING_MASK,
+			PORT4_LED1_PHY3_LED1_MAP
+		},
+		.num_regs = 2,
+	},
+};
+static const struct airoha_pinctrl_func_group phy4_led1_func_group[] = {
+	{
+		.name = "gpio43",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN0_LED1_MODE_MASK,
+			GPIO_LAN0_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN1_LED1_MAPPING_MASK,
+			PORT1_LED1_PHY4_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio44",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN1_LED1_MODE_MASK,
+			GPIO_LAN1_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN2_LED1_MAPPING_MASK,
+			PORT2_LED1_PHY4_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio45",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN2_LED1_MODE_MASK,
+			GPIO_LAN2_LED1_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN3_LED1_MAPPING_MASK,
+			PORT3_LED1_PHY4_LED1_MAP
+		},
+		.num_regs = 2,
+	}, {
+		.name = "gpio46",
+		.mux_func = AIROHA_FUNC_MUX,
+		.regs[0] = {
+			REG_GPIO_2ND_I2C_MODE,
+			GPIO_LAN3_LED0_MODE_MASK,
+			GPIO_LAN3_LED0_MODE_MASK
+		},
+		.regs[1] = {
+			REG_LAN0_LED1_MAPPING,
+			LAN4_LED1_MAPPING_MASK,
+			PORT4_LED1_PHY4_LED1_MAP
+		},
+		.num_regs = 2,
 	},
 };
 
@@ -1354,9 +1999,16 @@ static const struct airoha_pinctrl_func airoha_pinctrl_funcs[] = {
 	PINCTRL_FUNC_DESC(i2s),
 	PINCTRL_FUNC_DESC(emmc),
 	PINCTRL_FUNC_DESC(pnand),
-	PINCTRL_FUNC_DESC(led),
 	PINCTRL_FUNC_DESC(pcie_reset),
 	PINCTRL_FUNC_DESC(pwm),
+	PINCTRL_FUNC_DESC(phy1_led0),
+	PINCTRL_FUNC_DESC(phy2_led0),
+	PINCTRL_FUNC_DESC(phy3_led0),
+	PINCTRL_FUNC_DESC(phy4_led0),
+	PINCTRL_FUNC_DESC(phy1_led1),
+	PINCTRL_FUNC_DESC(phy2_led1),
+	PINCTRL_FUNC_DESC(phy3_led1),
+	PINCTRL_FUNC_DESC(phy4_led1),
 };
 
 static const struct airoha_pinctrl_conf airoha_pinctrl_pullup_conf[] = {
@@ -1632,9 +2284,6 @@ static u32 airoha_pinctrl_rmw(struct airoha_pinctrl *pinctrl,
 	return val;
 }
 
-#define airoha_pinctrl_mux_set(pinctrl, base, offset, val)			\
-	airoha_pinctrl_rmw((pinctrl), (base) + (offset), 0, (val));
-
 static void airoha_pinctrl_gpio_set_direction(struct airoha_pinctrl *pinctrl,
 					      unsigned int gpio, bool input)
 {
@@ -1707,9 +2356,9 @@ static int airoha_pinmux_set_mux(struct pinctrl_dev *pctrl_dev,
 
 		base = pinctrl->regs.mux[func->groups[i].mux_func];
 		for (j = 0; j < group->num_regs; j++)
-			airoha_pinctrl_mux_set(pinctrl, base,
-					       group->regs[j].offset,
-					       group->regs[j].mask);
+			airoha_pinctrl_rmw(pinctrl, base + group->regs[j].offset,
+					       group->regs[j].mask,
+					       group->regs[j].val);
 		return 0;
 	}
 
