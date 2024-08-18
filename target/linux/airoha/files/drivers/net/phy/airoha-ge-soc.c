@@ -3,12 +3,13 @@
 #include <linux/bitfield.h>
 #include <linux/module.h>
 #include <linux/phy.h>
+#include <linux/delay.h>
 
 /* This code is based on mediatek-ge-soc.c
  * The AN7581 SoC uses a switch and set of
  * phys that are very similar to MT7530.
  *
- * The same defines is used for the registers.
+ * The same defines are used for the registers.
  *
  */
 
@@ -502,6 +503,160 @@ static int mtk_gephy_write_page(struct phy_device *phydev, int page)
 	return __phy_write(phydev, MTK_EXT_PAGE_ACCESS, page);
 }
 
+static int ana_cal_wait(struct phy_device *phydev, u32 delay) {
+	int all_ana_cal_status;
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN, 0x1);
+	usleep_range(delay, delay+10);
+	all_ana_cal_status = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_CLK) & 0x1;
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN, 0x0);
+	return all_ana_cal_status;
+}
+
+
+#define ANACAL_INIT		0x01
+#define ANACAL_ERROR		0xFD
+#define ANACAL_SATURATION	0xFE
+#define	ANACAL_FINISH		0xFF
+
+static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+//	u16 rext_cal_val[2];
+	u16 dev1e_e0_ana_cal_r5;
+	u8 rg_zcal_ctrl = 0x20;
+	u8 all_ana_cal_status;
+	u16 ad_cal_comp_out_init;
+	int calibration_polarity;
+	int cnt = 0;
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+			 MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_REXT_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0x0);
+
+	dev1e_e0_ana_cal_r5 = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
+			 rg_zcal_ctrl);
+
+	all_ana_cal_status = ana_cal_wait(phydev, 20);
+	if (!all_ana_cal_status)
+		all_ana_cal_status = ANACAL_ERROR;
+
+	ad_cal_comp_out_init = (phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1;
+	if (ad_cal_comp_out_init == 1)
+		calibration_polarity = -1;
+	else
+		calibration_polarity = 1;
+
+	while(all_ana_cal_status < ANACAL_ERROR) {
+		cnt++;
+		rg_zcal_ctrl += calibration_polarity;
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, rg_zcal_ctrl);
+		all_ana_cal_status = ana_cal_wait(phydev, 20);
+		if (!all_ana_cal_status)
+			all_ana_cal_status = ANACAL_ERROR;
+		else if (((phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1) != ad_cal_comp_out_init)
+			all_ana_cal_status = ANACAL_FINISH;
+		else {
+			if ((rg_zcal_ctrl == 0x3F) || (rg_zcal_ctrl == 0x00)) {
+				all_ana_cal_status = ANACAL_SATURATION;
+				rg_zcal_ctrl = 0x20; // 0 dB
+			}
+		}
+	}
+
+	if(all_ana_cal_status == ANACAL_ERROR) {
+		rg_zcal_ctrl = 0x20; // 0 dB
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, (dev1e_e0_ana_cal_r5 | rg_zcal_ctrl));
+	} else {
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, (dev1e_e0_ana_cal_r5 | rg_zcal_ctrl));
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, ((rg_zcal_ctrl<<8)|rg_zcal_ctrl));
+		phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_BG_RASEL, ((rg_zcal_ctrl & 0x3f)>>3));
+		printk("  GE Rext AnaCal Done! (%d)(0x%x)  \r\n", cnt, rg_zcal_ctrl);
+		//GECal_flag = 1;
+
+		//regReadWord(0xbfa2016c, reg_temp);
+		//printf("RG_BG_RASEL = 0x%x (x%x)\r\n", reg_temp, rg_zcal_ctrl);
+		//reg_temp = (reg_temp & 0x1fff);
+		//reg_temp = ((((rg_zcal_ctrl>>3)&0x7)<<13) | reg_temp);
+		//printf("RG_BG_RASEL = 0x%x (x%x)\r\n", reg_temp, rg_zcal_ctrl);
+		//regWriteWord(0xbfa2016c, reg_temp);   								// for ACD/steven simldo
+	}
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
+
+	return 0;
+}
+
+static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
+		  u8 start_pair, u8 end_pair)
+{
+	u8 pair_n;
+	int ret;
+
+	for (pair_n = start_pair; pair_n <= end_pair; pair_n++) {
+		switch (cal_item) {
+		case REXT:
+			ret = rext_cal_sw(phydev, pair_n);
+			break;
+		default:
+			return -EINVAL;
+		}
+		if (ret)
+			return ret;
+	}
+	return 0;
+}
+
+
+static int start_cal(struct phy_device *phydev, enum CAL_ITEM cal_item,
+		     enum CAL_MODE cal_mode, u8 start_pair,
+		     u8 end_pair, u32 *buf)
+{
+	int ret;
+
+	switch (cal_mode) {
+	case SW_M:
+		ret = cal_sw(phydev, cal_item, start_pair, end_pair);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (ret) {
+		phydev_err(phydev, "cal %d failed\n", cal_item);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static int an7581_phy_calibration(struct phy_device *phydev)
+{
+	int ret = 0;
+	u32 buf[4];
+//	size_t len;
+
+	ret = start_cal(phydev, REXT, SW_M, NO_PAIR, NO_PAIR, buf);
+	if (ret)
+		goto out;
+/*	ret = start_cal(phydev, TX_OFFSET, SW_M, NO_PAIR, NO_PAIR, buf);
+	if (ret)
+		goto out;
+	ret = start_cal(phydev, TX_AMP, SW_M, NO_PAIR, NO_PAIR, buf);
+	if (ret)
+		goto out;
+	ret = start_cal(phydev, TX_R50, SW_M, PAIR_A, PAIR_D, buf);
+	if (ret)
+		goto out;
+	ret = start_cal(phydev, TX_VCM, SW_M, PAIR_A, PAIR_A, buf);
+	if (ret)
+		goto out;
+*/
+out:
+	return ret;
+}
+
+
 static void mtk_gephy_config_init(struct phy_device *phydev)
 {
 	/* Enable HW auto downshift */
@@ -569,7 +724,7 @@ static int an7581_phy_config_init(struct phy_device *phydev)
 	/* LED Config*/
 	mt7530_led_config_of(phydev);
 
-	return 0;
+	return an7581_phy_calibration(phydev);
 }
 
 static struct phy_driver airoha_gephy_driver[] = {
