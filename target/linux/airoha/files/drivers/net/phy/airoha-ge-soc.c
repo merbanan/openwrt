@@ -519,6 +519,112 @@ static int ana_cal_wait(struct phy_device *phydev, u32 delay) {
 #define ANACAL_SATURATION	0xFE
 #define	ANACAL_FINISH		0xFF
 
+static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+//	u16 rext_cal_val[2];
+	u16 dev1e_e0_ana_cal_r5;
+	u8 rg_zcal_ctrl = 0x20;
+	u8 all_ana_cal_status;
+	u16 ad_cal_comp_out_init;
+	int calibration_polarity, ret;
+	int cnt = 0;
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+			 MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ANA_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
+
+
+	rg_zcal_ctrl = 0x20; // 0 dB
+	// FIXME use phy_clear_bits_mmd/phy_set_bits_mmd
+	dev1e_e0_ana_cal_r5 = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5) & (~0x3f);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
+			 rg_zcal_ctrl | dev1e_e0_ana_cal_r5);
+
+	switch (pair_id) {
+	case PAIR_A:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ZCALEN_A);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
+		break;
+	case PAIR_B:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_B);
+		break;
+	case PAIR_C:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C);
+		break;
+	case PAIR_D:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_D);
+		break;
+	default:
+		ret = -EINVAL;
+		goto error;
+	}
+
+	all_ana_cal_status = ana_cal_wait(phydev, 20);
+	if (!all_ana_cal_status) {
+		all_ana_cal_status = ANACAL_ERROR;
+		printk("GE R50 AnaCal ERROR!\n");
+
+	}
+
+	ad_cal_comp_out_init = (phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1;
+	if (ad_cal_comp_out_init == 1)
+		calibration_polarity = -1;
+	else
+		calibration_polarity = 1;
+
+	while(all_ana_cal_status < ANACAL_ERROR) {
+		cnt++;
+		rg_zcal_ctrl += calibration_polarity;
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, dev1e_e0_ana_cal_r5 | rg_zcal_ctrl);
+		all_ana_cal_status = ana_cal_wait(phydev, 20);
+		if (!all_ana_cal_status)
+			all_ana_cal_status = ANACAL_ERROR;
+		else if (((phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1) != ad_cal_comp_out_init)
+			all_ana_cal_status = ANACAL_FINISH;
+		else {
+			if ((rg_zcal_ctrl == 0x3F) || (rg_zcal_ctrl == 0x00)) {
+				all_ana_cal_status = ANACAL_SATURATION;
+				printk("GE R50 AnaCal Saturation!!\n");
+			}
+		}
+	}
+
+	if(all_ana_cal_status == ANACAL_ERROR) {
+		rg_zcal_ctrl = 0x20; // 0 dB
+	} else {
+//FIXME		rg_zcal_ctrl =
+	}
+
+	switch (pair_id) {
+	case PAIR_A:
+		break;
+	case PAIR_B:
+		break;
+	case PAIR_C:
+		break;
+	case PAIR_D:
+		break;
+	default:
+		ret = -EINVAL;
+		goto error;
+	}
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
+
+	return 0;
+
+error:
+	return ret;
+}
+
+
 static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 {
 //	u16 rext_cal_val[2];
@@ -530,7 +636,7 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 	int cnt = 0;
 
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-			 MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_REXT_CALEN);
+			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_REXT_CALEN);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0x0);
 
@@ -598,6 +704,9 @@ static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 		case REXT:
 			ret = rext_cal_sw(phydev, pair_n);
 			break;
+		case TX_R50:
+			ret = tx_r50_cal_sw(phydev, pair_n);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -644,11 +753,11 @@ static int an7581_phy_calibration(struct phy_device *phydev)
 		goto out;
 	ret = start_cal(phydev, TX_AMP, SW_M, NO_PAIR, NO_PAIR, buf);
 	if (ret)
-		goto out;
+		goto out;*/
 	ret = start_cal(phydev, TX_R50, SW_M, PAIR_A, PAIR_D, buf);
 	if (ret)
 		goto out;
-	ret = start_cal(phydev, TX_VCM, SW_M, PAIR_A, PAIR_A, buf);
+/*	ret = start_cal(phydev, TX_VCM, SW_M, PAIR_A, PAIR_A, buf);
 	if (ret)
 		goto out;
 */
