@@ -3,9 +3,11 @@
 #include <linux/delay.h>
 #include <linux/clk-provider.h>
 #include <linux/io.h>
+#include <linux/mfd/syscon.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/regmap.h>
 #include <linux/reset-controller.h>
 #include <dt-bindings/clock/en7523-clk.h>
 #include <dt-bindings/reset/airoha,en7581-reset.h>
@@ -32,14 +34,7 @@
 #define   REG_RESET_CONTROL_PCIE1	BIT(27)
 #define   REG_RESET_CONTROL_PCIE2	BIT(26)
 /* EN7581 */
-#define REG_GSW_CLK_DIV_SEL2		0x00
-#define REG_EMI_CLK_DIV_SEL2		0x04
-#define REG_BUS_CLK_DIV_SEL2		0x08
-#define REG_SPI_CLK_DIV_SEL2		0x10
-#define REG_SPI_CLK_FREQ_SEL2		0x14
-#define REG_NPU_CLK_DIV_SEL2		0x48
-#define REG_CRYPTO_CLKSRC2		0x58
-
+#define REG_CRYPTO_CLKSRC2		0x20c
 #define REG_PCIE0_MEM			0x00
 #define REG_PCIE0_MEM_MASK		0x04
 #define REG_PCIE1_MEM			0x08
@@ -87,17 +82,9 @@ struct en_rst_data {
 };
 
 struct en_clk_soc_data {
-	struct {
-		const struct en_clk_desc *desc;
-		u16 size;
-	} fixed_rate;
 	const struct clk_ops pcie_ops;
-	struct {
-		const u16 *bank_ofs;
-		const u16 *idx_map;
-		u16 idx_map_nr;
-	} reset;
-	int (*hw_init)(struct platform_device *pdev, void __iomem *np_base);
+	int (*hw_init)(struct platform_device *pdev,
+		       struct clk_hw_onecell_data *clk_data);
 };
 
 static const u32 gsw_base[] = { 400000000, 500000000 };
@@ -211,7 +198,7 @@ static const struct en_clk_desc en7581_base_clks[] = {
 		.id = EN7523_CLK_GSW,
 		.name = "gsw",
 
-		.base_reg = REG_GSW_CLK_DIV_SEL2,
+		.base_reg = REG_GSW_CLK_DIV_SEL,
 		.base_bits = 1,
 		.base_shift = 8,
 		.base_values = gsw_base,
@@ -225,7 +212,7 @@ static const struct en_clk_desc en7581_base_clks[] = {
 		.id = EN7523_CLK_EMI,
 		.name = "emi",
 
-		.base_reg = REG_EMI_CLK_DIV_SEL2,
+		.base_reg = REG_EMI_CLK_DIV_SEL,
 		.base_bits = 2,
 		.base_shift = 8,
 		.base_values = emi7581_base,
@@ -239,7 +226,7 @@ static const struct en_clk_desc en7581_base_clks[] = {
 		.id = EN7523_CLK_BUS,
 		.name = "bus",
 
-		.base_reg = REG_BUS_CLK_DIV_SEL2,
+		.base_reg = REG_BUS_CLK_DIV_SEL,
 		.base_bits = 1,
 		.base_shift = 8,
 		.base_values = bus_base,
@@ -253,13 +240,13 @@ static const struct en_clk_desc en7581_base_clks[] = {
 		.id = EN7523_CLK_SLIC,
 		.name = "slic",
 
-		.base_reg = REG_SPI_CLK_FREQ_SEL2,
+		.base_reg = REG_SPI_CLK_FREQ_SEL,
 		.base_bits = 1,
 		.base_shift = 0,
 		.base_values = slic_base,
 		.n_base_values = ARRAY_SIZE(slic_base),
 
-		.div_reg = REG_SPI_CLK_DIV_SEL2,
+		.div_reg = REG_SPI_CLK_DIV_SEL,
 		.div_bits = 5,
 		.div_shift = 24,
 		.div_val0 = 20,
@@ -268,7 +255,7 @@ static const struct en_clk_desc en7581_base_clks[] = {
 		.id = EN7523_CLK_SPI,
 		.name = "spi",
 
-		.base_reg = REG_SPI_CLK_DIV_SEL2,
+		.base_reg = REG_SPI_CLK_DIV_SEL,
 
 		.base_value = 400000000,
 
@@ -280,7 +267,7 @@ static const struct en_clk_desc en7581_base_clks[] = {
 		.id = EN7523_CLK_NPU,
 		.name = "npu",
 
-		.base_reg = REG_NPU_CLK_DIV_SEL2,
+		.base_reg = REG_NPU_CLK_DIV_SEL,
 		.base_bits = 2,
 		.base_shift = 8,
 		.base_values = npu7581_base,
@@ -365,15 +352,11 @@ static const u16 en7581_rst_map[] = {
 	[EN7581_XPON_MAC_RST]		= RST_NR_PER_BANK + 31,
 };
 
-static unsigned int en7523_get_base_rate(const struct en_clk_desc *desc,
-					 void __iomem *base)
+static u32 en7523_get_base_rate(const struct en_clk_desc *desc, u32 val)
 {
-	u32 val;
-
 	if (!desc->base_bits)
 		return desc->base_value;
 
-	val = readl(base + desc->base_reg);
 	val >>= desc->base_shift;
 	val &= (1 << desc->base_bits) - 1;
 
@@ -383,15 +366,11 @@ static unsigned int en7523_get_base_rate(const struct en_clk_desc *desc,
 	return desc->base_values[val];
 }
 
-static u32 en7523_get_div(const struct en_clk_desc *desc, void __iomem *base)
+static u32 en7523_get_div(const struct en_clk_desc *desc, u32 val)
 {
-	u32 reg, val;
-
 	if (!desc->div_bits)
 		return 1;
 
-	reg = desc->div_reg ? desc->div_reg : desc->base_reg;
-	val = readl(base + reg);
 	val >>= desc->div_shift;
 	val &= (1 << desc->div_bits) - 1;
 
@@ -524,45 +503,21 @@ static void en7581_pci_disable(struct clk_hw *hw)
 	usleep_range(1000, 2000);
 }
 
-static int en7581_clk_hw_init(struct platform_device *pdev,
-			      void __iomem *np_base)
-{
-	void __iomem *pb_base;
-	u32 val;
-
-	pb_base = devm_platform_ioremap_resource(pdev, 3);
-	if (IS_ERR(pb_base))
-		return PTR_ERR(pb_base);
-
-	val = readl(np_base + REG_NP_SCU_SSTR);
-	val &= ~(REG_PCIE_XSI0_SEL_MASK | REG_PCIE_XSI1_SEL_MASK);
-	writel(val, np_base + REG_NP_SCU_SSTR);
-	val = readl(np_base + REG_NP_SCU_PCIC);
-	writel(val | 3, np_base + REG_NP_SCU_PCIC);
-
-	writel(0x20000000, pb_base + REG_PCIE0_MEM);
-	writel(0xfc000000, pb_base + REG_PCIE0_MEM_MASK);
-	writel(0x24000000, pb_base + REG_PCIE1_MEM);
-	writel(0xfc000000, pb_base + REG_PCIE1_MEM_MASK);
-	writel(0x28000000, pb_base + REG_PCIE2_MEM);
-	writel(0xfc000000, pb_base + REG_PCIE2_MEM_MASK);
-
-	return 0;
-}
-
 static void en7523_register_clocks(struct device *dev, struct clk_hw_onecell_data *clk_data,
 				   void __iomem *base, void __iomem *np_base)
 {
-	const struct en_clk_soc_data *soc_data = device_get_match_data(dev);
 	struct clk_hw *hw;
 	u32 rate;
 	int i;
 
-	for (i = 0; i < soc_data->fixed_rate.size; i++) {
-		const struct en_clk_desc *desc = &soc_data->fixed_rate.desc[i];
+	for (i = 0; i < ARRAY_SIZE(en7523_base_clks); i++) {
+		const struct en_clk_desc *desc = &en7523_base_clks[i];
+		u32 reg = desc->div_reg ? desc->div_reg : desc->base_reg;
+		u32 val = readl(base + desc->base_reg);
 
-		rate = en7523_get_base_rate(desc, base);
-		rate /= en7523_get_div(desc, base);
+		rate = en7523_get_base_rate(desc, val);
+		val = readl(base + reg);
+		rate /= en7523_get_div(desc, val);
 
 		hw = clk_hw_register_fixed_rate(dev, desc->name, NULL, 0, rate);
 		if (IS_ERR(hw)) {
@@ -575,6 +530,65 @@ static void en7523_register_clocks(struct device *dev, struct clk_hw_onecell_dat
 	}
 
 	hw = en7523_register_pcie_clk(dev, np_base);
+	clk_data->hws[EN7523_CLK_PCIE] = hw;
+
+	clk_data->num = EN7523_NUM_CLOCKS;
+}
+
+static int en7523_clk_hw_init(struct platform_device *pdev,
+			      struct clk_hw_onecell_data *clk_data)
+{
+	void __iomem *base, *np_base;
+
+	base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
+
+	np_base = devm_platform_ioremap_resource(pdev, 1);
+	if (IS_ERR(np_base))
+		return PTR_ERR(np_base);
+
+	en7523_register_clocks(&pdev->dev, clk_data, base, np_base);
+
+	return 0;
+}
+
+static void en7581_register_clocks(struct device *dev, struct clk_hw_onecell_data *clk_data,
+				   struct regmap *chip_scu, void __iomem *base)
+{
+	struct clk_hw *hw;
+	u32 rate;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(en7581_base_clks); i++) {
+		const struct en_clk_desc *desc = &en7581_base_clks[i];
+		u32 val, reg = desc->div_reg ? desc->div_reg : desc->base_reg;
+
+		if (regmap_read(chip_scu, desc->base_reg, &val)) {
+			pr_err("Failed reading fixed clk rate %s: %ld\n",
+			       desc->name, PTR_ERR(hw));
+			continue;
+		}
+		rate = en7523_get_base_rate(desc, val);
+
+		if (regmap_read(chip_scu, reg, &val)) {
+			pr_err("Failed reading fixed clk div %s: %ld\n",
+			       desc->name, PTR_ERR(hw));
+			continue;
+		}
+		rate /= en7523_get_div(desc, val);
+
+		hw = clk_hw_register_fixed_rate(dev, desc->name, NULL, 0, rate);
+		if (IS_ERR(hw)) {
+			pr_err("Failed to register clk %s: %ld\n",
+			       desc->name, PTR_ERR(hw));
+			continue;
+		}
+
+		clk_data->hws[desc->id] = hw;
+	}
+
+	hw = en7523_register_pcie_clk(dev, base);
 	clk_data->hws[EN7523_CLK_PCIE] = hw;
 
 	clk_data->num = EN7523_NUM_CLOCKS;
@@ -629,24 +643,19 @@ static int en7523_reset_xlate(struct reset_controller_dev *rcdev,
 	return rst_data->idx_map[reset_spec->args[0]];
 }
 
-static const struct reset_control_ops en7523_reset_ops = {
+static const struct reset_control_ops en7581_reset_ops = {
 	.assert = en7523_reset_assert,
 	.deassert = en7523_reset_deassert,
 	.status = en7523_reset_status,
 };
 
-static int en7523_reset_register(struct platform_device *pdev,
-				 const struct en_clk_soc_data *soc_data)
+static int en7581_reset_register(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct en_rst_data *rst_data;
 	void __iomem *base;
 
-	/* no reset lines available */
-	if (!soc_data->reset.idx_map_nr)
-		return 0;
-
-	base = devm_platform_ioremap_resource(pdev, 2);
+	base = devm_platform_ioremap_resource(pdev, 1);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
@@ -654,13 +663,13 @@ static int en7523_reset_register(struct platform_device *pdev,
 	if (!rst_data)
 		return -ENOMEM;
 
-	rst_data->bank_ofs = soc_data->reset.bank_ofs;
-	rst_data->idx_map = soc_data->reset.idx_map;
+	rst_data->bank_ofs = en7581_rst_ofs;
+	rst_data->idx_map = en7581_rst_map;
 	rst_data->base = base;
 
-	rst_data->rcdev.nr_resets = soc_data->reset.idx_map_nr;
+	rst_data->rcdev.nr_resets = ARRAY_SIZE(en7581_rst_map);
 	rst_data->rcdev.of_xlate = en7523_reset_xlate;
-	rst_data->rcdev.ops = &en7523_reset_ops;
+	rst_data->rcdev.ops = &en7581_reset_ops;
 	rst_data->rcdev.of_node = dev->of_node;
 	rst_data->rcdev.of_reset_n_cells = 1;
 	rst_data->rcdev.owner = THIS_MODULE;
@@ -669,28 +678,50 @@ static int en7523_reset_register(struct platform_device *pdev,
 	return devm_reset_controller_register(dev, &rst_data->rcdev);
 }
 
+static int en7581_clk_hw_init(struct platform_device *pdev,
+			      struct clk_hw_onecell_data *clk_data)
+{
+	void __iomem *np_base, *pb_base;
+	struct regmap *chip_scu;
+	u32 val;
+
+	chip_scu = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						   "airoha,chip-scu");
+	if (IS_ERR(chip_scu))
+		return PTR_ERR(chip_scu);
+
+	np_base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(np_base))
+		return PTR_ERR(np_base);
+
+	pb_base = devm_platform_ioremap_resource(pdev, 2);
+	if (IS_ERR(pb_base))
+		return PTR_ERR(pb_base);
+
+	en7581_register_clocks(&pdev->dev, clk_data, chip_scu, np_base);
+
+	val = readl(np_base + REG_NP_SCU_SSTR);
+	val &= ~(REG_PCIE_XSI0_SEL_MASK | REG_PCIE_XSI1_SEL_MASK);
+	writel(val, np_base + REG_NP_SCU_SSTR);
+	val = readl(np_base + REG_NP_SCU_PCIC);
+	writel(val | 3, np_base + REG_NP_SCU_PCIC);
+
+	writel(0x20000000, pb_base + REG_PCIE0_MEM);
+	writel(0xfc000000, pb_base + REG_PCIE0_MEM_MASK);
+	writel(0x24000000, pb_base + REG_PCIE1_MEM);
+	writel(0xfc000000, pb_base + REG_PCIE1_MEM_MASK);
+	writel(0x28000000, pb_base + REG_PCIE2_MEM);
+	writel(0xfc000000, pb_base + REG_PCIE2_MEM_MASK);
+
+	return en7581_reset_register(pdev);
+}
+
 static int en7523_clk_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	const struct en_clk_soc_data *soc_data;
 	struct clk_hw_onecell_data *clk_data;
-	void __iomem *base, *np_base;
 	int r;
-
-	base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
-
-	np_base = devm_platform_ioremap_resource(pdev, 1);
-	if (IS_ERR(np_base))
-		return PTR_ERR(np_base);
-
-	soc_data = device_get_match_data(&pdev->dev);
-	if (soc_data->hw_init) {
-		r = soc_data->hw_init(pdev, np_base);
-		if (r)
-			return r;
-	}
 
 	clk_data = devm_kzalloc(&pdev->dev,
 				struct_size(clk_data, hws, EN7523_NUM_CLOCKS),
@@ -698,49 +729,28 @@ static int en7523_clk_probe(struct platform_device *pdev)
 	if (!clk_data)
 		return -ENOMEM;
 
-	en7523_register_clocks(&pdev->dev, clk_data, base, np_base);
-
-	r = of_clk_add_hw_provider(node, of_clk_hw_onecell_get, clk_data);
+	soc_data = device_get_match_data(&pdev->dev);
+	r = soc_data->hw_init(pdev, clk_data);
 	if (r)
-		return dev_err_probe(&pdev->dev, r, "Could not register clock provider: %s\n",
-				     pdev->name);
+		return r;
 
-	r = en7523_reset_register(pdev, soc_data);
-	if (r) {
-		of_clk_del_provider(node);
-		return dev_err_probe(&pdev->dev, r, "Could not register reset controller: %s\n",
-				     pdev->name);
-	}
-
-	return 0;
+	return of_clk_add_hw_provider(node, of_clk_hw_onecell_get, clk_data);
 }
 
 static const struct en_clk_soc_data en7523_data = {
-	.fixed_rate = {
-		.desc = en7523_base_clks,
-		.size = ARRAY_SIZE(en7523_base_clks),
-	},
 	.pcie_ops = {
 		.is_enabled = en7523_pci_is_enabled,
 		.prepare = en7523_pci_prepare,
 		.unprepare = en7523_pci_unprepare,
 	},
+	.hw_init = en7523_clk_hw_init,
 };
 
 static const struct en_clk_soc_data en7581_data = {
-	.fixed_rate = {
-		.desc = en7581_base_clks,
-		.size = ARRAY_SIZE(en7581_base_clks),
-	},
 	.pcie_ops = {
 		.is_enabled = en7581_pci_is_enabled,
 		.enable = en7581_pci_enable,
 		.disable = en7581_pci_disable,
-	},
-	.reset = {
-		.bank_ofs = en7581_rst_ofs,
-		.idx_map = en7581_rst_map,
-		.idx_map_nr = ARRAY_SIZE(en7581_rst_map),
 	},
 	.hw_init = en7581_clk_hw_init,
 };
