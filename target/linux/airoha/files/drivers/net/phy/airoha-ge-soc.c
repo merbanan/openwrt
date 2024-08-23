@@ -483,6 +483,7 @@ enum calibration_mode {
 
 enum CAL_ITEM {
 	REXT,
+	RX_OFFSET,
 	TX_OFFSET,
 	TX_AMP,
 	TX_R50,
@@ -492,6 +493,31 @@ enum CAL_ITEM {
 enum CAL_MODE {
 	SW_M
 };
+
+static const u8	ZCAL_TO_R50ohm_TBL_100[64] =
+{
+	127, 127, 127, 127, 127, 127, 126, 123,
+	120, 117, 114, 112, 110, 107, 105, 103,
+	101,  99,  97,  79,  77,  75,  74,  72,
+	 70,  69,  67,  66,  65,  47,  46,  45,
+	 43,  42,  41,  40,  39,  38,  37,  36,
+	 34,  34,  33,  32,  15,  14,  13,  12,
+	 11,  10,  10,   9,   8,   7,   7,   6,
+	 5,    4,   4,   3,   2,   2,   1,   1,
+};
+
+static const u8	ZCAL_TO_R50ohm_TBL[64] =
+{
+	127, 127, 124, 120, 117, 114, 112, 109,
+	106, 104, 102,  99,  97,  79,  77,  75,
+	 73,  72,  70,  68,  66,  65,  47,  46,
+	 44,  43,  42,  40,  39,  38,  37,  36,
+	 34,  33,  32,  26,  26,  20,  20,  20,
+	 10,  10,   9,   8,   7,   6,   5,   5,
+	  4,   3,   2,   2,   1,   0,   0,   0,
+	  0,   0,   0,   0,   0,   0,   0,   0,
+};
+
 
 static int mtk_gephy_read_page(struct phy_device *phydev)
 {
@@ -513,6 +539,34 @@ static int ana_cal_wait(struct phy_device *phydev, u32 delay) {
 	return all_ana_cal_status;
 }
 
+static void analog_calibration_enable(struct phy_device *phydev, u32 mode) {
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN | mode);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
+}
+
+static void select_pair(struct phy_device *phydev, u8 pair_id) {
+
+	switch (pair_id) {
+	case PAIR_A:
+		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+				MTK_PHY_RG_ZCALEN_A);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
+		break;
+	case PAIR_B:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_B);
+		break;
+	case PAIR_C:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C);
+		break;
+	case PAIR_D:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_D);
+		break;
+	default:
+		return;
+	}
+	return;
+}
 
 #define ANACAL_INIT		0x01
 #define ANACAL_ERROR		0xFD
@@ -524,14 +578,11 @@ static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
 //	u16 rext_cal_val[2];
 	u16 dev1e_e0_ana_cal_r5;
 	u8 rg_zcal_ctrl = 0x20;
+	u8 rg_zcal_val;
 	u8 all_ana_cal_status;
 	u16 ad_cal_comp_out_init;
 	int calibration_polarity, ret;
 	int cnt = 0;
-
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-			 MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ANA_CALEN);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
 
 
 	rg_zcal_ctrl = 0x20; // 0 dB
@@ -540,31 +591,8 @@ static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
 			 rg_zcal_ctrl | dev1e_e0_ana_cal_r5);
 
-	switch (pair_id) {
-	case PAIR_A:
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ZCALEN_A);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
-		break;
-	case PAIR_B:
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_B);
-		break;
-	case PAIR_C:
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C);
-		break;
-	case PAIR_D:
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-				MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_D);
-		break;
-	default:
-		ret = -EINVAL;
-		goto error;
-	}
+	analog_calibration_enable(phydev, 0x0);
+	select_pair(phydev, pair_id);
 
 	all_ana_cal_status = ana_cal_wait(phydev, 20);
 	if (!all_ana_cal_status) {
@@ -597,9 +625,9 @@ static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
 	}
 
 	if(all_ana_cal_status == ANACAL_ERROR) {
-		rg_zcal_ctrl = 0x20; // 0 dB
+		rg_zcal_val = 0x20; // 0 dB
 	} else {
-//FIXME		rg_zcal_ctrl =
+		rg_zcal_val = ZCAL_TO_R50ohm_TBL[rg_zcal_ctrl]
 	}
 
 	switch (pair_id) {
@@ -635,15 +663,16 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 	int calibration_polarity;
 	int cnt = 0;
 
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
-			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_REXT_CALEN);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
+	analog_calibration_enable(phydev, MTK_PHY_RG_REXT_CALEN);
+
+	/* Set and read default values */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0x0);
-
-	dev1e_e0_ana_cal_r5 = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5);
+	dev1e_e0_ana_cal_r5 = phy_read_mmd(phydev, MDIO_MMD_VEND1,
+					   MTK_PHY_RG_ANA_CAL_RG5);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
-			 rg_zcal_ctrl);
+		      rg_zcal_ctrl);
 
+	/* Get calibration status */
 	all_ana_cal_status = ana_cal_wait(phydev, 20);
 	if (!all_ana_cal_status)
 		all_ana_cal_status = ANACAL_ERROR;
@@ -654,11 +683,14 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 	else
 		calibration_polarity = 1;
 
+	/* Scan over calibration value space */
 	while(all_ana_cal_status < ANACAL_ERROR) {
 		cnt++;
 		rg_zcal_ctrl += calibration_polarity;
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, rg_zcal_ctrl);
+
 		all_ana_cal_status = ana_cal_wait(phydev, 20);
+
 		if (!all_ana_cal_status)
 			all_ana_cal_status = ANACAL_ERROR;
 		else if (((phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1) != ad_cal_comp_out_init)
@@ -688,6 +720,8 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 		//printf("RG_BG_RASEL = 0x%x (x%x)\r\n", reg_temp, rg_zcal_ctrl);
 		//regWriteWord(0xbfa2016c, reg_temp);   								// for ACD/steven simldo
 	}
+
+	// Turn off calibration
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
 
 	return 0;
