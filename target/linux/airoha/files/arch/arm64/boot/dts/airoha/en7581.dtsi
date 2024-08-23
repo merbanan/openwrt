@@ -242,14 +242,17 @@
 			status = "disabled";
 		};
 
+		chip_scu: chip-scu@1fa20000 {
+			compatible = "airoha,en7581-chip-scu", "syscon";
+			reg = <0x0 0x1fa20000 0x0 0x388>;
+		};
+
 		scuclk: clock-controller@1fa20000 {
 			compatible = "airoha,en7581-scu";
-			reg = <0x0 0x1fa201b4 0x0 0x5c>,
-			      <0x0 0x1fb00000 0x0 0x90>,
-			      <0x0 0x1fb00830 0x0 0x8>,
-			      <0x0 0x1fbe3400 0x0 0xfc>;
+			reg = <0x0 0x1fb00020 0x0 0x950>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			airoha,chip-scu = <&chip_scu>;
 		};
 
 		rng@1faa1000 {
@@ -268,22 +271,9 @@
 		};
 
 		pio: pinctrl {
-			compatible = "airoha,en7581-pinctrl";
-			reg = <0x0 0x1fa20214 0x0 0x30>,
-			      <0x0 0x1fa2027c 0x0 0x8>,
-			      <0x0 0x1fbf0234 0x0 0x4>,
-			      <0x0 0x1fbf0268 0x0 0x4>,
-			      <0x0 0x1fa2001c 0x0 0x50>,
-			      <0x0 0x1fa2018c 0x0 0x4>,
-			      <0x0 0x1fbf0200 0x0 0x18>,
-			      <0x0 0x1fbf0220 0x0 0x4>,
-			      <0x0 0x1fbf0260 0x0 0x8>,
-			      <0x0 0x1fbf0270 0x0 0x28>;
-			reg-names = "iomux", "led-iomux",
-				    "gpio-flash-mode", "gpio-flash-mode-ext",
-				    "ioconf", "pcie-rst-od",
-				    "gpio-bank0", "gpio-ctrl1",
-				    "gpio-ctrl2", "gpio-bank1";
+			compatible = "airoha,en7581-pinctrl", "syscon";
+			reg = <0x1fbf0200 0x0 0xc0>;
+			airoha,chip-scu = <&chip_scu>;
 
 			gpio-controller;
 			#gpio-cells = <2>;
@@ -292,15 +282,13 @@
 			#interrupt-cells = <2>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
-		};
 
-		pwm: pwm@1fbf0224 {
-			compatible = "airoha,en7581-pwm";
-			reg = <0x0 0x1fbf0224 0x0 0x10>,
-			      <0x0 0x1fbf0238 0x0 0x28>,
-			      <0x0 0x1fbf0298 0x0 0x8>;
-			#pwm-cells = <3>;
-			status = "disabled";
+			pwm: pwm {
+				compatible = "airoha,en7581-pwm";
+
+				#pwm-cells = <3>;
+				status = "disabled";
+			};
 		};
 
 		i2cclock: i2cclock@0 {
