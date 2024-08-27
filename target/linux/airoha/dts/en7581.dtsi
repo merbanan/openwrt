@@ -242,7 +242,7 @@
 			status = "disabled";
 		};
 
-		syscon@1fa20000 {
+		chip_scu: syscon@1fa20000 {
 			compatible = "airoha,en7581-chip-scu", "syscon";
 			reg = <0x0 0x1fa20000 0x0 0x388>;
 		};
@@ -267,10 +267,10 @@
 
 		thermal: thermal-sensor@1efbd800 {
 			compatible = "airoha,en7581-thermal";
-			reg = <0x0 0x1efbd000 0x0 0xd5c>,
-			      <0x0 0x1fa20268 0x0 0x4>,
-			      <0x0 0x1fa202ec 0x0 0x10>;
+			reg = <0x0 0x1efbd000 0x0 0xd5c>;
 			interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;
+			airoha,chip-scu = <&chip_scu>;
+
 			#thermal-sensor-cells = <0>;
 		};
 
