@@ -13,6 +13,7 @@
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
 #include <linux/kernel.h>
+#include <linux/mfd/airoha-en7581-mfd.h>
 #include <linux/mfd/syscon.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
@@ -2883,17 +2884,18 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct airoha_pinctrl *pinctrl;
+	struct airoha_mfd *mfd;
 	struct regmap *map;
 	int err, i;
+
+	mfd = dev_get_drvdata(dev->parent);
 
 	pinctrl = devm_kzalloc(dev, sizeof(*pinctrl), GFP_KERNEL);
 	if (!pinctrl)
 		return -ENOMEM;
 
 	mutex_init(&pinctrl->mutex);
-	pinctrl->base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(pinctrl->base))
-		return PTR_ERR(pinctrl->base);
+	pinctrl->base = mfd->base;
 
 	map = syscon_regmap_lookup_by_compatible("airoha,en7581-chip-scu");
 	if (IS_ERR(map))
@@ -2942,11 +2944,7 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 		return err;
 
 	/* build gpio-chip */
-	err = airoha_pinctrl_add_gpiochip(pinctrl, pdev);
-	if (err)
-		return err;
-
-	return of_platform_populate(dev->of_node, NULL, NULL, dev);
+	return airoha_pinctrl_add_gpiochip(pinctrl, pdev);
 }
 
 static const struct of_device_id of_airoha_pinctrl_match[] = {

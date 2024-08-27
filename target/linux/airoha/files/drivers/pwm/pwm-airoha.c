@@ -7,12 +7,11 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
-#include <linux/mfd/syscon.h>
+#include <linux/mfd/airoha-en7581-mfd.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pwm.h>
-#include <linux/regmap.h>
 #include <linux/gpio.h>
 #include <linux/bitops.h>
 #include <asm/div64.h>
@@ -47,7 +46,9 @@
 struct airoha_pwm {
 	struct pwm_chip chip;
 
-	struct regmap *base;
+	void __iomem *sgpio_cfg;
+	void __iomem *flash_cfg;
+	void __iomem *cycle_cfg;
 
 	struct device_node *np;
 	u64 initialized;
@@ -81,21 +82,30 @@ struct airoha_pwm {
 /* Duty cycle is relative with 255 corresponding to 100% */
 #define DUTY_FULL	255
 
+static u32 airoha_pwm_rmw(struct airoha_pwm *pc, void __iomem *addr,
+			  u32 mask, u32 val)
+{
+	val |= (readl(addr) & ~mask);
+	writel(val, addr);
+
+	return val;
+}
+
 #define airoha_pwm_sgpio_rmw(pc, offset, mask, val)				\
-	regmap_update_bits((pc)->base, REG_SGPIO_CFG + (offset), (mask), (val))
+	airoha_pwm_rmw((pc), (pc)->sgpio_cfg + (offset), (mask), (val))
 #define airoha_pwm_flash_rmw(pc, offset, mask, val)				\
-	regmap_update_bits((pc)->base, REG_FLASH_CFG + (offset), (mask), (val))
+	airoha_pwm_rmw((pc), (pc)->flash_cfg + (offset), (mask), (val))
 #define airoha_pwm_cycle_rmw(pc, offset, mask, val)				\
-	regmap_update_bits((pc)->base, REG_CYCLE_CFG + (offset), (mask), (val))
+	airoha_pwm_rmw((pc), (pc)->cycle_cfg + (offset), (mask), (val))
 
 #define airoha_pwm_sgpio_set(pc, offset, val)					\
-	regmap_set_bits((pc)->base, REG_SGPIO_CFG + (offset), (val))
+	airoha_pwm_sgpio_rmw((pc), (offset), 0, (val))
 #define airoha_pwm_sgpio_clear(pc, offset, mask)				\
-	regmap_clear_bits((pc)->base, REG_SGPIO_CFG + (offset), (mask))
+	airoha_pwm_sgpio_rmw((pc), (offset), (mask), 0)
 #define airoha_pwm_flash_set(pc, offset, val)					\
-	regmap_set_bits((pc)->base, REG_FLASH_CFG + (offset), (val))
+	airoha_pwm_flash_rmw((pc), (offset), 0, (val))
 #define airoha_pwm_flash_clear(pc, offset, mask)				\
-	regmap_clear_bits((pc)->base, REG_FLASH_CFG + (offset), (mask))
+	airoha_pwm_flash_rmw((pc), (offset), (mask), 0)
 
 static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u32 duty, u32 period)
 {
@@ -194,8 +204,7 @@ static int airoha_pwm_sipo_init(struct airoha_pwm *pc)
 		}
 	}
 	/* Configure shift register timings */
-	regmap_write(pc->base, REG_SGPIO_CFG + REG_SGPIO_CLK_DIVR,
-		     clk_divr_val);
+	writel(clk_divr_val, pc->sgpio_cfg + REG_SGPIO_CLK_DIVR);
 
 	of_property_read_u32(pc->np, "sipo-clock-delay", &sipo_clock_delay);
 	if (sipo_clock_delay < 1 || sipo_clock_delay > sipo_clock_divisor / 2)
@@ -206,8 +215,7 @@ static int airoha_pwm_sipo_init(struct airoha_pwm *pc)
 	 * sipo-clock-delay to calculate the register value
 	 */
 	sipo_clock_delay--;
-	regmap_write(pc->base, REG_SGPIO_CFG + REG_SGPIO_CLK_DLY,
-		     sipo_clock_delay);
+	writel(sipo_clock_delay, pc->sgpio_cfg + REG_SGPIO_CLK_DLY);
 
 	/*
 	 * It it necessary to after muxing explicitly shift out all
@@ -217,17 +225,15 @@ static int airoha_pwm_sipo_init(struct airoha_pwm *pc)
 	 * indicates shifting in progress and it must return to zero
 	 * before led_data can be written or PWM mode can be set)
 	 */
-	if (regmap_read_poll_timeout(pc->base,
-				     REG_SGPIO_CFG + REG_SGPIO_LED_DATE,
-				     val, !(val & SGPIO_LED_SHIFT_FLAG), 10,
-				     200 * USEC_PER_MSEC))
+	if (readl_poll_timeout(pc->sgpio_cfg + REG_SGPIO_LED_DATE, val,
+			       !(val & SGPIO_LED_SHIFT_FLAG), 10,
+			       200 * USEC_PER_MSEC))
 		return -ETIMEDOUT;
 
 	airoha_pwm_sgpio_clear(pc, REG_SGPIO_LED_DATE, SGPIO_LED_DATA);
-	if (regmap_read_poll_timeout(pc->base,
-				     REG_SGPIO_CFG + REG_SGPIO_LED_DATE,
-				     val, !(val & SGPIO_LED_SHIFT_FLAG), 10,
-				     200 * USEC_PER_MSEC))
+	if (readl_poll_timeout(pc->sgpio_cfg + REG_SGPIO_LED_DATE, val,
+			       !(val & SGPIO_LED_SHIFT_FLAG), 10,
+			       200 * USEC_PER_MSEC))
 		return -ETIMEDOUT;
 
 	/* Set SIPO in PWM mode */
@@ -386,16 +392,16 @@ static const struct pwm_ops airoha_pwm_ops = {
 
 static int airoha_pwm_probe(struct platform_device *pdev)
 {
-	struct device *parent = pdev->dev.parent;
+	struct airoha_mfd *mfd = dev_get_drvdata(pdev->dev.parent);
 	struct airoha_pwm *pc;
 
 	pc = devm_kzalloc(&pdev->dev, sizeof(*pc), GFP_KERNEL);
 	if (!pc)
 		return -ENOMEM;
 
-	pc->base = syscon_node_to_regmap(parent->of_node);
-	if (IS_ERR(pc->base))
-		return PTR_ERR(pc->base);
+	pc->sgpio_cfg = mfd->base + REG_SGPIO_CFG;
+	pc->flash_cfg = mfd->base + REG_FLASH_CFG;
+	pc->cycle_cfg = mfd->base + REG_CYCLE_CFG;
 
 	pc->np = pdev->dev.of_node;
 	pc->chip.dev = &pdev->dev;

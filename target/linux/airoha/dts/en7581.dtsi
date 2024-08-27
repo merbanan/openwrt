@@ -274,17 +274,22 @@
 			#thermal-sensor-cells = <0>;
 		};
 
-		pio: pinctrl {
-			compatible = "airoha,en7581-pinctrl", "syscon";
+		mfd@1fbf0200 {
+			compatible = "airoha,en7581-gpio-mfd";
 			reg = <0x0 0x1fbf0200 0x0 0xc0>;
 
-			gpio-controller;
-			#gpio-cells = <2>;
-
-			interrupt-controller;
-			#interrupt-cells = <2>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
+
+			pio: pinctrl {
+				compatible = "airoha,en7581-pinctrl";
+
+				gpio-controller;
+				#gpio-cells = <2>;
+
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
 
 			pwm: pwm {
 				compatible = "airoha,en7581-pwm";
