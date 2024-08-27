@@ -86,7 +86,7 @@
 		pinctrl-0 = <&pwm_gpio18_idx10_pins>;
 		lan4_green {
 			label = "pon:green";
-			pwms = <&pwm 10 4000000 0>;
+			pwms = <&pio 10 4000000 0>;
 			max-brightness = <255>;
 		};
 	};
@@ -234,10 +234,6 @@
 };
 
 &i2c0 {
-	status = "okay";
-};
-
-&pwm {
 	status = "okay";
 };
 

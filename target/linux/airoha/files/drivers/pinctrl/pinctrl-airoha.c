@@ -2888,6 +2888,8 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 	struct regmap *map;
 	int err, i;
 
+	/* Assign parent MFD of_node to dev */
+	dev->of_node = of_node_get(dev->parent->of_node);
 	mfd = dev_get_drvdata(dev->parent);
 
 	pinctrl = devm_kzalloc(dev, sizeof(*pinctrl), GFP_KERNEL);
@@ -2947,17 +2949,10 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 	return airoha_pinctrl_add_gpiochip(pinctrl, pdev);
 }
 
-static const struct of_device_id of_airoha_pinctrl_match[] = {
-	{ .compatible = "airoha,en7581-pinctrl" },
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(of, of_airoha_pinctrl_match);
-
 static struct platform_driver airoha_pinctrl_driver = {
 	.probe = airoha_pinctrl_probe,
 	.driver = {
-		.name = KBUILD_MODNAME,
-		.of_match_table = of_airoha_pinctrl_match,
+		.name = "pinctrl-airoha",
 	},
 };
 module_platform_driver(airoha_pinctrl_driver);

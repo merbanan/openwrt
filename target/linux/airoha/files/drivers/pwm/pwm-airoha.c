@@ -392,10 +392,16 @@ static const struct pwm_ops airoha_pwm_ops = {
 
 static int airoha_pwm_probe(struct platform_device *pdev)
 {
-	struct airoha_mfd *mfd = dev_get_drvdata(pdev->dev.parent);
+	struct device *dev = &pdev->dev;
+	struct airoha_mfd *mfd;
 	struct airoha_pwm *pc;
 
-	pc = devm_kzalloc(&pdev->dev, sizeof(*pc), GFP_KERNEL);
+
+	/* Assign parent MFD of_node to dev */
+	dev->of_node = of_node_get(dev->parent->of_node);
+	mfd = dev_get_drvdata(dev->parent);
+
+	pc = devm_kzalloc(dev, sizeof(*pc), GFP_KERNEL);
 	if (!pc)
 		return -ENOMEM;
 
@@ -403,8 +409,8 @@ static int airoha_pwm_probe(struct platform_device *pdev)
 	pc->flash_cfg = mfd->base + REG_FLASH_CFG;
 	pc->cycle_cfg = mfd->base + REG_CYCLE_CFG;
 
-	pc->np = pdev->dev.of_node;
-	pc->chip.dev = &pdev->dev;
+	pc->np = dev->of_node;
+	pc->chip.dev = dev;
 	pc->chip.ops = &airoha_pwm_ops;
 	pc->chip.base = -1;
 	pc->chip.npwm = PWM_NUM_GPIO + PWM_NUM_SIPO;
@@ -425,16 +431,9 @@ static int airoha_pwm_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id airoha_pwm_of_match[] = {
-	{ .compatible = "airoha,en7581-pwm" },
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(of, airoha_pwm_of_match);
-
 static struct platform_driver airoha_pwm_driver = {
 	.driver = {
 		.name = "airoha-pwm",
-		.of_match_table = airoha_pwm_of_match,
 	},
 	.probe = airoha_pwm_probe,
 	.remove = airoha_pwm_remove,

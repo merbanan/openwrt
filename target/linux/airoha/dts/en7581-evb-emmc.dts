@@ -70,7 +70,7 @@
 	};
 };
 
-&pio {
+&pinctrl {
 	gpio-ranges = <&pio 0 13 47>;
 
 	mdio_pins: mdio-pins {
@@ -185,10 +185,6 @@
 };
 
 &i2c0 {
-	status = "okay";
-};
-
-&pwm {
 	status = "okay";
 };
 

@@ -18,13 +18,11 @@ static struct resource airoha_mfd_pinctrl_intr[] = {
 static const struct mfd_cell airoha_mfd_devs[] = {
 	{
 		.name = "pinctrl-airoha",
-	  	.of_compatible = "airoha,en7581-pinctrl",
 		.resources = airoha_mfd_pinctrl_intr,
 		.num_resources = ARRAY_SIZE(airoha_mfd_pinctrl_intr),
 	},
 	{
 		.name = "airoha-pwm",
-	  	.of_compatible = "airoha,en7581-pwm",
 	},
 };
 
@@ -32,7 +30,7 @@ static int airoha_mfd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct airoha_mfd *mfd;
-	int irq, ret;
+	int irq;
 
 	mfd = devm_kzalloc(dev, sizeof(*mfd), GFP_KERNEL);
 	if (!mfd)
@@ -50,13 +48,9 @@ static int airoha_mfd_probe(struct platform_device *pdev)
 	airoha_mfd_pinctrl_intr[0].start = irq;
 	airoha_mfd_pinctrl_intr[0].end = irq;
 
-	ret = devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
-				   airoha_mfd_devs, ARRAY_SIZE(airoha_mfd_devs),
-				   NULL, 0, NULL);
-	if (ret)
-		return ret;
-
-	return 0;
+	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO,
+				    airoha_mfd_devs, ARRAY_SIZE(airoha_mfd_devs),
+				    NULL, 0, NULL);
 }
 
 static const struct of_device_id airoha_mfd_of_match[] = {
