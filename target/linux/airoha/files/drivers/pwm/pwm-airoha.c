@@ -89,13 +89,13 @@ struct airoha_pwm {
 	regmap_update_bits((pc)->base, REG_CYCLE_CFG + (offset), (mask), (val))
 
 #define airoha_pwm_sgpio_set(pc, offset, val)					\
-	airoha_pwm_sgpio_rmw((pc), (offset), 0, (val))
+	regmap_set_bits((pc)->base, REG_SGPIO_CFG + (offset), (val))
 #define airoha_pwm_sgpio_clear(pc, offset, mask)				\
-	airoha_pwm_sgpio_rmw((pc), (offset), (mask), 0)
+	regmap_clear_bits((pc)->base, REG_SGPIO_CFG + (offset), (mask))
 #define airoha_pwm_flash_set(pc, offset, val)					\
-	airoha_pwm_flash_rmw((pc), (offset), 0, (val))
+	regmap_set_bits((pc)->base, REG_FLASH_CFG + (offset), (val))
 #define airoha_pwm_flash_clear(pc, offset, mask)				\
-	airoha_pwm_flash_rmw((pc), (offset), (mask), 0)
+	regmap_clear_bits((pc)->base, REG_FLASH_CFG + (offset), (mask))
 
 static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u32 duty, u32 period)
 {
