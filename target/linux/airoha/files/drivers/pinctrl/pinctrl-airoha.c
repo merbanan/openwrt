@@ -2883,6 +2883,7 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct airoha_pinctrl *pinctrl;
+	struct regmap *map;
 	int err, i;
 
 	pinctrl = devm_kzalloc(dev, sizeof(*pinctrl), GFP_KERNEL);
@@ -2894,10 +2895,11 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 	if (IS_ERR(pinctrl->base))
 		return PTR_ERR(pinctrl->base);
 
-	pinctrl->chip_scu = syscon_regmap_lookup_by_phandle(dev->of_node,
-							    "airoha,chip-scu");
-	if (IS_ERR(pinctrl->chip_scu))
-		return PTR_ERR(pinctrl->chip_scu);
+	map = syscon_regmap_lookup_by_compatible("airoha,en7581-chip-scu");
+	if (IS_ERR(map))
+		return PTR_ERR(map);
+
+	pinctrl->chip_scu = map;
 
 	err = devm_pinctrl_register_and_init(dev, &airoha_pinctrl_desc,
 					     pinctrl, &pinctrl->ctrl);
