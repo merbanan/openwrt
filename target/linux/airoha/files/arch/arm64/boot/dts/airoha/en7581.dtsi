@@ -242,19 +242,21 @@
 			status = "disabled";
 		};
 
-		chip_scu: chip-scu@1fa20000 {
+		syscon@1fa20000 {
 			compatible = "airoha,en7581-chip-scu", "syscon";
 			reg = <0x0 0x1fa20000 0x0 0x388>;
 		};
 
+		syscon@1fbe3400 {
+			compatible = "airoha,en7581-pbus-csr", "syscon";
+			reg = <0x0 0x1fbe3400 0x0 0xfc>;
+		};
+
 		scuclk: clock-controller@1fa20000 {
 			compatible = "airoha,en7581-scu";
-			reg = <0x0 0x1fb00000 0x0 0x90>,
-			      <0x0 0x1fb00830 0x0 0x8>,
-			      <0x0 0x1fbe3400 0x0 0xfc>;
+			reg = <0x0 0x1fb00000 0x0 0x970>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
-			airoha,chip-scu = <&chip_scu>;
 		};
 
 		rng@1faa1000 {
@@ -275,7 +277,6 @@
 		pio: pinctrl {
 			compatible = "airoha,en7581-pinctrl", "syscon";
 			reg = <0x0 0x1fbf0200 0x0 0xc0>;
-			airoha,chip-scu = <&chip_scu>;
 
 			gpio-controller;
 			#gpio-cells = <2>;

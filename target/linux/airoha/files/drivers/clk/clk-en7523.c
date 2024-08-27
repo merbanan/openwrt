@@ -34,7 +34,6 @@
 #define   REG_RESET_CONTROL_PCIE1	BIT(27)
 #define   REG_RESET_CONTROL_PCIE2	BIT(26)
 /* EN7581 */
-#define REG_CRYPTO_CLKSRC2		0x20c
 #define REG_PCIE0_MEM			0x00
 #define REG_PCIE0_MEM_MASK		0x04
 #define REG_PCIE1_MEM			0x08
@@ -45,9 +44,10 @@
 #define REG_NP_SCU_SSTR			0x9c
 #define REG_PCIE_XSI0_SEL_MASK		GENMASK(14, 13)
 #define REG_PCIE_XSI1_SEL_MASK		GENMASK(12, 11)
+#define REG_CRYPTO_CLKSRC2		0x20c
 
-#define REG_RST_CTRL2			0x00
-#define REG_RST_CTRL1			0x04
+#define REG_RST_CTRL2			0x830
+#define REG_RST_CTRL1			0x834
 
 struct en_clk_desc {
 	int id;
@@ -554,7 +554,7 @@ static int en7523_clk_hw_init(struct platform_device *pdev,
 }
 
 static void en7581_register_clocks(struct device *dev, struct clk_hw_onecell_data *clk_data,
-				   struct regmap *chip_scu, void __iomem *base)
+				   struct regmap *map, void __iomem *base)
 {
 	struct clk_hw *hw;
 	u32 rate;
@@ -564,14 +564,14 @@ static void en7581_register_clocks(struct device *dev, struct clk_hw_onecell_dat
 		const struct en_clk_desc *desc = &en7581_base_clks[i];
 		u32 val, reg = desc->div_reg ? desc->div_reg : desc->base_reg;
 
-		if (regmap_read(chip_scu, desc->base_reg, &val)) {
+		if (regmap_read(map, desc->base_reg, &val)) {
 			pr_err("Failed reading fixed clk rate %s: %ld\n",
 			       desc->name, PTR_ERR(hw));
 			continue;
 		}
 		rate = en7523_get_base_rate(desc, val);
 
-		if (regmap_read(chip_scu, reg, &val)) {
+		if (regmap_read(map, reg, &val)) {
 			pr_err("Failed reading fixed clk div %s: %ld\n",
 			       desc->name, PTR_ERR(hw));
 			continue;
@@ -649,15 +649,9 @@ static const struct reset_control_ops en7581_reset_ops = {
 	.status = en7523_reset_status,
 };
 
-static int en7581_reset_register(struct platform_device *pdev)
+static int en7581_reset_register(struct device *dev, void __iomem *base)
 {
-	struct device *dev = &pdev->dev;
 	struct en_rst_data *rst_data;
-	void __iomem *base;
-
-	base = devm_platform_ioremap_resource(pdev, 1);
-	if (IS_ERR(base))
-		return PTR_ERR(base);
 
 	rst_data = devm_kzalloc(dev, sizeof(*rst_data), GFP_KERNEL);
 	if (!rst_data)
@@ -681,39 +675,38 @@ static int en7581_reset_register(struct platform_device *pdev)
 static int en7581_clk_hw_init(struct platform_device *pdev,
 			      struct clk_hw_onecell_data *clk_data)
 {
-	void __iomem *np_base, *pb_base;
-	struct regmap *chip_scu;
+	struct regmap *map;
+	void __iomem *base;
 	u32 val;
 
-	chip_scu = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
-						   "airoha,chip-scu");
-	if (IS_ERR(chip_scu))
-		return PTR_ERR(chip_scu);
+	map = syscon_regmap_lookup_by_compatible("airoha,en7581-chip-scu");
+	if (IS_ERR(map))
+		return PTR_ERR(map);
 
-	np_base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(np_base))
-		return PTR_ERR(np_base);
+	base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
 
-	pb_base = devm_platform_ioremap_resource(pdev, 2);
-	if (IS_ERR(pb_base))
-		return PTR_ERR(pb_base);
+	en7581_register_clocks(&pdev->dev, clk_data, map, base);
 
-	en7581_register_clocks(&pdev->dev, clk_data, chip_scu, np_base);
-
-	val = readl(np_base + REG_NP_SCU_SSTR);
+	val = readl(base + REG_NP_SCU_SSTR);
 	val &= ~(REG_PCIE_XSI0_SEL_MASK | REG_PCIE_XSI1_SEL_MASK);
-	writel(val, np_base + REG_NP_SCU_SSTR);
-	val = readl(np_base + REG_NP_SCU_PCIC);
-	writel(val | 3, np_base + REG_NP_SCU_PCIC);
+	writel(val, base + REG_NP_SCU_SSTR);
+	val = readl(base + REG_NP_SCU_PCIC);
+	writel(val | 3, base + REG_NP_SCU_PCIC);
 
-	writel(0x20000000, pb_base + REG_PCIE0_MEM);
-	writel(0xfc000000, pb_base + REG_PCIE0_MEM_MASK);
-	writel(0x24000000, pb_base + REG_PCIE1_MEM);
-	writel(0xfc000000, pb_base + REG_PCIE1_MEM_MASK);
-	writel(0x28000000, pb_base + REG_PCIE2_MEM);
-	writel(0xfc000000, pb_base + REG_PCIE2_MEM_MASK);
+	map = syscon_regmap_lookup_by_compatible("airoha,en7581-pbus-csr");
+	if (IS_ERR(map))
+		return PTR_ERR(map);
 
-	return en7581_reset_register(pdev);
+	regmap_write(map, REG_PCIE0_MEM, 0x20000000);
+	regmap_write(map, REG_PCIE0_MEM_MASK, 0xfc000000);
+	regmap_write(map, REG_PCIE1_MEM, 0x24000000);
+	regmap_write(map, REG_PCIE1_MEM_MASK, 0xfc000000);
+	regmap_write(map, REG_PCIE2_MEM, 0x28000000);
+	regmap_write(map, REG_PCIE2_MEM_MASK, 0xfc000000);
+
+	return en7581_reset_register(&pdev->dev, base);
 }
 
 static int en7523_clk_probe(struct platform_device *pdev)
