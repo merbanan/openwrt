@@ -3,15 +3,18 @@
 #include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/delay.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
+#include <linux/regmap.h>
 #include <linux/thermal.h>
 
 /* SCU regs */
-#define EN7581_PLLRG_PROTECT			0x0
-#define EN7581_PWD_TADC				0x0
+#define EN7581_PLLRG_PROTECT			0x268
+#define EN7581_PWD_TADC				0x2ec
 #define   EN7581_MUX_TADC			GENMASK(3, 1)
-#define EN7581_DOUT_TADC			0xc /* 1fa202ec 1fa202f8 */
+#define EN7581_DOUT_TADC			0x2f8
 #define   EN7581_DOUT_TADC_MASK			GENMASK(15, 0)
 
 /* PTP_THERMAL regs */
@@ -53,7 +56,7 @@
 #define   EN7581_LOFSINTEN0			BIT(2)
 #define   EN7581_HINTEN0			BIT(1)
 #define   EN7581_CINTEN0			BIT(0)
-#define EN7581_TEMPMONINTSTS	 		0x810
+#define EN7581_TEMPMONINTSTS			0x810
 #define   EN7581_STAGE3_INT_STAT		BIT(31)
 #define   EN7581_STAGE2_INT_STAT		BIT(30)
 #define   EN7581_STAGE1_INT_STAT		BIT(29)
@@ -144,15 +147,15 @@
 #define EN7581_SCU_THERMAL_MUX_DIODE1		0x7
 
 /* Convert temp to raw value as read from ADC */
-#define TEMP_TO_RAW(priv, temp) 		((((temp) / 100 - thermal_zone_get_slope(priv->tz)) * \
+#define TEMP_TO_RAW(priv, temp)			((((temp) / 100 - thermal_zone_get_slope(priv->tz)) * \
 						  priv->init_temp) / 1000 + thermal_zone_get_offset(priv->tz))
 
 struct airoha_thermal_priv {
 	struct thermal_zone_device *tz;
 	void __iomem *base;
-	void __iomem *scu_pll_base;
-	void __iomem *scu_adc_base;
-	struct resource *scu_adc_res;
+
+	struct regmap *chip_scu;
+	struct resource scu_adc_res;
 	u32 init_temp;
 };
 
@@ -160,7 +163,7 @@ static int airoha_get_thermal_ADC(struct airoha_thermal_priv *priv)
 {
 	u32 val;
 
-	val = readl(priv->scu_adc_base + EN7581_DOUT_TADC);
+	regmap_read(priv->chip_scu, EN7581_DOUT_TADC, &val);
 	return FIELD_GET(EN7581_DOUT_TADC_MASK, val);
 }
 
@@ -169,16 +172,15 @@ static void airoha_init_thermal_ADC_mode(struct airoha_thermal_priv *priv)
 	u32 adc_mux, pllrg;
 
 	/* Save PLLRG current value */
-	pllrg = readl(priv->scu_pll_base + EN7581_PLLRG_PROTECT);
+	regmap_read(priv->chip_scu, EN7581_PLLRG_PROTECT, &pllrg);
 
 	/* Give access to thermal regs */
-	writel(EN7581_SCU_THERMAL_PROTECT_KEY,
-	       priv->scu_pll_base + EN7581_PLLRG_PROTECT);
+	regmap_write(priv->chip_scu, EN7581_PLLRG_PROTECT, EN7581_SCU_THERMAL_PROTECT_KEY);
 	adc_mux = FIELD_PREP(EN7581_MUX_TADC, EN7581_SCU_THERMAL_MUX_DIODE1);
-	writel(adc_mux, priv->scu_adc_base + EN7581_PWD_TADC);
+	regmap_write(priv->chip_scu, EN7581_PWD_TADC, adc_mux);
 
 	/* Restore PLLRG value on exit */
-	writel(pllrg, priv->scu_pll_base + EN7581_PLLRG_PROTECT);
+	regmap_write(priv->chip_scu, EN7581_PLLRG_PROTECT, pllrg);
 }
 
 static int airoha_thermal_get_temp(struct thermal_zone_device *tz, int *temp)
@@ -206,15 +208,16 @@ static int airoha_thermal_get_temp(struct thermal_zone_device *tz, int *temp)
 	avg_temp = avg_temp - max - min;
 	avg_temp /= 4;
 
-	temp_x10 = 1000 * (avg_temp - thermal_zone_get_offset(tz)) / 
-		          thermal_zone_get_slope(tz) + priv->init_temp;
+	temp_x10 = 1000 * (avg_temp - thermal_zone_get_offset(tz)) /
+			   thermal_zone_get_slope(tz) + priv->init_temp;
 	*temp = temp_x10 * 100;
 
 	return 0;
 }
 
 static int airoha_thermal_set_trips(struct thermal_zone_device *tz, int low,
-				    int high) {
+				    int high)
+{
 	struct airoha_thermal_priv *priv = tz->devdata;
 
 	/* Set low and high trip point */
@@ -286,7 +289,6 @@ static void airoha_thermal_setup_adc_val(struct device *dev,
 		} else {
 			slope = EN7581_SLOPE_X100_DIO_DEFAULT;
 			priv->init_temp = EN7581_INIT_TEMP_FPK_X10;
-
 		}
 	} else {
 		offset = airoha_get_thermal_ADC(priv);
@@ -299,7 +301,7 @@ static void airoha_thermal_setup_adc_val(struct device *dev,
 		tz->tzp->offset = offset;
 
 	if (tz->tzp->slope == 1)
-		tz->tzp->slope = slope;	
+		tz->tzp->slope = slope;
 }
 
 static void airoha_thermal_setup_monitor(struct airoha_thermal_priv *priv)
@@ -320,11 +322,11 @@ static void airoha_thermal_setup_monitor(struct airoha_thermal_priv *priv)
 	 * implementation is greatly simplified but the AHB supports
 	 * up to 4 different sensor from the same ADC that can be
 	 * switched by tuning the ADC mux or wiriting address.
-	 * 
+	 *
 	 * We set valid instead of volt as we don't enable valid/volt
 	 * split reading and AHB read valid addr in such case.
 	 */
-	writel(priv->scu_adc_res->start + EN7581_DOUT_TADC,
+	writel(priv->scu_adc_res.start + EN7581_DOUT_TADC,
 	       priv->base + EN7581_TEMPADCVALIDADDR);
 
 	/*
@@ -334,7 +336,7 @@ static void airoha_thermal_setup_monitor(struct airoha_thermal_priv *priv)
 	writel(FIELD_PREP(EN7581_ADV_RD_VALID_POS, 16),
 	       priv->base + EN7581_TEMPADCVALIDMASK);
 
-	/* 
+	/*
 	 * AHB supports max 12 bytes for ADC voltage. Shift the read
 	 * value 4 bit to the right. Precision lost by this is minimal
 	 * in the order of half a °C and is acceptable in the context
@@ -351,6 +353,7 @@ static void airoha_thermal_setup_monitor(struct airoha_thermal_priv *priv)
 static int airoha_thermal_probe(struct platform_device *pdev)
 {
 	struct airoha_thermal_priv *priv;
+	struct device_node *chip_scu_np;
 	struct device *dev = &pdev->dev;
 	int irq, ret;
 
@@ -362,14 +365,16 @@ static int airoha_thermal_probe(struct platform_device *pdev)
 	if (IS_ERR(priv->base))
 		return PTR_ERR(priv->base);
 
-	priv->scu_pll_base = devm_platform_ioremap_resource(pdev, 1);
-	if (IS_ERR(priv->scu_pll_base))
-		return PTR_ERR(priv->scu_pll_base);
+	chip_scu_np = of_parse_phandle(dev->of_node, "airoha,chip-scu", 0);
+	if (!chip_scu_np)
+		return -EINVAL;
 
-	priv->scu_adc_base = devm_platform_get_and_ioremap_resource(pdev, 2,
-								    &priv->scu_adc_res);
-	if (IS_ERR(priv->scu_adc_base))
-		return PTR_ERR(priv->scu_adc_base);
+	priv->chip_scu = syscon_node_to_regmap(chip_scu_np);
+	if (IS_ERR(priv->chip_scu))
+		return PTR_ERR(priv->chip_scu);
+
+	of_address_to_resource(chip_scu_np, 0, &priv->scu_adc_res);
+	of_node_put(chip_scu_np);
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
