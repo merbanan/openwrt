@@ -274,7 +274,7 @@
 			#thermal-sensor-cells = <0>;
 		};
 
-		pio: mfd@1fbf0200 {
+		mfd: mfd@1fbf0200 {
 			compatible = "airoha,en7581-gpio-mfd";
 			reg = <0x0 0x1fbf0200 0x0 0xc0>;
 
