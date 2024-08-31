@@ -275,7 +275,7 @@
 		};
 
 		mfd: mfd@1fbf0200 {
-			compatible = "airoha,en7581-gpio-mfd";
+			compatible = "airoha,en7581-gpio-sysctl";
 			reg = <0x0 0x1fbf0200 0x0 0xc0>;
 
 			interrupt-parent = <&gic>;
