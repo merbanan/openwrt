@@ -56,9 +56,9 @@ struct airoha_pwm {
 	struct {
 		/* Bitmask of PWM channels using this bucket */
 		u64 used;
+		u64 period_ns;
 		u64 duty_ns;
 		enum pwm_polarity polarity;
-		u64 period_ns;
 	} bucket[8];
 };
 
@@ -105,7 +105,8 @@ static u32 airoha_pwm_rmw(struct airoha_pwm *pc, void __iomem *addr,
 #define airoha_pwm_flash_clear(pc, offset, mask)				\
 	airoha_pwm_flash_rmw((pc), (offset), (mask), 0)
 
-static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u64 duty_ns, u64 period_ns)
+static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u64 duty_ns,
+				   u64 period_ns)
 {
 	int i;
 
@@ -137,8 +138,9 @@ static void airoha_pwm_free_waveform(struct airoha_pwm *pc, unsigned int hwpwm)
 		pc->bucket[i].used &= ~BIT_ULL(hwpwm);
 }
 
-static int airoha_pwm_consume_waveform(struct airoha_pwm *pc, u64 duty_ns,
-				       u64 period_ns, enum pwm_polarity polarity,
+static int airoha_pwm_consume_waveform(struct airoha_pwm *pc,
+				       u64 duty_ns, u64 period_ns,
+				       enum pwm_polarity polarity,
 				       unsigned int hwpwm)
 {
 	int id = airoha_pwm_get_waveform(pc, duty_ns, period_ns);
@@ -245,8 +247,7 @@ static void airoha_pwm_config_waveform(struct airoha_pwm *pc, int index,
 				       u64 duty_ns, u64 period_ns,
 				       enum pwm_polarity polarity)
 {
-	u32 period, duty;
-	u32 mask, val;
+	u32 period, duty, mask, val;
 
 	duty = clamp_val(div64_u64(DUTY_FULL * duty_ns, period_ns), 0,
 			 DUTY_FULL);
@@ -303,7 +304,7 @@ static int airoha_pwm_config(struct airoha_pwm *pc, struct pwm_device *pwm,
 	int index = -1;
 
 	index = airoha_pwm_consume_waveform(pc, duty_ns, period_ns, polarity,
-						pwm->hwpwm);
+					    pwm->hwpwm);
 	if (index < 0)
 		return -EBUSY;
 
@@ -312,7 +313,8 @@ static int airoha_pwm_config(struct airoha_pwm *pc, struct pwm_device *pwm,
 		airoha_pwm_sipo_init(pc);
 
 	if (index >= 0) {
-		airoha_pwm_config_waveform(pc, index, duty_ns, period_ns, polarity);
+		airoha_pwm_config_waveform(pc, index, duty_ns, period_ns,
+					   polarity);
 		airoha_pwm_config_flash_map(pc, pwm->hwpwm, index);
 	} else {
 		airoha_pwm_config_flash_map(pc, pwm->hwpwm, index);
@@ -351,7 +353,6 @@ static int airoha_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 	struct airoha_pwm *pc = container_of(chip, struct airoha_pwm, chip);
 	u64 duty = state->enabled ? state->duty_cycle : 0;
 
-	/* If PWM not enabled, do nothing */
 	if (!state->enabled) {
 		airoha_pwm_free(chip, pwm);
 		return 0;
@@ -388,8 +389,8 @@ static int airoha_pwm_get_state(struct pwm_chip *chip, struct pwm_device *pwm,
 }
 
 static const struct pwm_ops airoha_pwm_ops = {
-	.apply = airoha_pwm_apply,
 	.get_state = airoha_pwm_get_state,
+	.apply = airoha_pwm_apply,
 	.free = airoha_pwm_free,
 	.owner = THIS_MODULE,
 };
