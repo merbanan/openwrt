@@ -88,6 +88,7 @@
 			label = "pon:green";
 			pwms = <&mfd 10 4000000 0>;
 			max-brightness = <255>;
+			active-low;
 		};
 	};
 
