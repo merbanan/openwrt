@@ -56,11 +56,9 @@ struct airoha_pwm {
 	struct {
 		/* Bitmask of PWM channels using this bucket */
 		u64 used;
-		/* Relative duty cycle, 0-255 */
-		u32 duty;
-		/* In 1/250 s, 1-250 permitted */
-		u32 period;
+		u64 duty_ns;
 		enum pwm_polarity polarity;
+		u64 period_ns;
 	} bucket[8];
 };
 
@@ -107,7 +105,7 @@ static u32 airoha_pwm_rmw(struct airoha_pwm *pc, void __iomem *addr,
 #define airoha_pwm_flash_clear(pc, offset, mask)				\
 	airoha_pwm_flash_rmw((pc), (offset), (mask), 0)
 
-static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u32 duty, u32 period)
+static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u64 duty_ns, u64 period_ns)
 {
 	int i;
 
@@ -115,8 +113,8 @@ static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u32 duty, u32 period)
 		if (!pc->bucket[i].used)
 			continue;
 
-		if (duty == pc->bucket[i].duty &&
-		    period == pc->bucket[i].period)
+		if (duty_ns == pc->bucket[i].duty_ns &&
+		    period_ns == pc->bucket[i].period_ns)
 			return i;
 
 		/*
@@ -124,7 +122,7 @@ static int airoha_pwm_get_waveform(struct airoha_pwm *pc, u32 duty, u32 period)
 		 * disabling PWM, a generator is needed for full duty
 		 * cycle but it can be reused regardless of period
 		 */
-		if (duty == DUTY_FULL && pc->bucket[i].duty == DUTY_FULL)
+		if (duty_ns == DUTY_FULL && pc->bucket[i].duty_ns == DUTY_FULL)
 			return i;
 	}
 
@@ -139,11 +137,11 @@ static void airoha_pwm_free_waveform(struct airoha_pwm *pc, unsigned int hwpwm)
 		pc->bucket[i].used &= ~BIT_ULL(hwpwm);
 }
 
-static int airoha_pwm_consume_waveform(struct airoha_pwm *pc, u32 duty,
-				       u32 period, enum pwm_polarity polarity,
+static int airoha_pwm_consume_waveform(struct airoha_pwm *pc, u64 duty_ns,
+				       u64 period_ns, enum pwm_polarity polarity,
 				       unsigned int hwpwm)
 {
-	int id = airoha_pwm_get_waveform(pc, duty, period);
+	int id = airoha_pwm_get_waveform(pc, duty_ns, period_ns);
 
 	if (id < 0) {
 		int i;
@@ -157,11 +155,11 @@ static int airoha_pwm_consume_waveform(struct airoha_pwm *pc, u32 duty,
 		}
 	}
 
-	if (id > 0) {
+	if (id >= 0) {
 		airoha_pwm_free_waveform(pc, hwpwm);
 		pc->bucket[id].used |= BIT_ULL(hwpwm);
-		pc->bucket[id].period = period;
-		pc->bucket[id].duty = duty;
+		pc->bucket[id].period_ns = period_ns;
+		pc->bucket[id].duty_ns = duty_ns;
 		pc->bucket[id].polarity = polarity;
 	}
 
@@ -244,9 +242,19 @@ static int airoha_pwm_sipo_init(struct airoha_pwm *pc)
 }
 
 static void airoha_pwm_config_waveform(struct airoha_pwm *pc, int index,
-				       u32 duty, u32 period)
+				       u64 duty_ns, u64 period_ns,
+				       enum pwm_polarity polarity)
 {
+	u32 period, duty;
 	u32 mask, val;
+
+	duty = clamp_val(div64_u64(DUTY_FULL * duty_ns, period_ns), 0,
+			 DUTY_FULL);
+	if (polarity == PWM_POLARITY_INVERSED)
+		duty = DUTY_FULL - duty;
+
+	period = clamp_val(div64_u64(25 * period_ns, 100000000), PERIOD_MIN,
+			   PERIOD_MAX);
 
 	/* Configure frequency divisor */
 	mask = WAVE_GEN_CYCLE_MASK(index % 4);
@@ -292,29 +300,19 @@ static int airoha_pwm_config(struct airoha_pwm *pc, struct pwm_device *pwm,
 			     u64 duty_ns, u64 period_ns,
 			     enum pwm_polarity polarity)
 {
-	u32 duty, period;
 	int index = -1;
 
-	duty = clamp_val(div64_u64(DUTY_FULL * duty_ns, period_ns), 0,
-			 DUTY_FULL);
-	if (polarity == PWM_POLARITY_INVERSED)
-		duty = DUTY_FULL - duty;
-
-	period = clamp_val(div64_u64(25 * period_ns, 100000000), PERIOD_MIN,
-			   PERIOD_MAX);
-	if (duty) {
-		index = airoha_pwm_consume_waveform(pc, duty, period, polarity,
-						    pwm->hwpwm);
-		if (index < 0)
-			return -EBUSY;
-	}
+	index = airoha_pwm_consume_waveform(pc, duty_ns, period_ns, polarity,
+						pwm->hwpwm);
+	if (index < 0)
+		return -EBUSY;
 
 	if (!(pc->initialized & BIT_ULL(pwm->hwpwm)) &&
 	    pwm->hwpwm >= PWM_NUM_GPIO)
 		airoha_pwm_sipo_init(pc);
 
 	if (index >= 0) {
-		airoha_pwm_config_waveform(pc, index, duty, period);
+		airoha_pwm_config_waveform(pc, index, duty_ns, period_ns, polarity);
 		airoha_pwm_config_flash_map(pc, pwm->hwpwm, index);
 	} else {
 		airoha_pwm_config_flash_map(pc, pwm->hwpwm, index);
@@ -353,6 +351,12 @@ static int airoha_pwm_apply(struct pwm_chip *chip, struct pwm_device *pwm,
 	struct airoha_pwm *pc = container_of(chip, struct airoha_pwm, chip);
 	u64 duty = state->enabled ? state->duty_cycle : 0;
 
+	/* If PWM not enabled, do nothing */
+	if (!state->enabled) {
+		airoha_pwm_free(chip, pwm);
+		return 0;
+	}
+
 	if (state->period < PERIOD_MIN_NS || state->period > PERIOD_MAX_NS)
 		return -EINVAL;
 
@@ -371,8 +375,8 @@ static int airoha_pwm_get_state(struct pwm_chip *chip, struct pwm_device *pwm,
 		if (pc->bucket[i].used & BIT_ULL(pwm->hwpwm)) {
 			state->enabled = pc->initialized & BIT_ULL(pwm->hwpwm);
 			state->polarity = pc->bucket[i].polarity;
-			state->period = pc->bucket[i].period;
-			state->duty_cycle = pc->bucket[i].duty;
+			state->period = pc->bucket[i].period_ns;
+			state->duty_cycle = pc->bucket[i].duty_ns;
 			break;
 		}
 	}
