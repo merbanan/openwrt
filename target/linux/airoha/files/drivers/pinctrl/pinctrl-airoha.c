@@ -2388,7 +2388,7 @@ static int airoha_pinctrl_get_conf(struct airoha_pinctrl *pinctrl,
 	if (regmap_read(pinctrl->chip_scu, reg->offset, val))
 		return -EINVAL;
 
-	*val = (*val & reg->mask) >> __bf_shf(reg->mask);
+	*val = (*val & reg->mask) >> __ffs(reg->mask);
 
 	return 0;
 }
@@ -2405,7 +2405,7 @@ static int airoha_pinctrl_set_conf(struct airoha_pinctrl *pinctrl,
 
 
 	if (regmap_update_bits(pinctrl->chip_scu, reg->offset, reg->mask,
-			       val << __bf_shf(reg->mask)))
+			       val << __ffs(reg->mask)))
 		return -EINVAL;
 
 	return 0;
