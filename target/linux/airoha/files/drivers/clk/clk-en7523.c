@@ -563,17 +563,20 @@ static void en7581_register_clocks(struct device *dev, struct clk_hw_onecell_dat
 	for (i = 0; i < ARRAY_SIZE(en7581_base_clks); i++) {
 		const struct en_clk_desc *desc = &en7581_base_clks[i];
 		u32 val, reg = desc->div_reg ? desc->div_reg : desc->base_reg;
+		int err;
 
-		if (regmap_read(map, desc->base_reg, &val)) {
-			pr_err("Failed reading fixed clk rate %s: %ld\n",
-			       desc->name, PTR_ERR(hw));
+		err = regmap_read(map, desc->base_reg, &val);
+		if (err) {
+			pr_err("Failed reading fixed clk rate %s: %d\n",
+			       desc->name, err);
 			continue;
 		}
 		rate = en7523_get_base_rate(desc, val);
 
-		if (regmap_read(map, reg, &val)) {
-			pr_err("Failed reading fixed clk div %s: %ld\n",
-			       desc->name, PTR_ERR(hw));
+		err = regmap_read(map, reg, &val);
+		if (err) {
+			pr_err("Failed reading fixed clk div %s: %d\n",
+			       desc->name, err);
 			continue;
 		}
 		rate /= en7523_get_div(desc, val);
