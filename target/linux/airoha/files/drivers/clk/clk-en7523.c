@@ -34,12 +34,6 @@
 #define   REG_RESET_CONTROL_PCIE1	BIT(27)
 #define   REG_RESET_CONTROL_PCIE2	BIT(26)
 /* EN7581 */
-#define REG_PCIE0_MEM			0x00
-#define REG_PCIE0_MEM_MASK		0x04
-#define REG_PCIE1_MEM			0x08
-#define REG_PCIE1_MEM_MASK		0x0c
-#define REG_PCIE2_MEM			0x10
-#define REG_PCIE2_MEM_MASK		0x14
 #define REG_NP_SCU_PCIC			0x88
 #define REG_NP_SCU_SSTR			0x9c
 #define REG_PCIE_XSI0_SEL_MASK		GENMASK(14, 13)
@@ -697,17 +691,6 @@ static int en7581_clk_hw_init(struct platform_device *pdev,
 	writel(val, base + REG_NP_SCU_SSTR);
 	val = readl(base + REG_NP_SCU_PCIC);
 	writel(val | 3, base + REG_NP_SCU_PCIC);
-
-	map = syscon_regmap_lookup_by_compatible("airoha,en7581-pbus-csr");
-	if (IS_ERR(map))
-		return PTR_ERR(map);
-
-	regmap_write(map, REG_PCIE0_MEM, 0x20000000);
-	regmap_write(map, REG_PCIE0_MEM_MASK, 0xfc000000);
-	regmap_write(map, REG_PCIE1_MEM, 0x24000000);
-	regmap_write(map, REG_PCIE1_MEM_MASK, 0xfc000000);
-	regmap_write(map, REG_PCIE2_MEM, 0x28000000);
-	regmap_write(map, REG_PCIE2_MEM_MASK, 0xfc000000);
 
 	return en7581_reset_register(&pdev->dev, base);
 }
