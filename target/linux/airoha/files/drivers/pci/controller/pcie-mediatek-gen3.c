@@ -15,6 +15,7 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/irqdomain.h>
 #include <linux/kernel.h>
+#include <linux/mfd/syscon.h>
 #include <linux/module.h>
 #include <linux/msi.h>
 #include <linux/of_device.h>
@@ -24,6 +25,7 @@
 #include <linux/platform_device.h>
 #include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
+#include <linux/regmap.h>
 #include <linux/reset.h>
 
 #include "../pci.h"
@@ -119,6 +121,14 @@
 #define PCIE_ATR_TLP_TYPE_IO		PCIE_ATR_TLP_TYPE(2)
 
 #define MAX_NUM_PHY_RESETS		3
+
+/* EN7581 */
+#define PCIE_PBUS_MEM(_n)		(0x00 + ((_n) << 3))
+#define PCIE_PBUS_MEM_MASK(_n)		(0x04 + ((_n) << 3))
+#define PCIE_BUS_PORT_VAL(_n)		\
+	((_n) == 2 ? 0x28000000 :	\
+	 (_n) == 1 ? 0x24000000 : 0x20000000)
+#define PCIE_BUS_PORT_MASK		GENMASK(31, 26)
 
 /* Time in ms needed to complete PCIe reset on EN7581 SoC */
 #define PCIE_EN7581_RESET_TIME_MS	100
@@ -871,7 +881,8 @@ static int mtk_pcie_parse_port(struct mtk_gen3_pcie *pcie)
 static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
 {
 	struct device *dev = pcie->dev;
-	int err;
+	struct regmap *map;
+	int err, i;
 	u32 val;
 
 	/*
@@ -879,6 +890,15 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
 	 * mtk_pcie_setup for EN7581 SoC.
 	 */
 	mdelay(PCIE_EN7581_RESET_TIME_MS);
+
+	map = syscon_regmap_lookup_by_compatible("airoha,en7581-pbus-csr");
+	if (IS_ERR(map))
+		return PTR_ERR(map);
+
+	for (i = 0; i < 3; i++) {
+		regmap_write(map, PCIE_PBUS_MEM(i), PCIE_BUS_PORT_VAL(i));
+		regmap_write(map, PCIE_PBUS_MEM_MASK(i), PCIE_BUS_PORT_MASK);
+	}
 
 	err = phy_init(pcie->phy);
 	if (err) {
@@ -1241,4 +1261,5 @@ static struct platform_driver mtk_pcie_driver = {
 };
 
 module_platform_driver(mtk_pcie_driver);
+MODULE_DESCRIPTION("MediaTek Gen3 PCIe host controller driver");
 MODULE_LICENSE("GPL v2");
