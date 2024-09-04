@@ -262,7 +262,8 @@ mtdsplit_fit_parse(struct mtd_info *mtd,
 		enum mtdsplit_part_type type;
 
 		/* Search for the rootfs partition after the FIT image */
-		ret = mtd_find_rootfs_from(mtd, fit_offset + fit_size + offset_start, mtd->size,
+		// ret = mtd_find_rootfs_from(mtd, fit_offset + fit_size + offset_start, mtd->size,
+		ret = mtd_find_rootfs_from(mtd, fit_offset, mtd->size,
 					   &rootfs_offset, &type);
 		if (ret) {
 			pr_info("no rootfs found after FIT image in \"%s\"\n",
