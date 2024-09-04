@@ -249,7 +249,7 @@
 
 		syscon@1fbe3400 {
 			compatible = "airoha,en7581-pbus-csr", "syscon";
-			reg = <0x0 0x1fbe3400 0x0 0xfc>;
+			reg = <0x0 0x1fbe3400 0x0 0xff>;
 		};
 
 		scuclk: clock-controller@1fa20000 {
