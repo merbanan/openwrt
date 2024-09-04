@@ -380,6 +380,7 @@
 		pcie0: pcie@1fc00000 {
 			compatible = "airoha,en7581-pcie";
 			device_type = "pci";
+			linux,pci-domain = <0>;
 			#address-cells = <3>;
 			#size-cells = <2>;
 
@@ -420,6 +421,7 @@
 		pcie1: pcie@1fc20000 {
 			compatible = "airoha,en7581-pcie";
 			device_type = "pci";
+			linux,pci-domain = <1>;
 			#address-cells = <3>;
 			#size-cells = <2>;
 

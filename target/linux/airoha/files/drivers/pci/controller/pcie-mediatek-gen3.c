@@ -122,13 +122,12 @@
 
 #define MAX_NUM_PHY_RESETS		3
 
-/* EN7581 */
-#define PCIE_PBUS_MEM(_n)		(0x00 + ((_n) << 3))
-#define PCIE_PBUS_MEM_MASK(_n)		(0x04 + ((_n) << 3))
-#define PCIE_BUS_PORT_VAL(_n)		\
+#define PCIE_EN7581_PBUS_ADDR(_n)	(0x00 + ((_n) << 3))
+#define PCIE_EN7581_PBUS_ADDR_MASK(_n)	(0x04 + ((_n) << 3))
+#define PCIE_EN7581_PBUS_BASE_ADDR(_n)	\
 	((_n) == 2 ? 0x28000000 :	\
 	 (_n) == 1 ? 0x24000000 : 0x20000000)
-#define PCIE_BUS_PORT_MASK		GENMASK(31, 26)
+#define PCIE_EN7581_PBUS_BASE_ADDR_MASK	GENMASK(31, 26)
 
 /* Time in ms needed to complete PCIe reset on EN7581 SoC */
 #define PCIE_EN7581_RESET_TIME_MS	100
@@ -882,7 +881,7 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
 {
 	struct device *dev = pcie->dev;
 	struct regmap *map;
-	int err, i;
+	int err, slot;
 	u32 val;
 
 	/*
@@ -895,10 +894,18 @@ static int mtk_pcie_en7581_power_up(struct mtk_gen3_pcie *pcie)
 	if (IS_ERR(map))
 		return PTR_ERR(map);
 
-	for (i = 0; i < 3; i++) {
-		regmap_write(map, PCIE_PBUS_MEM(i), PCIE_BUS_PORT_VAL(i));
-		regmap_write(map, PCIE_PBUS_MEM_MASK(i), PCIE_BUS_PORT_MASK);
-	}
+	/*
+	 * Configure PBus base address and address mask in order to allow the
+	 * hw detecting if a given address is on PCIE0, PCIE1 or PCIE2.
+	 */
+	slot = of_get_pci_domain_nr(dev->of_node);
+	if (slot < 0)
+		return slot;
+
+	regmap_write(map, PCIE_EN7581_PBUS_ADDR(slot),
+		     PCIE_EN7581_PBUS_BASE_ADDR(slot));
+	regmap_write(map, PCIE_EN7581_PBUS_ADDR_MASK(slot),
+		     PCIE_EN7581_PBUS_BASE_ADDR_MASK);
 
 	err = phy_init(pcie->phy);
 	if (err) {
