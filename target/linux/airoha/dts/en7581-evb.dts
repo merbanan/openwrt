@@ -204,7 +204,10 @@
 		};
 		tclinux@80000 {
 			label = "tclinux";
+			compatible = "denx,fit";
 			reg = <0x00080000 0x02800000>;
+
+			// openwrt,fit-offset = <0x2100>;
 		};
 		tclinux_slave@2880000 {
 			label = "tclinux_slave";
