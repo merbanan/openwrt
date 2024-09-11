@@ -2294,7 +2294,7 @@ static int airoha_pinmux_set_mux(struct pinctrl_dev *pctrl_dev,
 	if (!grp)
 		return -EINVAL;
 
-	dev_err(pctrl_dev->dev, "enable function %s group %s\n",
+	dev_dbg(pctrl_dev->dev, "enable function %s group %s\n",
 		desc->name, grp->name);
 
 	func = desc->data;
@@ -2889,7 +2889,7 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 	int err, i;
 
 	/* Assign parent MFD of_node to dev */
-	dev->of_node = of_node_get(dev->parent->of_node);
+	device_set_of_node_from_dev(dev, dev->parent);
 	mfd = dev_get_drvdata(dev->parent);
 
 	pinctrl = devm_kzalloc(dev, sizeof(*pinctrl), GFP_KERNEL);
@@ -2918,7 +2918,7 @@ static int airoha_pinctrl_probe(struct platform_device *pdev)
 						(int *)grp->pins, grp->npins,
 						(void *)grp);
 		if (err < 0) {
-			dev_err(dev, "Failed to register group %s\n",
+			dev_err(&pdev->dev, "Failed to register group %s\n",
 				grp->name);
 			return err;
 		}
