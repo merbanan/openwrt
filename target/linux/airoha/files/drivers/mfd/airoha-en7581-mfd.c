@@ -21,7 +21,7 @@ static const struct mfd_cell airoha_mfd_devs[] = {
 		.resources = airoha_mfd_pinctrl_intr,
 		.num_resources = ARRAY_SIZE(airoha_mfd_pinctrl_intr),
 	}, {
-		.name = "airoha-pwm",
+		.name = "pwm-airoha",
 	},
 };
 
