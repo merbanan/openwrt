@@ -645,7 +645,7 @@ static ssize_t airoha_snand_dirmap_read(struct spi_mem_dirmap_desc *desc,
 	int err;
 
 	if (!as_dev->data_need_update)
-		return len;
+		goto out;
 
 	as_dev->data_need_update = false;
 
@@ -763,6 +763,7 @@ static ssize_t airoha_snand_dirmap_read(struct spi_mem_dirmap_desc *desc,
 	if (err < 0)
 		return err;
 
+out:
 	memcpy(buf, as_dev->txrx_buf + offs, len);
 
 	return len;
