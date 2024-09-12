@@ -15,6 +15,7 @@
 #include <linux/types.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/math.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/watchdog.h>
@@ -57,7 +58,7 @@ static int airoha_wdt_start(struct watchdog_device *wdog_dev)
 	val = readl(airoha_wdt->base + TIMER_CTRL);
 	val |= (WDT_TIMER_ENABLE | WDT_ENABLE | WDT_TIMER_INTERRUPT);
 	writel(val, airoha_wdt->base + TIMER_CTRL);
-	val = wdog_dev->timeout * (airoha_wdt->wdt_freq * MSEC_PER_SEC);
+	val = wdog_dev->timeout * airoha_wdt->wdt_freq;
 	writel(val, airoha_wdt->base + WDT_TIMER_LOAD_VALUE);
 
 	return 0;
@@ -105,7 +106,7 @@ static unsigned int airoha_wdt_get_timeleft(struct watchdog_device *wdog_dev)
 	u32 val;
 
 	val = readl(airoha_wdt->base + WDT_TIMER_CUR_VALUE);
-	return round_down(val, airoha_wdt->wdt_freq * MSEC_PER_SEC);
+	return DIV_ROUND_UP(val, airoha_wdt->wdt_freq);
 }
 
 static const struct watchdog_info airoha_wdt_info = {
@@ -151,8 +152,7 @@ static int airoha_wdt_probe(struct platform_device *pdev)
 	wdog_dev->info = &airoha_wdt_info;
 	wdog_dev->ops = &airoha_wdt_ops;
 	/* Bus 300MHz, watchdog 150MHz, 28 seconds */
-	wdog_dev->max_timeout = round_down(FIELD_MAX(WDT_TIMER_VAL),
-					   airoha_wdt->wdt_freq * MSEC_PER_SEC);
+	wdog_dev->max_timeout = FIELD_MAX(WDT_TIMER_VAL) / airoha_wdt->wdt_freq;
 	wdog_dev->parent = dev;
 
 	watchdog_set_drvdata(wdog_dev, airoha_wdt);
