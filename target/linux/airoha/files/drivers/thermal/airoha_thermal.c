@@ -93,7 +93,7 @@
 #define   EN7581_HOT2NORMAL_THRE		GENMASK(11, 0)
 #define EN7581_TEMPHTHRE			0x828
 #define   EN7581_HOT_THRE			GENMASK(11, 0)
-#define EN7581_TEMPCTHRE			0x828
+#define EN7581_TEMPCTHRE			0x82c
 #define   EN7581_COLD_THRE			GENMASK(11, 0)
 #define EN7581_TEMPMSRCTL0			0x838
 #define   EN7581_MSRCTL3			GENMASK(11, 9)
@@ -146,9 +146,17 @@
 #define EN7581_SCU_THERMAL_PROTECT_KEY		0x12
 #define EN7581_SCU_THERMAL_MUX_DIODE1		0x7
 
-/* Convert temp to raw value as read from ADC */
-#define TEMP_TO_RAW(priv, temp)			((((temp) / 100 - thermal_zone_get_slope(priv->tz)) * \
-						  priv->init_temp) / 1000 + thermal_zone_get_offset(priv->tz))
+/* Start using thermal helper only after tz are init */
+#define AIROHA_GET_SLOPE(priv)			(priv->init_done ? thermal_zone_get_slope(priv->tz) : priv->default_slope)
+#define AIROHA_GET_OFFSET(priv)			(priv->init_done ? thermal_zone_get_offset(priv->tz) : priv->default_offset)
+
+/* Convert temp to raw value as read from ADC	((((temp / 100) - init) * slope) / 1000) + offset */
+#define TEMP_TO_RAW(priv, temp)			((((((temp) / 100) - priv->init_temp) * \
+						  AIROHA_GET_SLOPE(priv)) / 1000) + AIROHA_GET_OFFSET(priv))
+
+/* Convert raw to temp				((((temp - offset) * 1000) / slope + init) * 100) */
+#define RAW_TO_TEMP(priv, raw)			((((raw - AIROHA_GET_OFFSET(priv)) * 1000) / \
+						  AIROHA_GET_SLOPE(priv) + priv->init_temp) * 100)
 
 struct airoha_thermal_priv {
 	struct thermal_zone_device *tz;
@@ -156,7 +164,11 @@ struct airoha_thermal_priv {
 
 	struct regmap *chip_scu;
 	struct resource scu_adc_res;
-	u32 init_temp;
+	int init_temp;
+	int default_slope;
+	int default_offset;
+
+	bool init_done;
 };
 
 static int airoha_get_thermal_ADC(struct airoha_thermal_priv *priv)
@@ -187,7 +199,6 @@ static int airoha_thermal_get_temp(struct thermal_zone_device *tz, int *temp)
 {
 	struct airoha_thermal_priv *priv = tz->devdata;
 	int min, max, avg_temp, temp_adc;
-	int temp_x10;
 	int i;
 
 	/* Get the starting temp */
@@ -208,10 +219,7 @@ static int airoha_thermal_get_temp(struct thermal_zone_device *tz, int *temp)
 	avg_temp = avg_temp - max - min;
 	avg_temp /= 4;
 
-	temp_x10 = 1000 * (avg_temp - thermal_zone_get_offset(tz)) /
-			   thermal_zone_get_slope(tz) + priv->init_temp;
-	*temp = temp_x10 * 100;
-
+	*temp = RAW_TO_TEMP(priv, avg_temp);
 	return 0;
 }
 
@@ -220,11 +228,17 @@ static int airoha_thermal_set_trips(struct thermal_zone_device *tz, int low,
 {
 	struct airoha_thermal_priv *priv = tz->devdata;
 
-	/* Set low and high trip point */
-	writel(TEMP_TO_RAW(priv, low), priv->base + EN7581_TEMPCTHRE);
+	/* Validate low and high and clamp them to sane values */
+	if (low < RAW_TO_TEMP(priv, 0))
+		low = -30000;
+	if (high > RAW_TO_TEMP(priv, FIELD_MAX(EN7581_DOUT_TADC_MASK)))
+		high = 110000;
+
+	/* Set low and high trip point (shift by 4 to follow monitor limitation) */
+	writel(TEMP_TO_RAW(priv, low) >> 4, priv->base + EN7581_TEMPCTHRE);
 	/* Set the HOT to NORMAL to 5°C less than hot trip point */
-	writel(TEMP_TO_RAW(priv, high - 5000), priv->base + EN7581_TEMPMONINTSTS);
-	writel(TEMP_TO_RAW(priv, high), priv->base + EN7581_TEMPHTHRE);
+	writel(TEMP_TO_RAW(priv, high - 5000) >> 4, priv->base + EN7581_TEMPH2NTHRE);
+	writel(TEMP_TO_RAW(priv, high) >> 4, priv->base + EN7581_TEMPHTHRE);
 
 	/* Enable sensor 0 monitor */
 	writel(EN7581_SENSE0_EN, priv->base + EN7581_TEMPMONCTL0);
@@ -269,9 +283,7 @@ exit:
 static void airoha_thermal_setup_adc_val(struct device *dev,
 					 struct airoha_thermal_priv *priv)
 {
-	struct thermal_zone_device *tz = priv->tz;
 	u32 efuse_calib_info, cpu_sensor;
-	int slope, offset;
 
 	/* Setup thermal sensor to ADC mode and setup the mux to DIODE1 */
 	airoha_init_thermal_ADC_mode(priv);
@@ -280,28 +292,22 @@ static void airoha_thermal_setup_adc_val(struct device *dev,
 
 	efuse_calib_info = readl(priv->base + EN7581_EFUSE_TEMP_OFFSET_REG);
 	if (efuse_calib_info) {
-		offset = FIELD_GET(EN7581_EFUSE_TEMP_OFFSET, efuse_calib_info);
+		priv->default_offset = FIELD_GET(EN7581_EFUSE_TEMP_OFFSET, efuse_calib_info);
 		/* Different slope are applied if the sensor is used for CPU or for package */
 		cpu_sensor = readl(priv->base + EN7581_EFUSE_TEMP_CPU_SENSOR_REG);
 		if (cpu_sensor) {
-			slope = EN7581_SLOPE_X100_DIO_AVS;
+			priv->default_slope = EN7581_SLOPE_X100_DIO_AVS;
 			priv->init_temp = EN7581_INIT_TEMP_CPK_X10;
 		} else {
-			slope = EN7581_SLOPE_X100_DIO_DEFAULT;
+			priv->default_slope = EN7581_SLOPE_X100_DIO_DEFAULT;
 			priv->init_temp = EN7581_INIT_TEMP_FPK_X10;
 		}
 	} else {
-		offset = airoha_get_thermal_ADC(priv);
-		slope = EN7581_SLOPE_X100_DIO_DEFAULT;
+		priv->default_offset = airoha_get_thermal_ADC(priv);
+		priv->default_slope = EN7581_SLOPE_X100_DIO_DEFAULT;
 		priv->init_temp = EN7581_INIT_TEMP_NONK_X10;
 		dev_info(dev, "missing thermal calibrarion EFUSE, using non calibrated value\n");
 	}
-
-	if (!tz->tzp->offset)
-		tz->tzp->offset = offset;
-
-	if (tz->tzp->slope == 1)
-		tz->tzp->slope = slope;
 }
 
 static void airoha_thermal_setup_monitor(struct airoha_thermal_priv *priv)
@@ -389,6 +395,7 @@ static int airoha_thermal_probe(struct platform_device *pdev)
 	}
 
 	airoha_thermal_setup_monitor(priv);
+	airoha_thermal_setup_adc_val(dev, priv);
 
 	/* register of thermal sensor and get info from DT */
 	priv->tz = devm_thermal_of_zone_register(dev, 0, priv, &thdev_ops);
@@ -397,7 +404,11 @@ static int airoha_thermal_probe(struct platform_device *pdev)
 		return PTR_ERR(priv->tz);
 	}
 
-	airoha_thermal_setup_adc_val(dev, priv);
+	/* Fill tz slope and offset with parsed values */
+	priv->tz->tzp->offset = priv->default_offset;
+	priv->tz->tzp->slope = priv->default_slope;
+	priv->init_done = true;
+
 	platform_set_drvdata(pdev, priv);
 
 	return 0;
