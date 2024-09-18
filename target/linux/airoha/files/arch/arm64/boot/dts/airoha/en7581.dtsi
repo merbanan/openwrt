@@ -398,16 +398,16 @@
 			resets = <&scuclk EN7581_PCIE0_RST>,
 				 <&scuclk EN7581_PCIE1_RST>,
 				 <&scuclk EN7581_PCIE2_RST>;
-			reset-names = "phy_lane0", "phy_lane1", "phy_lane2";
+			reset-names = "phy-lane0", "phy-lane1", "phy-lane2";
 
 			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
 			bus-range = <0x00 0xff>;
 			#interrupt-cells = <1>;
 			interrupt-map-mask = <0 0 0 7>;
-			interrupt-map = <0 0 0 1 &pcie_intc0 1>,
-					<0 0 0 2 &pcie_intc0 2>,
-					<0 0 0 3 &pcie_intc0 3>,
-					<0 0 0 4 &pcie_intc0 4>;
+			interrupt-map = <0 0 0 1 &pcie_intc0 0>,
+					<0 0 0 2 &pcie_intc0 1>,
+					<0 0 0 3 &pcie_intc0 2>,
+					<0 0 0 4 &pcie_intc0 3>;
 
 			status = "disabled";
 
@@ -445,10 +445,10 @@
 			bus-range = <0x00 0xff>;
 			#interrupt-cells = <1>;
 			interrupt-map-mask = <0 0 0 7>;
-			interrupt-map = <0 0 0 1 &pcie_intc1 1>,
-					<0 0 0 2 &pcie_intc1 2>,
-					<0 0 0 3 &pcie_intc1 3>,
-					<0 0 0 4 &pcie_intc1 4>;
+			interrupt-map = <0 0 0 1 &pcie_intc1 0>,
+					<0 0 0 2 &pcie_intc1 1>,
+					<0 0 0 3 &pcie_intc1 2>,
+					<0 0 0 4 &pcie_intc1 3>;
 
 			status = "disabled";
 
