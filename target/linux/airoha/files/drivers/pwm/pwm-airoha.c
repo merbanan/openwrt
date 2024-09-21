@@ -74,12 +74,16 @@ struct airoha_pwm {
 
 /* The PWM hardware supports periods between 4 ms and 1 s */
 #define PERIOD_MIN_NS	4 * NSEC_PER_MSEC
-#define PERIOD_MAX_NS	1 * NSEC_PER_SEC
+#define PERIOD_MAX_NS	2 * NSEC_PER_SEC
 /* It is represented internally as 1/250 s between 1 and 250 */
 #define PERIOD_MIN	1
 #define PERIOD_MAX	250
 /* Duty cycle is relative with 255 corresponding to 100% */
 #define DUTY_FULL	255
+
+#define DUTY_FACTOR_BIT_SCALE 10
+#define DUTY_FACTOR_LIMIT (1 << (DUTY_FACTOR_BIT_SCALE-1))
+#define ONEM_DIV_64KHZ	15625
 
 static u32 airoha_pwm_rmw(struct airoha_pwm *pc, u32 addr, u32 mask, u32 val)
 {
@@ -235,21 +239,60 @@ static int airoha_pwm_sipo_init(struct airoha_pwm *pc)
 static void airoha_pwm_calc_bucket_config(struct airoha_pwm *pc, int index,
 					  u64 duty_ns, u64 period_ns)
 {
-	u32 period, duty, mask, val;
-	u64 tmp;
+	u32 duty, mask, val;
+	u64 duty_factor_s, limit;
+	int j, swap = 0;
+	u8 high, low, tf;
 
-	tmp = duty_ns * DUTY_FULL;
-	duty = clamp_val(div64_u64(tmp, period_ns), 0, DUTY_FULL);
-	tmp = period_ns * 25;
-	period = clamp_val(div64_u64(tmp, 100000000), PERIOD_MIN, PERIOD_MAX);
+	/* The pwm period is calculated as follows:
+	 * period = time_factor * (low_duration + high_duration)
+	 * time_factor = 1/clk
+	 * clk can be 64kHz or 5MHz, in this driver only 64kHz is used
+	 * time_factor, low_duration and high_duration are 8-bit registers
+	 *
+	 * Because of the relation between registers it is possible to get
+	 * the same pwm output from different register settings. The current
+	 * code calculates a relation between the high and low high_duration
+	 * register and a scale-factor.
+	 */
+	printk("duty_ns = %llu, period_ns = %llu", duty_ns, period_ns);
+	printk("period_ns scale = %llu", (period_ns >> DUTY_FACTOR_BIT_SCALE));
+	duty_factor_s = duty_ns / (period_ns >> DUTY_FACTOR_BIT_SCALE);
+	printk("duty_factor_s = %llu",duty_factor_s);
+
+	/* Check if we need to swap the high/low regisers */
+	if (duty_factor_s > DUTY_FACTOR_LIMIT) {
+		duty_factor_s = (period_ns-duty_ns) / (period_ns >> DUTY_FACTOR_BIT_SCALE);
+		swap = 1;
+	}
+
+	/* Search for the high/low register value relation that matches
+	 * the scaled duty factor */
+
+	for (j = 0xFF ; j > 0 ; j--) {
+		limit = ((j<<(2*DUTY_FACTOR_BIT_SCALE))/((j+0xFF)<<DUTY_FACTOR_BIT_SCALE));
+		if (limit <= duty_factor_s)
+			break;
+	}
+
+	if (swap) {
+		high = 0xFF;
+		low = j;
+	} else {
+		high = j;
+		low = 0xFF;
+	}
+	tf = period_ns / ((low+high)*ONEM_DIV_64KHZ);
+
+	printk("high = %u  low = %u  tf = %u", high, low, tf);
 
 	/* Configure frequency divisor */
 	mask = WAVE_GEN_CYCLE_MASK(index % 4);
-	val = (period << __ffs(mask)) & mask;
+	val = ((tf) << __ffs(mask)) & mask;
 	airoha_pwm_rmw(pc, REG_CYCLE_CFG_VALUE(index / 4), mask, val);
 
 	/* Configure duty cycle */
-	duty = ((DUTY_FULL - duty) << 8) | duty;
+	duty = (low << 8) | high;
 	mask = GPIO_FLASH_PRD_MASK(index % 2);
 	val = (duty << __ffs(mask)) & mask;
 	airoha_pwm_rmw(pc, REG_GPIO_FLASH_PRD_SET(index / 2), mask, val);
@@ -399,6 +442,8 @@ static int airoha_pwm_probe(struct platform_device *pdev)
 	pc->chip.npwm = PWM_NUM_GPIO + PWM_NUM_SIPO;
 
 	platform_set_drvdata(pdev, pc);
+
+	dev_err(dev, "probe\n");
 
 	return pwmchip_add(&pc->chip);
 }
