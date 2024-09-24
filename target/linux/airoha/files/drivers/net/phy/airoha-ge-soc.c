@@ -256,7 +256,7 @@
 #define   MTK_PHY_RG_ZCAL_CTRL_MASK		GENMASK(5, 0)
 
 #define MTK_PHY_RG_DEV1E_REGE1			0xe1
-#define   MTK_PHY_RG_CAL_REFSEL_1V			BIT(4)
+#define   MTK_PHY_RG_CAL_REFSEL_1V		BIT(4)
 
 #define MTK_PHY_RG_TX_FILTER			0xfe
 
@@ -532,8 +532,8 @@ static int mtk_gephy_write_page(struct phy_device *phydev, int page)
 static int ana_cal_wait(struct phy_device *phydev, u32 delay) {
 	int all_ana_cal_status;
 
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN, 0x1);
-	usleep_range(delay, delay+10);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN, MTK_PHY_DA_CALIN_FLAG);
+	usleep_range(delay, delay+50);
 	all_ana_cal_status = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_CLK) & 0x1;
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN, 0x0);
 	return all_ana_cal_status;
@@ -594,7 +594,7 @@ static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
 	analog_calibration_enable(phydev, 0x0);
 	select_pair(phydev, pair_id);
 
-	all_ana_cal_status = ana_cal_wait(phydev, 20);
+	all_ana_cal_status = ana_cal_wait(phydev, 100);
 	if (!all_ana_cal_status) {
 		all_ana_cal_status = ANACAL_ERROR;
 		printk("GE R50 AnaCal ERROR!\n");
@@ -611,7 +611,7 @@ static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
 		cnt++;
 		rg_zcal_ctrl += calibration_polarity;
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, dev1e_e0_ana_cal_r5 | rg_zcal_ctrl);
-		all_ana_cal_status = ana_cal_wait(phydev, 20);
+		all_ana_cal_status = ana_cal_wait(phydev, 100);
 		if (!all_ana_cal_status)
 			all_ana_cal_status = ANACAL_ERROR;
 		else if (((phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1) != ad_cal_comp_out_init)
@@ -627,7 +627,7 @@ static int tx_r50_cal_sw(struct phy_device *phydev, u8 pair_id)
 	if(all_ana_cal_status == ANACAL_ERROR) {
 		rg_zcal_val = 0x20; // 0 dB
 	} else {
-		rg_zcal_val = ZCAL_TO_R50ohm_TBL[rg_zcal_ctrl]
+		rg_zcal_val = ZCAL_TO_R50ohm_TBL[rg_zcal_ctrl];
 	}
 
 	switch (pair_id) {
@@ -652,9 +652,11 @@ error:
 	return ret;
 }
 
+static int rext_cal = 0;
 
-static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
+static int rext_cal_sw_p9(struct phy_device *phydev, u8 pair_id)
 {
+	/* Only port 0/phy id 9 can be used for rext sw calibration */
 //	u16 rext_cal_val[2];
 	u16 dev1e_e0_ana_cal_r5;
 	u8 rg_zcal_ctrl = 0x20;
@@ -662,6 +664,13 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 	u16 ad_cal_comp_out_init;
 	int calibration_polarity;
 	int cnt = 0;
+	int tmp;
+
+	phy_write(phydev, 0x1f, 0x0000);
+	phy_write(phydev, 0x0,  0x0140);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x0100, 0xc000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, 0x1010);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0000);
 
 	analog_calibration_enable(phydev, MTK_PHY_RG_REXT_CALEN);
 
@@ -671,13 +680,27 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 					   MTK_PHY_RG_ANA_CAL_RG5);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5,
 		      rg_zcal_ctrl);
+	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1);
+	printk("  MTK_PHY_RG_DEV1E_REGE1 = %x", tmp);
+	printk("  dev1e_e0_ana_cal_r5 = %x", dev1e_e0_ana_cal_r5);
+	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0);
+	printk("  MTK_PHY_RG_ANA_CAL_RG0 = %x", tmp);
+	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5);
+	printk("  MTK_PHY_RG_ANA_CAL_RG5 = %x", tmp);
 
 	/* Get calibration status */
-	all_ana_cal_status = ana_cal_wait(phydev, 20);
-	if (!all_ana_cal_status)
+	all_ana_cal_status = ana_cal_wait(phydev, 100);
+	if (!all_ana_cal_status) {
 		all_ana_cal_status = ANACAL_ERROR;
+		printk("  GE Rext AnaCal ERROR!");
+	}
 
+	// only port0/phy id 9 have the answer
 	ad_cal_comp_out_init = (phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1;
+	printk("  ad_cal_comp_out_init = %x", ad_cal_comp_out_init);
+	ad_cal_comp_out_init = (phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1;
+	printk("  ad_cal_comp_out_init = %x", ad_cal_comp_out_init);
+
 	if (ad_cal_comp_out_init == 1)
 		calibration_polarity = -1;
 	else
@@ -689,15 +712,22 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 		rg_zcal_ctrl += calibration_polarity;
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, rg_zcal_ctrl);
 
-		all_ana_cal_status = ana_cal_wait(phydev, 20);
-
-		if (!all_ana_cal_status)
+		all_ana_cal_status = ana_cal_wait(phydev, 100);
+		printk("  all_ana_cal_status = %x", all_ana_cal_status);
+		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5);
+		printk("  MTK_PHY_RG_ANA_CAL_RG5 = %x", tmp);
+		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP);
+		printk("  MTK_PHY_RG_AD_CAL_COMP = %x", tmp);
+		if (!all_ana_cal_status) {
 			all_ana_cal_status = ANACAL_ERROR;
-		else if (((phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1) != ad_cal_comp_out_init)
+			printk("  GE Rext AnaCal ERROR!");
+			// only port0 have the answer
+		} else if (((phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >> MTK_PHY_AD_CAL_COMP_OUT_SHIFT) & 0x1) != ad_cal_comp_out_init) {
 			all_ana_cal_status = ANACAL_FINISH;
-		else {
+		} else {
 			if ((rg_zcal_ctrl == 0x3F) || (rg_zcal_ctrl == 0x00)) {
 				all_ana_cal_status = ANACAL_SATURATION;
+				printk(" GE Rext AnaCal Saturation!");
 				rg_zcal_ctrl = 0x20; // 0 dB
 			}
 		}
@@ -710,7 +740,7 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, (dev1e_e0_ana_cal_r5 | rg_zcal_ctrl));
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, ((rg_zcal_ctrl<<8)|rg_zcal_ctrl));
 		phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_BG_RASEL, ((rg_zcal_ctrl & 0x3f)>>3));
-		printk("  GE Rext AnaCal Done! (%d)(0x%x)  \r\n", cnt, rg_zcal_ctrl);
+		printk("  GE Rext AnaCal Done! (%d)(0x%x)", cnt, rg_zcal_ctrl);
 		//GECal_flag = 1;
 
 		//regReadWord(0xbfa2016c, reg_temp);
@@ -723,9 +753,11 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 
 	// Turn off calibration
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
+	rext_cal = 1;
 
 	return 0;
 }
+
 
 static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 		  u8 start_pair, u8 end_pair)
@@ -736,10 +768,12 @@ static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 	for (pair_n = start_pair; pair_n <= end_pair; pair_n++) {
 		switch (cal_item) {
 		case REXT:
-			ret = rext_cal_sw(phydev, pair_n);
+			if (!rext_cal)
+				ret = rext_cal_sw_p9(phydev, pair_n);
 			break;
 		case TX_R50:
 			ret = tx_r50_cal_sw(phydev, pair_n);
+			ret = 0;
 			break;
 		default:
 			return -EINVAL;
@@ -788,9 +822,9 @@ static int an7581_phy_calibration(struct phy_device *phydev)
 	ret = start_cal(phydev, TX_AMP, SW_M, NO_PAIR, NO_PAIR, buf);
 	if (ret)
 		goto out;*/
-	ret = start_cal(phydev, TX_R50, SW_M, PAIR_A, PAIR_D, buf);
-	if (ret)
-		goto out;
+	//ret = start_cal(phydev, TX_R50, SW_M, PAIR_A, PAIR_D, buf);
+	//if (ret)
+	//	goto out;
 /*	ret = start_cal(phydev, TX_VCM, SW_M, PAIR_A, PAIR_A, buf);
 	if (ret)
 		goto out;
@@ -799,25 +833,6 @@ out:
 	return ret;
 }
 
-
-static void mtk_gephy_config_init(struct phy_device *phydev)
-{
-	/* Enable HW auto downshift */
-	phy_modify_paged(phydev, MTK_PHY_PAGE_EXTENDED, 0x14, 0, BIT(4));
-
-	/* Increase SlvDPSready time */
-	phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_52B5);
-	__phy_write(phydev, 0x10, 0xafae);
-	__phy_write(phydev, 0x12, 0x2f);
-	__phy_write(phydev, 0x10, 0x8fae);
-	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
-
-	/* Adjust 100_mse_threshold */
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x123, 0xffff);
-
-	/* Disable mcc */
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0xa6, 0x300);
-}
 
 static int mt7530_led_config_of(struct phy_device *phydev)
 {
@@ -851,18 +866,18 @@ static int mt7530_led_config_of(struct phy_device *phydev)
 
 static int an7581_phy_config_init(struct phy_device *phydev)
 {
-	mtk_gephy_config_init(phydev);
+	//mtk_gephy_config_init(phydev);
 
 	/* Increase post_update_timer */
-	phy_write_paged(phydev, MTK_PHY_PAGE_EXTENDED_3, 0x11, 0x4b);
+	//phy_write_paged(phydev, MTK_PHY_PAGE_EXTENDED_3, 0x11, 0x4b);
 
 	/* PHY link down power saving enable */
-	phy_set_bits(phydev, 0x17, BIT(4));
-	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, 0xc6, 0x300);
+	//phy_set_bits(phydev, 0x17, BIT(4));
+	//phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, 0xc6, 0x300);
 
 	/* Set TX Pair delay selection */
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x13, 0x404);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x14, 0x404);
+	//phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x13, 0x404);
+	//phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x14, 0x404);
 
 	/* LED Config*/
 	mt7530_led_config_of(phydev);
