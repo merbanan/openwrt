@@ -545,6 +545,46 @@ static void analog_calibration_enable(struct phy_device *phydev, u32 mode) {
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0x0);
 }
 
+/* One calibration cycle consists of:
+ * 1.Set DA_CALIN_FLAG high to start calibration. Keep it high
+ *   until AD_CAL_COMP is ready to output calibration result.
+ * 2.Wait until DA_CAL_CLK is available.
+ * 3.Fetch AD_CAL_COMP_OUT.
+ *
+ * Limitations:
+ * Phy with id 9 contains the self calibration hardware. It is used
+ * in some cases for all phys.
+ */
+static int cal_cycle(struct phy_device *phydev, int devad,
+		     u32 regnum, u16 mask, u16 cal_val)
+{
+	int reg_val;
+	int ret;
+
+	phy_modify_mmd(phydev, devad, regnum,
+		       mask, cal_val);
+	phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
+			 MTK_PHY_DA_CALIN_FLAG);
+
+	ret = phy_read_mmd_poll_timeout(phydev, MDIO_MMD_VEND1,
+					MTK_PHY_RG_AD_CAL_CLK, reg_val,
+					reg_val & MTK_PHY_DA_CAL_CLK, 500,
+					ANALOG_INTERNAL_OPERATION_MAX_US, false);
+	if (ret) {
+		dev_err(&phydev->mdio.dev, "Calibration cycle timeout\n");
+		return ret;
+	}
+
+	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
+			   MTK_PHY_DA_CALIN_FLAG);
+	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >>
+			   MTK_PHY_AD_CAL_COMP_OUT_SHIFT;
+	dev_dbg(&phydev->mdio.dev, "cal_val: 0x%x, ret: %d\n", cal_val, ret);
+
+	return ret;
+}
+
+
 static void select_pair(struct phy_device *phydev, u8 pair_id) {
 
 	switch (pair_id) {
@@ -653,6 +693,59 @@ error:
 }
 
 static int rext_cal = 0;
+
+static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+	int ret=0, search_dir, cal_idx, start_state, cal_comp_out;
+
+	/* preserve RG_ANA_CAL_RG5 register */
+	u16 rg_ana_cal_rg5 = phy_read_mmd(phydev, MDIO_MMD_VEND1,
+					   MTK_PHY_RG_ANA_CAL_RG5);
+
+	phy_write(phydev, 0x1f, 0x0000);
+	phy_write(phydev, 0x0,  0x0140);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_BG_VOLT_OUT, 0xc000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_MDI_CTRL, 0x1010);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0000);
+
+	/* Setup and enable REXT calibration mode */
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_REXT_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0);
+
+	/* Set REXT calibration start value */
+	cal_idx = 0x20;
+	start_state = cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
+
+	/* Check if we are looking at higher or lower indecies */
+	if (start_state)
+		search_dir = -1;
+	else
+		search_dir = 1;
+
+	while ((cal_idx > 0x0) && (cal_idx < 0x3F)) {
+		cal_idx += search_dir;
+		cal_comp_out = cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
+
+		if (cal_comp_out < 0) goto err;
+
+		if (cal_comp_out != start_state) {
+			printk("  GE Rext AnaCal Done! (0x%x)", cal_idx);
+			goto restore;
+		}
+	}
+
+err:
+restore:
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, rg_ana_cal_rg5);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
+
+	return ret;
+}
+
 
 static int rext_cal_sw_p9(struct phy_device *phydev, u8 pair_id)
 {
@@ -769,10 +862,11 @@ static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 		switch (cal_item) {
 		case REXT:
 			if (!rext_cal)
-				ret = rext_cal_sw_p9(phydev, pair_n);
+				ret = rext_cal_sw(phydev, pair_n);
 			break;
 		case TX_R50:
 			ret = tx_r50_cal_sw(phydev, pair_n);
+			ret = rext_cal_sw_p9(phydev, pair_n);
 			ret = 0;
 			break;
 		default:
