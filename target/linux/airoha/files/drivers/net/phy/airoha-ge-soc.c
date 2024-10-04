@@ -521,7 +521,7 @@ static const u8	ZCAL_TO_R50ohm_TBL[64] =
 	  0,   0,   0,   0,   0,   0,   0,   0,
 };
 
-static const u8	ZCAL_TO_R45ohm_TBL[64] =
+/* static const u8	ZCAL_TO_R45ohm_TBL[64] =
 {
 	127, 127, 127, 127, 127, 127, 127, 127,
 	127, 127, 127, 127, 127, 127, 127, 127,
@@ -531,6 +531,16 @@ static const u8	ZCAL_TO_R45ohm_TBL[64] =
 	 60,  56,  54,  52,  49,  48,  45,  43,
 	 40,  39,  36,  34,  32,  32,  30,  28,
 	 25,  24,  22,  20,  18,  16,  16,  14,
+};*/
+static const u8	ZCAL_TO_R45ohm_TBL[64] = {
+	127, 127, 127, 127, 127, 127, 127, 127,
+	127, 127, 127, 127, 127, 127, 127, 127,
+	127, 127, 127, 127, 127, 127, 127, 127,
+	123, 119, 115, 112, 108, 104, 100,  96,
+	 94,  92,  88,  85,  82,  80,  76,  74,
+	 72,  68,  66,  64,  62,  60,  56,  55,
+	 52,  50,  48,  46,  44,  42,  40,  39,
+	 36,  35,  32,  32,  30,  28,  27,  25,
 };
 
 static const u8 EN75xx_TX_OFS_TBL[64] =
@@ -687,12 +697,12 @@ static int tx_r45_cal_sw(struct phy_device *phydev, u8 pair_id)
 			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0);
+printk("Set R45 calibration start value");
+	cal_idx = 0x20;
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
 	phydev->mdio.addr = real_mdio_addr;
 
-printk("Set tx_r45 calibration start value");
-	/* Set start value and initialize tx_r45 calibration */
-	cal_idx = 0x20;
-	start_state = cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
+	/* Set start value and initialize R45 calibration */
 
 	switch (pair_id) {
 	case PAIR_A:
@@ -713,6 +723,7 @@ printk("Set tx_r45 calibration start value");
 		ret = -EINVAL;
 		goto restore;
 	}
+	start_state = cal_cycle(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
 
 	/* Check if we are searching at higher or lower indecies */
 	if (start_state)
@@ -738,20 +749,19 @@ printk("Set tx_r45 calibration start value");
 		}
 
 		if (cal_comp_out != start_state) {
-			printk("  GE R45 AnaCal Done! (0x%x)", cal_idx);
 			phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
-			goto restore;
+			break;
 		}
 	}
 
 	printk("  GE R45 AnaCal zcal_idx(before table) (dec: %d) (hex: 0x%x) \r\n",  cal_idx, (cal_idx));
 
-	if((cal_idx-11) > 0)
-		r45_ohm_tab_val = ZCAL_TO_R45ohm_TBL[(cal_idx-11)];
+	if((cal_idx) > 0)
+		r45_ohm_tab_val = ZCAL_TO_R45ohm_TBL[(cal_idx)];
 	else
 		r45_ohm_tab_val = 0x20;
 
-	printk("  GE R45 AnaCal Done! (after table) ([7][6:0]:0x%x) ([6:0]:0x%x) \r\n", cal_idx, (cal_idx|0x80));
+	printk("  GE R45 AnaCal Done! (after table) ([7][6:0]:0x%x) ([6:0]:0x%x) \r\n", r45_ohm_tab_val, (r45_ohm_tab_val|0x80));
 
 	switch (pair_id) {
 	case PAIR_A:
@@ -799,6 +809,7 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_BG_VOLT_OUT, 0xc000);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_MDI_CTRL, 0x1010);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x00fb, 0x0100);
 
 	/* Setup and enable REXT calibration mode */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
