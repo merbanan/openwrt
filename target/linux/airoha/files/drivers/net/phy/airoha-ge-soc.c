@@ -281,6 +281,8 @@
 
 #define MTK_PHY_RG_MDI_CTRL			0x145
 
+#define MTK_PHY_RG_DEV1E_REG14A			0x14A
+
 #define MTK_PHY_RG_DEV1E_REG171			0x171
 #define   MTK_PHY_BYPASS_TX_RX_OFFSET_CANCEL	GENMASK(8, 7)
 
@@ -472,6 +474,8 @@
 #define MTK_PHY_RG_BG_RASEL			0x115
 #define   MTK_PHY_RG_BG_RASEL_MASK		GENMASK(2, 0)
 
+#define MTK_PHY_RG_DEV1F_REG268			0x268
+
 enum {
 	NO_PAIR,
 	PAIR_A,
@@ -490,7 +494,6 @@ enum CAL_ITEM {
 	TX_OFFSET,
 	TX_AMP,
 	TX_R45,
-	TX_VCM
 };
 
 enum CAL_MODE {
@@ -794,6 +797,7 @@ restore:
 	return ret;
 }
 
+// FIXME we only need to do REXT calibration once thus this static variable
 static int rext_cal = 0;
 
 static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
@@ -1029,13 +1033,13 @@ static int an7581_phy_calibration(struct phy_device *phydev)
 	ret = start_cal(phydev, TX_R45, SW_M, PAIR_A, PAIR_D, buf);
 	if (ret)
 		goto out;
-	ret = start_cal(phydev, TX_OFFSET, SW_M, NO_PAIR, NO_PAIR, buf);
+	ret = start_cal(phydev, TX_OFFSET, SW_M, PAIR_A, PAIR_D, buf);
 	if (ret)
 		goto out;
-/*	ret = start_cal(phydev, TX_AMP, SW_M, NO_PAIR, NO_PAIR, buf);
+/*	ret = start_cal(phydev, TX_AMP, SW_M, PAIR_A, PAIR_D, buf);
 	if (ret)
 		goto out;*/
-/*	ret = start_cal(phydev, TX_VCM, SW_M, PAIR_A, PAIR_A, buf);
+/*	ret = start_cal(phydev, RX_OFFSET, SW_M, NO_PAIR, NO_PAIR, buf);
 	if (ret)
 		goto out;
 */
