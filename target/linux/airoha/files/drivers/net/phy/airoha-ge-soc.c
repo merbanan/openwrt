@@ -246,10 +246,10 @@
 #define   MTK_PHY_RG_TXVOS_CALEN		BIT(0)
 
 #define MTK_PHY_RG_DEV1E_REGDD			0xdd
-#define   MTK_PHY_RG_TX_A_AMP_CAL_EN		BIT(12)
-#define   MTK_PHY_RG_TX_B_AMP_CAL_EN		BIT(8)
-#define   MTK_PHY_RG_TX_C_AMP_CAL_EN		BIT(4)
-#define   MTK_PHY_RG_TX_D_AMP_CAL_EN		BIT(0)
+#define   MTK_PHY_RG_TXG_A_AMP_CAL_EN		BIT(12)
+#define   MTK_PHY_RG_TXG_B_AMP_CAL_EN		BIT(8)
+#define   MTK_PHY_RG_TXG_C_AMP_CAL_EN		BIT(4)
+#define   MTK_PHY_RG_TXG_D_AMP_CAL_EN		BIT(0)
 
 #define MTK_PHY_RG_ANA_CAL_RG5			0xe0
 #define   MTK_PHY_RG_REXT_TRIM_MASK		GENMASK(13, 8)
@@ -476,6 +476,14 @@
 
 #define MTK_PHY_RG_DEV1F_REG268			0x268
 
+
+#define DAC_IN_0V				0x000
+#define DAC_IN_2V				0x0f0	// +/-1V
+#define TX_AMP_OFFSET_0mV			0
+#define TX_AMP_OFFSET_VALID_BITS		6
+
+
+
 enum {
 	NO_PAIR,
 	PAIR_A,
@@ -638,8 +646,10 @@ static int cal_cycle(struct phy_device *phydev, int devad,
 
 static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 {
-	int ret;
+	int ret=0, search_dir, cal_idx, start_state, cal_comp_out, i;
 	u32 real_mdio_addr = phydev->mdio.addr;
+	u16 reg_temp, tx_offset_reg_shift, tx_offset_reg;
+	u8 tbl_idx, tx_offset_temp;
 
 	/* Setup and enable TX_OFFSET calibration mode */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
@@ -662,19 +672,107 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 	/* Set start value and initialize tx_offset calibration */
 	switch (pair_id) {
 	case PAIR_A:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_A_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ZCALEN_A);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_TXVOS_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0x8000|DAC_IN_0V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0x8000|DAC_IN_0V);
+
+		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B;
 		break;
 	case PAIR_B:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_B_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C | MTK_PHY_RG_TXVOS_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0x8000|DAC_IN_0V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0x8000|DAC_IN_0V);
+
+		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B)& ~MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
+		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
+		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B;
 		break;
 	case PAIR_C:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_C_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C | MTK_PHY_RG_TXVOS_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0x8000|DAC_IN_0V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0x8000|DAC_IN_0V);
+
+		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
 		break;
 	case PAIR_D:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_D_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_D | MTK_PHY_RG_TXVOS_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0x8000|DAC_IN_0V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0x8000|DAC_IN_0V);
+
+		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
 		break;
 	default:
 		ret = -EINVAL;
 		goto restore;
 	}
+
+	tbl_idx = 31; //TX_AMP_OFFSET_0mV;
+	tx_offset_temp = EN75xx_TX_OFS_TBL[tbl_idx];
+	start_state = cal_cycle(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tx_offset_temp);
+
+	/* Check if we are searching at higher or lower indecies */
+	if (start_state)
+		search_dir = -1;
+	else
+		search_dir = 1;
+
+
+	for ( i=0 ; i<0x20 ; i++) {
+		tbl_idx += search_dir;
+		tx_offset_temp = EN75xx_TX_OFS_TBL[tbl_idx];
+
+		cal_comp_out = cal_cycle(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tx_offset_temp);
+
+		if (cal_comp_out < 0) {
+			dev_err(&phydev->mdio.dev, " GE Tx offset AnaCal cal_comp_out, %d!\n", tbl_idx);
+			ret = -EINVAL;
+			goto restore;
+		}
+
+		if ((tbl_idx == 0x0) || (tbl_idx == 0x3F)) {
+			dev_err(&phydev->mdio.dev, " GE Tx offset AnaCal Saturation, %x!\n", tbl_idx);
+			ret = -EINVAL;
+			goto restore;
+		}
+
+		if (cal_comp_out != start_state) {
+			break;
+		}
+	}
+
+	printk("  GE Tx offset AnaCal Done! (%d)(0x%x)", i, tbl_idx);
+
 restore:
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0); // disable analog calibration circuit
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0); // disable Tx offset calibration circuit
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E, 0); // disable Tx VLD force mode
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD, 0); // disable Tx offset/amplitude calibration circuit
 
 	return 0;
 }
