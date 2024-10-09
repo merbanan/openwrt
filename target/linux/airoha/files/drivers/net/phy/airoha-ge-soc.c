@@ -646,9 +646,9 @@ static int cal_cycle(struct phy_device *phydev, int devad,
 
 static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 {
-	int ret=0, search_dir, cal_idx, start_state, cal_comp_out, i;
+	int ret=0, search_dir, start_state, cal_comp_out, i;
 	u32 real_mdio_addr = phydev->mdio.addr;
-	u16 reg_temp, tx_offset_reg_shift, tx_offset_reg;
+	u16 reg_temp, tx_offset_reg, tx_offset_reg_mask;
 	u8 tbl_idx, tx_offset_temp;
 
 	/* Setup and enable TX_OFFSET calibration mode */
@@ -676,8 +676,9 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 			 MTK_PHY_RG_TXG_A_AMP_CAL_EN);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ZCALEN_A);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_TXVOS_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0x8000|DAC_IN_0V);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0x8000|DAC_IN_0V);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0x8000);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0x8000);
 
 		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
 		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
@@ -687,9 +688,10 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
 			 MTK_PHY_RG_TXG_B_AMP_CAL_EN);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C | MTK_PHY_RG_TXVOS_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0x8000|DAC_IN_0V);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0x8000|DAC_IN_0V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_B | MTK_PHY_RG_TXVOS_CALEN);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0x8000);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0x8000);
 
 		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B)& ~MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
 		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
@@ -700,11 +702,12 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 			 MTK_PHY_RG_TXG_C_AMP_CAL_EN);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C | MTK_PHY_RG_TXVOS_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0x8000|DAC_IN_0V);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0x8000|DAC_IN_0V);
 
-		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
-		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0x8000);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0x8000);
+
+		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_C_MASK;
+		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_C_MASK;
 		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
 		break;
 	case PAIR_D:
@@ -712,11 +715,12 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 			 MTK_PHY_RG_TXG_D_AMP_CAL_EN);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_ANA_CALEN);
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_D | MTK_PHY_RG_TXVOS_CALEN);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0x8000|DAC_IN_0V);
-		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0x8000|DAC_IN_0V);
 
-		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
-		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0x8000);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0x8000);
+
+		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_D_MASK;
+		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_D_MASK;
 		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
 		break;
 	default:
@@ -730,9 +734,9 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 
 	/* Check if we are searching at higher or lower indecies */
 	if (start_state)
-		search_dir = -1;
-	else
 		search_dir = 1;
+	else
+		search_dir = -1;
 
 
 	for ( i=0 ; i<0x20 ; i++) {
