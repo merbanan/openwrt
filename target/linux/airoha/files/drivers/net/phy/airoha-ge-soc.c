@@ -18,10 +18,10 @@
 #define MTK_PHY_PAGE_EXTENDED		0x0001
 #define MTK_PHY_PAGE_EXTENDED_2		0x0002
 #define MTK_PHY_PAGE_EXTENDED_3		0x0003
-#define MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG11	0x11
-
 #define MTK_PHY_PAGE_EXTENDED_2A30	0x2a30
 #define MTK_PHY_PAGE_EXTENDED_52B5	0x52b5
+
+#define MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG11	0x11
 
 #define MTK_PHY_LPI_REG_14			0x14
 #define MTK_PHY_LPI_WAKE_TIMER_1000_MASK	GENMASK(8, 0)
@@ -29,10 +29,33 @@
 #define MTK_PHY_LPI_REG_1c			0x1c
 #define MTK_PHY_SMI_DET_ON_THRESH_MASK		GENMASK(13, 8)
 
-#define MTK_PHY_PAGE_EXTENDED_2A30		0x2a30
-#define MTK_PHY_PAGE_EXTENDED_52B5		0x52b5
+/** Registers on Token Ring debug nodes (52B5)
+ *
+ * R1000DEC         ch_addr = 0x0, node_addr = 0x7
+ * SUPV PHY         ch_addr = 0x0, node_addr = 0xd
+ * Autoneg          ch_addr = 0x0, node_addr = 0xf
+ * Timing Recovery  ch_addr = 0x1, node_addr = 0xd
+ * PMA              ch_addr = 0x1, node_addr = 0xf
+ * DSP Filter       ch_addr = 0x2, node_addr = 0xd
+ * R1000PCS         ch_addr = 0x2, node_addr = 0xf
+ * CMI              ch_addr = 0x3, node_addr = 0xf
+ * ECC              ch_addr = xxx, node_addr = 0x0
+ * EC/Tail/NC       ch_addr = xxx, node_addr = 0x1
+ * FFE_A            ch_addr = 0x0, node_addr = 0x4
+ * FFE_B            ch_addr = 0x1, node_addr = 0x4
+ * FFE_C            ch_addr = 0x2, node_addr = 0x4
+ * FFE_D            ch_addr = 0x3, node_addr = 0x4
+ * DFETail/DC_A     ch_addr = 0x0, node_addr = 0x5
+ * DFETail/DC_B     ch_addr = 0x1, node_addr = 0x5
+ * DFETail/DC_C     ch_addr = 0x2, node_addr = 0x5
+ * DFETail/DC_D     ch_addr = 0x3, node_addr = 0x5
+ * R1000CRC_A       ch_addr = 0x0, node_addr = 0x6
+ * R1000CRC_B       ch_addr = 0x1, node_addr = 0x6
+ * R1000CRC_C       ch_addr = 0x2, node_addr = 0x6
+ * R1000CRC_D       ch_addr = 0x3, node_addr = 0x6
+ *
+ */
 
-/* Registers on Token Ring debug nodes */
 /* ch_addr = 0x0, node_addr = 0x7, data_addr = 0x15 */
 #define NORMAL_MSE_LO_THRESH_MASK		GENMASK(15, 8) /* NormMseLoThresh */
 
@@ -623,6 +646,31 @@ static const u8 EN75xx_TX_OFS_TBL[64] =
 	0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
 	0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 };
+
+
+static void __mtk_tr_access(struct phy_device *phydev, bool read, u8 ch_addr,
+			    u8 node_addr, u8 data_addr)
+{
+	u16 tr_cmd = BIT(15); /* bit 14 & 0 are reserved */
+	if (read)
+		tr_cmd |= BIT(13);
+	tr_cmd |= (((ch_addr & 0x3) << 11) |
+		   ((node_addr & 0xf) << 7) |
+		   ((data_addr & 0x3f) << 1));
+	dev_dbg(&phydev->mdio.dev, "tr_cmd: 0x%x\n", tr_cmd);
+	__phy_write(phydev, 0x10, tr_cmd);
+}
+
+static void __mtk_tr_write(struct phy_device *phydev, u8 ch_addr, u8 node_addr,
+			   u8 data_addr, u32 tr_data)
+{
+	__phy_write(phydev, 0x11, tr_data & 0xffff);
+	__phy_write(phydev, 0x12, tr_data >> 16);
+	dev_dbg(&phydev->mdio.dev, "tr_high write: 0x%x, tr_low write: 0x%x\n",
+		tr_data >> 16, tr_data & 0xffff);
+	__mtk_tr_access(phydev, false, ch_addr, node_addr, data_addr);
+}
+
 
 
 static int mtk_gephy_read_page(struct phy_device *phydev)
@@ -1296,6 +1344,7 @@ static int an7581_phy_config_init(struct phy_device *phydev)
 	mt7530_led_config_of(phydev);
 
 	/* Default init */
+	printk("  Default init");
 	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG273, 0x1000);	// i2mpb_tbh_ots
 	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG272, 0x0c2b);	// ps_op 0x3cff, for PHYD bug, need to workaround
 	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26A, 0x1113);
@@ -1360,7 +1409,30 @@ static int an7581_phy_config_init(struct phy_device *phydev)
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG24, 0x0000);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG25, 0x0000);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG26, 0x0006);
+	phy_write_mmd(phydev, 0x07, MTK_PHY_RG_DEV07_REG3C, 0x0006);
 
+	phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_52B5);
+	__mtk_tr_write(phydev, 0x1, 0xd, 0x26, 0x444444);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x00, 0x00002b);	// enchance rx
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x01, 0x6fb90a);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x17, 0x060671);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x18, 0x0e2f00);
+
+	__mtk_tr_write(phydev, 0x0, 0x7, 0x15, 0x0055a0);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x06, 0x2ebaef);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x11, 0x040001);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x03, 0x000004);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x13, 0x018670);
+
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x1b, 0x000072);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x1c, 0x003210);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x14, 0x00024a);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0d, 0x02194f);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0c, 0x00504d);
+
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0f, 0x003028);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x03, 0x082422);
+	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
 
 	return an7581_phy_calibration(phydev);
 }
