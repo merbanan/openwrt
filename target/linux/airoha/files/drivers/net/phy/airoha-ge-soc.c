@@ -787,13 +787,13 @@ static int cal_cycle2(struct phy_device *phydev, int devad,
 #define ANACAL_ERROR		0xFD
 #define ANACAL_SATURATION	0xFE
 #define	ANACAL_FINISH		0xFF
-
 static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 {
 	int ret=0, start_state, cal_comp_out, i;
 	u32 real_mdio_addr = phydev->mdio.addr;
 	u16 reg_temp, tx_offset_reg, tx_offset_reg_mask;
 	u8 tbl_idx, idx_offset;
+	int retry = 1;
 
 	/* Setup and enable TX_OFFSET calibration mode */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
@@ -812,6 +812,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 			 MTK_PHY_BYPASS_TX_OFFSET_CAL);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E,
 			 0xf808);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0015, 0x0004);	// gating, cutoff thers pair
 
 	/* Set start value and initialize tx_offset calibration */
 	switch (pair_id) {
@@ -877,6 +878,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 
 	start_state = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, 0x0);
 
+retry:
 	/* Check if we are searching at higher or lower indecies */
 	if (start_state)
 		idx_offset = 0x20;
@@ -891,15 +893,22 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 
 		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx);
 		if (cal_comp_out < 0) {
-			dev_err(&phydev->mdio.dev, " GE Tx offset AnaCal cal_comp_out, %d!\n", tbl_idx);
+			dev_err(&phydev->mdio.dev, " [%d] GE Tx offset AnaCal cal_comp_out, %d! [%d]\n", phydev->mdio.addr, tbl_idx, start_state);
 			ret = -EINVAL;
 			goto restore;
 		}
 
 		if ((tbl_idx >= 0x1F)) {
-			dev_err(&phydev->mdio.dev, " GE Tx offset AnaCal Saturation, %x [%d]!\n", tbl_idx, start_state);
+			dev_err(&phydev->mdio.dev, " [%d] GE Tx offset AnaCal Saturation, %x [%d]!\n", phydev->mdio.addr, tbl_idx, start_state);
 			ret = -EINVAL;
-			goto restore;
+			if (!retry)
+				goto restore;
+			retry = 0;
+			if (start_state)
+				start_state=0;
+			else
+				start_state=1;
+			goto retry;
 		}
 
 		if (cal_comp_out != start_state) {
@@ -907,7 +916,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 		}
 	}
 
-	printk("  GE Tx offset AnaCal Done! (%d)(0x%x) [%d]", i, tbl_idx, start_state);
+	printk("  [%d] GE Tx offset AnaCal Done! (%d)(0x%x) [%d]", phydev->mdio.addr, i, tbl_idx, start_state);
 
 restore:
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
