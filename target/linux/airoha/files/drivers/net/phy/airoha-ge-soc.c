@@ -750,10 +750,14 @@ static int cal_cycle2(struct phy_device *phydev, int devad,
 		     u32 regnum, u16 mask, u16 cal_val)
 {
 	int reg_val;
-	int ret;
+	int ret, tmp;
 	u32 real_mdio_addr = phydev->mdio.addr;
 
 	/* Only phy_id 0x9 can be used to perform the calibration cycle */
+
+	tmp = phy_read_mmd(phydev, devad, regnum);
+//	printk("  b_cal_cycle2: %x = %x", devad, tmp);
+
 
 	phy_modify_mmd(phydev, devad, regnum,
 		       mask, cal_val);
@@ -775,10 +779,14 @@ static int cal_cycle2(struct phy_device *phydev, int devad,
 			   MTK_PHY_DA_CALIN_FLAG);
 	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >>
 			   MTK_PHY_AD_CAL_COMP_OUT_SHIFT;
-	dev_dbg(&phydev->mdio.dev, "cal_val: 0x%x, ret: %d\n", cal_val, ret);
+//	printk("  cal_val: 0x%x, ret: %d\n", cal_val, ret);
 
 	/* Restore the old phy_id */
 	phydev->mdio.addr = real_mdio_addr;
+
+	tmp = phy_read_mmd(phydev, devad, regnum);
+//	printk("  a_cal_cycle2: %x = %x", devad, tmp);
+
 
 	return ret;
 }
@@ -789,10 +797,10 @@ static int cal_cycle2(struct phy_device *phydev, int devad,
 #define	ANACAL_FINISH		0xFF
 static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 {
-	int ret=0, start_state, cal_comp_out, i;
+	int ret=0, start_state, cal_comp_out, i, tmp;
 	u32 real_mdio_addr = phydev->mdio.addr;
 	u16 reg_temp, tx_offset_reg, tx_offset_reg_mask;
-	u8 tbl_idx, idx_offset;
+	u8 tbl_idx, idx_offset, tx_offset_shift;
 	int retry = 1;
 
 	/* Setup and enable TX_OFFSET calibration mode */
@@ -828,6 +836,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B)& ~MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
 		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_A_MASK;
 		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B;
+		tx_offset_shift = 8;
 		break;
 	case PAIR_B:
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
@@ -841,6 +850,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B)& ~MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
 		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_B_MASK;
 		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_A_B;
+		tx_offset_shift = 0;
 		break;
 	case PAIR_C:
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
@@ -854,6 +864,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_C_MASK;
 		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_C_MASK;
 		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
+		tx_offset_shift = 8;
 		break;
 	case PAIR_D:
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
@@ -867,6 +878,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 		reg_temp = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D)& ~MTK_PHY_CR_TX_AMP_OFFSET_D_MASK;
 		tx_offset_reg_mask = MTK_PHY_CR_TX_AMP_OFFSET_D_MASK;
 		tx_offset_reg = MTK_PHY_RG_CR_TX_AMP_OFFSET_C_D;
+		tx_offset_shift = 0;
 		break;
 	default:
 		ret = -EINVAL;
@@ -875,6 +887,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 
 	//tbl_idx = 31; //TX_AMP_OFFSET_0mV;
 	//tx_offset_temp = EN75xx_TX_OFS_TBL[tbl_idx];
+//	printk("tx_offset_cal_sw");
 
 	start_state = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, 0x0);
 
@@ -886,19 +899,24 @@ retry:
 		idx_offset = 0x01;
 
 
-	for ( i=1 ; i<0x1F ; i++) {
-		tbl_idx = idx_offset + i;
+	for ( i=0 ; i<0x1F ; i++) {
+		tbl_idx = (idx_offset + i) & 0x3f;
 		//tx_offset_temp = EN75xx_TX_OFS_TBL[tbl_idx];
 		//tbl_idx = tx_offset_temp;
+//		printk(" i=%d tbl_idx=%x \n", i, tbl_idx);
+//		printk(" tx_offset_reg=%x tx_offset_reg_mask=%x\n", tx_offset_reg, tx_offset_reg_mask);
 
-		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx);
+		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
+		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg);
+//		printk(" tx_offset_reg=%x wdata: %x ", tx_offset_reg, tmp);
+
 		if (cal_comp_out < 0) {
 			dev_err(&phydev->mdio.dev, " [%d] GE Tx offset AnaCal cal_comp_out, %d! [%d]\n", phydev->mdio.addr, tbl_idx, start_state);
 			ret = -EINVAL;
 			goto restore;
 		}
 
-		if ((tbl_idx >= 0x1F)) {
+		if ((i >= 0x1F)) {
 			dev_err(&phydev->mdio.dev, " [%d] GE Tx offset AnaCal Saturation, %x [%d]!\n", phydev->mdio.addr, tbl_idx, start_state);
 			ret = -EINVAL;
 			if (!retry)
