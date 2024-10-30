@@ -647,6 +647,21 @@ static const u8 EN75xx_TX_OFS_TBL[64] =
 	0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
 };
 
+/**
+ * field_prep() - prepare a bitfield element
+ * @_mask: shifted mask defining the field's length and position
+ * @_val: value to put in the field
+ *
+ * field_prep() masks and shifts up the value. The result should be
+ * combined with other fields of the bitfield using logical OR.
+ * Unlike FIELD_PREP(), @_mask is not limited to a compile-time constant.
+ */
+#define field_prep(_mask, _val) \
+ ({ \
+ typeof(_mask) ___mask = (_mask); \
+ (((_val) << __ffs(___mask)) & (___mask)); \
+ })
+
 
 static void __mtk_tr_access(struct phy_device *phydev, bool read, u8 ch_addr,
 			    u8 node_addr, u8 data_addr)
@@ -749,47 +764,209 @@ static int cal_cycle(struct phy_device *phydev, int devad,
 static int cal_cycle2(struct phy_device *phydev, int devad,
 		     u32 regnum, u16 mask, u16 cal_val)
 {
-	int reg_val;
-	int ret, tmp;
+	int ret;
 	u32 real_mdio_addr = phydev->mdio.addr;
 
 	/* Only phy_id 0x9 can be used to perform the calibration cycle */
 
-	tmp = phy_read_mmd(phydev, devad, regnum);
+//	tmp = phy_read_mmd(phydev, devad, regnum);
 //	printk("  b_cal_cycle2: %x = %x", devad, tmp);
 
-
-	phy_modify_mmd(phydev, devad, regnum,
-		       mask, cal_val);
 
 	phydev->mdio.addr = 0x9;
 	phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
 			 MTK_PHY_DA_CALIN_FLAG);
 
-	ret = phy_read_mmd_poll_timeout(phydev, MDIO_MMD_VEND1,
-					MTK_PHY_RG_AD_CAL_CLK, reg_val,
-					reg_val & MTK_PHY_DA_CAL_CLK, 500,
-					ANALOG_INTERNAL_OPERATION_MAX_US, false);
-	if (ret) {
-		dev_err(&phydev->mdio.dev, "Calibration cycle timeout\n");
+	udelay(100);
+	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_CLK) & MTK_PHY_DA_CAL_CLK;
+
+	if (!ret) {
+		dev_err(&phydev->mdio.dev, "Calibration cycle error\n");
 		return ret;
 	}
+//	printk("  cal_val: 0x%x, ret: %d\n", cal_val, ret);
 
 	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
 			   MTK_PHY_DA_CALIN_FLAG);
-	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >>
-			   MTK_PHY_AD_CAL_COMP_OUT_SHIFT;
-//	printk("  cal_val: 0x%x, ret: %d\n", cal_val, ret);
+
+
+	ret = (phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_COMP) >>
+			   MTK_PHY_AD_CAL_COMP_OUT_SHIFT)&0x1;
+
 
 	/* Restore the old phy_id */
 	phydev->mdio.addr = real_mdio_addr;
 
-	tmp = phy_read_mmd(phydev, devad, regnum);
+//	tmp = phy_read_mmd(phydev, devad, regnum);
 //	printk("  a_cal_cycle2: %x = %x", devad, tmp);
 
 
 	return ret;
 }
+
+static int tx_amp_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+	int ret=0, start_state, cal_comp_out, i;
+	int search_dir, cal_idx, tmp;
+	u32 real_mdio_addr = phydev->mdio.addr;
+	u16 tx_amp_reg, tx_amp_reg_100, tx_amp_reg_mask;
+	int retry = 1;
+
+	/* Setup and enable TX_AMP calibration mode */
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1,
+			 MTK_PHY_RG_TXVOS_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0x0);
+
+	phydev->mdio.addr = 0x9;
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
+			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1,
+			 MTK_PHY_RG_TXVOS_CALEN);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0x0);
+	phydev->mdio.addr = real_mdio_addr;
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E, 0xf808); // enable Tx VLD
+
+	switch (pair_id) {
+	case PAIR_A:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_A_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_CAL_CKINV |MTK_PHY_RG_ANA_CALEN | MTK_PHY_RG_ZCALEN_A);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_TXVOS_CALEN);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0x8000|DAC_IN_2V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0x8000|DAC_IN_2V);
+
+		tx_amp_reg = MTK_PHY_TXVLD_DA_RG;
+		tx_amp_reg_mask = MTK_PHY_DA_TX_I2MPB_A_GBE_MASK;
+		tx_amp_reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_A2;
+		break;
+	case PAIR_B:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_B_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_B | MTK_PHY_RG_TXVOS_CALEN);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0x8000|DAC_IN_2V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0x8000|DAC_IN_2V);
+
+		tx_amp_reg = MTK_PHY_TX_I2MPB_TEST_MODE_B1;
+		tx_amp_reg_mask = MTK_PHY_DA_TX_I2MPB_B_GBE_MASK;
+		tx_amp_reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_B2;
+		break;
+	case PAIR_C:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_C_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_C | MTK_PHY_RG_TXVOS_CALEN);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0x8000|DAC_IN_2V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0x8000|DAC_IN_2V);
+
+		tx_amp_reg = MTK_PHY_TX_I2MPB_TEST_MODE_C1;
+		tx_amp_reg_mask = MTK_PHY_DA_TX_I2MPB_C_GBE_MASK;
+		tx_amp_reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_C2;
+		break;
+	case PAIR_D:
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
+			 MTK_PHY_RG_TXG_D_AMP_CAL_EN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, MTK_PHY_RG_CAL_CKINV |MTK_PHY_RG_ANA_CALEN);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, MTK_PHY_RG_ZCALEN_D | MTK_PHY_RG_TXVOS_CALEN);
+
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0x8000|DAC_IN_2V);
+		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0x8000|DAC_IN_2V);
+
+		tx_amp_reg = MTK_PHY_TX_I2MPB_TEST_MODE_D1;
+		tx_amp_reg_mask = MTK_PHY_DA_TX_I2MPB_D_GBE_MASK;
+		tx_amp_reg_100 = MTK_PHY_TX_I2MPB_TEST_MODE_D2;
+		break;
+	default:
+		ret = -EINVAL;
+		goto restore;
+	}
+
+	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
+	printk(" tx_amp_reg=%x wdata: %x ", tx_amp_reg, tmp);
+
+	cal_idx = 0x20;	// start with 0 dB
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
+	printk(" tx_amp_init=%x wdata: %x ", tx_amp_reg, tmp);
+	start_state = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, cal_idx);
+
+retry2:
+	/* Check if we are searching at higher or lower indecies */
+	if (start_state)
+		search_dir = -1;
+	else
+		search_dir = 1;
+
+
+	for ( i=0 ; i<0x20 ; i++) {
+		cal_idx += search_dir;
+
+		phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+
+		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
+		printk(" tx_amp_cal=%x wdata: %x [%d]", tx_amp_reg, tmp, start_state);
+
+
+
+		if (cal_comp_out < 0) {
+			dev_err(&phydev->mdio.dev, " GE Tx amp AnaCal cal_comp_out, %d!\n", cal_idx);
+			ret = -EINVAL;
+			goto restore;
+		}
+
+		if ((cal_idx == 0x0) || (cal_idx == 0x3F)) {
+			dev_err(&phydev->mdio.dev, " GE Tx amp AnaCal Saturation, %x!\n", cal_idx);
+			ret = -EINVAL;
+			if (!retry)
+				goto restore;
+			retry = 0;
+			if (start_state)
+				start_state=0;
+			else
+				start_state=1;
+			cal_idx = 0x20;
+			goto retry2;
+		}
+
+		if (cal_comp_out != start_state) {
+//			phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
+			break;
+		}
+	}
+
+	printk(" GE Tx amp AnaCal Done! (%d) (0x%x)\r\n", i, cal_idx);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg_100, tx_amp_reg_mask, cal_idx);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg_100, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+
+restore:
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_B, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_C, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_D, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_A, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_B, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_C, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN1_D, 0);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0); // disable analog calibration circuit
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0); // disable Tx offset calibration circuit
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E, 0); // disable Tx VLD force mode
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD, 0); // disable Tx offset/amplitude calibration circuit
+
+	return 0;
+}
+
+
+
+
 
 #define ANACAL_INIT		0x01
 #define ANACAL_ERROR		0xFD
@@ -889,6 +1066,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 	//tx_offset_temp = EN75xx_TX_OFS_TBL[tbl_idx];
 //	printk("tx_offset_cal_sw");
 
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, 0x0<<tx_offset_shift);
 	start_state = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, 0x0);
 
 retry:
@@ -905,7 +1083,7 @@ retry:
 		//tbl_idx = tx_offset_temp;
 //		printk(" i=%d tbl_idx=%x \n", i, tbl_idx);
 //		printk(" tx_offset_reg=%x tx_offset_reg_mask=%x\n", tx_offset_reg, tx_offset_reg_mask);
-
+		phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
 		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
 		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg);
 //		printk(" tx_offset_reg=%x wdata: %x ", tx_offset_reg, tmp);
@@ -1262,6 +1440,9 @@ static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 		case TX_OFFSET:
 			ret = tx_offset_cal_sw(phydev, pair_n);
 			break;
+		case TX_AMP:
+			ret = tx_amp_cal_sw(phydev, pair_n);
+			break;
 		default:
 			ret = rext_cal_sw_p9(phydev, pair_n);
 			return -EINVAL;
@@ -1310,9 +1491,9 @@ static int an7581_phy_calibration(struct phy_device *phydev)
 	ret = start_cal(phydev, TX_OFFSET, SW_M, PAIR_A, PAIR_D, buf);
 	if (ret)
 		goto out;
-/*	ret = start_cal(phydev, TX_AMP, SW_M, PAIR_A, PAIR_D, buf);
+	ret = start_cal(phydev, TX_AMP, SW_M, PAIR_A, PAIR_D, buf);
 	if (ret)
-		goto out;*/
+		goto out;
 /*	ret = start_cal(phydev, RX_OFFSET, SW_M, NO_PAIR, NO_PAIR, buf);
 	if (ret)
 		goto out;
