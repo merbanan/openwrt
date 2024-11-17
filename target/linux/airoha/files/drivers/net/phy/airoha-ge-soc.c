@@ -181,6 +181,8 @@
 #define   MTK_TX_DELAY_PAIR_AFE			BIT(6)
 #define   MTK_TX_DELAY_PAIR_D_MASK		GENMASK(2, 0)
 
+#define MTK_PHY_RG_DEV1E_REG015			0x15
+
 #define MTK_PHY_TX_I2MPB_TEST_MODE_A2		0x16
 #define   MTK_PHY_DA_TX_I2MPB_A_HBT_MASK	GENMASK(15, 10)
 #define   MTK_PHY_DA_TX_I2MPB_A_TST_MASK	GENMASK(5, 0)
@@ -213,6 +215,7 @@
 #define MTK_PHY_RG_DEV1E_REG24			0x24
 #define MTK_PHY_RG_DEV1E_REG25			0x25
 #define MTK_PHY_RG_DEV1E_REG26			0x26
+#define MTK_PHY_RG_DEV1E_REG27			0x27
 
 #define MTK_PHY_TX_RX_CAL_CRITERIA_VAL		0x37
 
@@ -313,9 +316,6 @@
 
 #define MTK_PHY_RG_BG_VOLT_OUT			0x100
 
-#define MTK_PHY_RG_DEV1E_REG107			0x107
-#define   MTK_PHY_RG_RTUNE_CAL_EN		BIT(12)
-
 #define MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG120	0x120
 #define   MTK_PHY_LPI_SIG_EN_LO_THRESH1000_MASK	GENMASK(12, 8)
 #define   MTK_PHY_LPI_SIG_EN_HI_THRESH1000_MASK	GENMASK(4, 0)
@@ -396,6 +396,7 @@
 #define MTK_PHY_RG_DEV1E_REG189			0x189
 #define MTK_PHY_RG_DEV1E_REG190			0x190
 #define MTK_PHY_RG_DEV1E_REG191			0x191
+#define MTK_PHY_RG_DEV1E_REG198			0x198
 
 #define MTK_PHY_RG_DEV1E_REG19b			0x19b
 #define   MTK_PHY_BYPASS_DSP_LPI_READY		BIT(8)
@@ -538,6 +539,7 @@
 #define MTK_PHY_LED1_DEFAULT_POLARITIES		BIT(1)
 
 #define MTK_PHY_RG_DEV1F_REG044			0x44
+#define MTK_PHY_RG_DEV1F_REG100			0x100
 
 #define MTK_PHY_RG_DEV1F_REG107			0x107
 #define   MTK_PHY_RG_RTUNE_CAL_EN		BIT(12)
@@ -578,11 +580,13 @@ enum calibration_mode {
 };
 
 enum CAL_ITEM {
+	PRE_INIT,
 	REXT,
 	RX_OFFSET,
 	TX_OFFSET,
 	TX_AMP,
 	TX_R45,
+	POST_INIT,
 };
 
 enum CAL_MODE {
@@ -778,6 +782,8 @@ static int cal_cycle2(struct phy_device *phydev, int devad,
 			 MTK_PHY_DA_CALIN_FLAG);
 
 	udelay(100);
+	mdelay(10); // mdelay for Hw calibration finish
+
 	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_CLK) & MTK_PHY_DA_CAL_CLK;
 
 	if (!ret) {
@@ -811,6 +817,7 @@ static int tx_amp_cal_sw(struct phy_device *phydev, u8 pair_id)
 	u32 real_mdio_addr = phydev->mdio.addr;
 	u16 tx_amp_reg, tx_amp_reg_100, tx_amp_reg_mask;
 	int retry = 1;
+	u8 pair_n;
 
 	/* Setup and enable TX_AMP calibration mode */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
@@ -829,7 +836,10 @@ static int tx_amp_cal_sw(struct phy_device *phydev, u8 pair_id)
 
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E, 0xf808); // enable Tx VLD
 
-	switch (pair_id) {
+
+	for (pair_n = PAIR_A; pair_n <= PAIR_D; pair_n++) {
+
+	switch (pair_n) {
 	case PAIR_A:
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
 			 MTK_PHY_RG_TXG_A_AMP_CAL_EN);
@@ -888,12 +898,14 @@ static int tx_amp_cal_sw(struct phy_device *phydev, u8 pair_id)
 	}
 
 	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
-	printk(" tx_amp_reg=%x wdata: %x ", tx_amp_reg, tmp);
+	printk(" [%d] tx_amp_reg=%x wdata: %x ", phydev->mdio.addr, tx_amp_reg, tmp);
 
 	cal_idx = 0x20;	// start with 0 dB
 	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	mdelay(10); // mdelay for Hw calibration finish
 	tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
-	printk(" tx_amp_init=%x wdata: %x ", tx_amp_reg, tmp);
+	printk(" [%d] tx_amp_init=%x wdata: %x ", phydev->mdio.addr, tx_amp_reg, tmp);
+	mdelay(10); // mdelay for Hw calibration finish
 	start_state = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, cal_idx);
 
 retry2:
@@ -908,10 +920,12 @@ retry2:
 		cal_idx += search_dir;
 
 		phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	mdelay(10); // mdelay for Hw calibration finish
 		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	mdelay(10); // mdelay for Hw calibration finish
 
 		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
-		printk(" tx_amp_cal=%x wdata: %x [%d]", tx_amp_reg, tmp, start_state);
+//		printk(" [%d] tx_amp_cal=%x wdata: %x [%d]", phydev->mdio.addr, tx_amp_reg, tmp, start_state);
 
 
 
@@ -927,10 +941,7 @@ retry2:
 			if (!retry)
 				goto restore;
 			retry = 0;
-			if (start_state)
-				start_state=0;
-			else
-				start_state=1;
+
 			cal_idx = 0x20;
 			goto retry2;
 		}
@@ -946,6 +957,7 @@ retry2:
 	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
 	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg_100, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
 	phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
+	}
 
 restore:
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
@@ -1112,7 +1124,7 @@ retry:
 		}
 	}
 
-	printk("  [%d] GE Tx offset AnaCal Done! (%d)(0x%x) [%d]", phydev->mdio.addr, i, tbl_idx, start_state);
+	printk("  [%d] GE Tx offset AnaCal Done! (%d)(0x%x) [%d]", phydev->mdio.addr, i+1, tbl_idx, start_state);
 
 restore:
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
@@ -1130,6 +1142,52 @@ restore:
 
 	return 0;
 }
+
+static int rx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+	//u32 real_mdio_addr = phydev->mdio.addr;
+printk("  rx_offset_cal_sw");
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG96,
+		MTK_PHY_BYPASS_TX_OFFSET_CAL);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_TX_RX_CAL_CRITERIA_VAL, 0x0033);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG39,
+		MTK_PHY_BYPASS_ALL_CAL|MTK_PHY_BYPASS_ADC_OFFSET_ANA_CAL, 0);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG107,
+		MTK_PHY_RG_RTUNE_CAL_EN, 0);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG171,
+		MTK_PHY_BYPASS_TX_RX_OFFSET_CANCEL, MTK_PHY_BYPASS_TX_RX_OFFSET_CANCEL);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG39,
+		MTK_PHY_BYPASS_ALL_CAL|MTK_PHY_BYPASS_ADC_OFFSET_ANA_CAL, MTK_PHY_BYPASS_ALL_CAL|MTK_PHY_BYPASS_ADC_OFFSET_ANA_CAL);
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG39,
+		MTK_PHY_BYPASS_ALL_CAL|MTK_PHY_BYPASS_ADC_OFFSET_ANA_CAL, 0);
+
+
+	mdelay(10); // mdelay for Hw calibration finish
+
+	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG171,
+		MTK_PHY_BYPASS_TX_RX_OFFSET_CANCEL, 0);
+
+	//tcMiiStationWrite(phyaddr, 0x0,  reg0_temp);
+//	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG100, 0x0);
+//	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_MDI_CTRL, 0x0033);
+	//mtEMiiRegWrite(phyaddr, 0x1e, 0x0145, dev1e_145_temp);
+	// *** Rx offset Cal end ***
+
+	// gating, short with others pair
+/*	phydev->mdio.addr = 0x9;
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG015, 0x0);
+	phydev->mdio.addr = 0x10;
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG015, 0x0);
+	phydev->mdio.addr = 0x11;
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG015, 0x0);
+	phydev->mdio.addr = 0x12;
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG015, 0x0);
+	phydev->mdio.addr = real_mdio_addr;
+*/
+	return 0;
+}
+
 
 static int tx_r45_cal_sw(struct phy_device *phydev, u8 pair_id)
 {
@@ -1152,7 +1210,7 @@ static int tx_r45_cal_sw(struct phy_device *phydev, u8 pair_id)
 			 MTK_PHY_RG_CAL_CKINV | MTK_PHY_RG_ANA_CALEN);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG1, 0);
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE1, 0);
-printk("Set R45 calibration start value");
+
 	cal_idx = 0x20;
 	phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
 	phydev->mdio.addr = real_mdio_addr;
@@ -1317,6 +1375,148 @@ restore:
 }
 
 
+static int pre_init_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+	/* Default init */
+	printk("  Default init: %d!", phydev->mdio.addr);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG273, 0x1000);	// i2mpb_tbh_ots
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG272, 0x0c2b);	// ps_op 0x3cff, for PHYD bug, need to workaround
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26A, 0x1113);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26F, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG268, 0x07f4);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG269, 0x2114);	// ps_dri  //0x4344
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG271, 0x2c63);	// 0x4e13, for PHYD bug, need to workaround
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG044, 0x00a0);	// pair delay (digital)
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG27C, 0x0808);	// 10 base Tx
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG27B, 0x1177);	// disable 10 base-Te
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG417, 0x7775);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL, 0xc007);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_BLINK_CTRL, 0x003f);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED1_ON_CTRL, 0xc007);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED1_BLINK_CTRL, 0x003f);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_TX_I2MPB_TEST_MODE_D1, 0x800a);
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG000, 0x0187); // 0->1, middle
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG001, 0x01c3); // 0->1, ov1
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG002, 0x01c2); // 0->1, ov2, z2p_ovs
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG003, 0x0109); // 1->0, middle
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG004, 0x020b); // 1->0, ov1
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG005, 0x0202); // 1->0, ov2, p2z_ovs
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG006, 0x0387); // 0->-1, middle
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG007, 0x03c5); // 0->-1, ov1
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG008, 0x03c2); // 0->-1, ov2, z2n_ovs
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG009, 0x0309); // -1->0, middle
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG00A, 0x0008); // -1->0, ov1
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG00B, 0x0002); // -1->0, ov2, n2z_ovs
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG011, 0x0f00);
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_GBE_MODE_TX_DELAY_SEL, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_TEST_MODE_TX_DELAY_SEL, 0x0000); // pair delay (afe)
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG44, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG176, 0x6600);        //tm4_gain
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG177, 0x0066);        //tm4_gain
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG41, 0x3333);         // hvga_bias : enhance rx voltage
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG40, 0x0000);         // gain down (dB); 0x00:0dB, 0x01:4dB
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG201, 0x4000);        // txvld disable, 1e_201[7:0]=0,
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3D, 0x0000);         // RX vbuffer bypass pwd
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG198, 0x0001);        // TX vld bypass pwd
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E, 0x0000);         // TX vld bypass pwd
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG23C, 0x0a20);        // EEE wake up cnt from 0x14 to 0x20
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG1A3, 0x00d2);        // for 10M TP-IDL
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG1A4, 0x010e);        // for 10M TP-IDL
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG189, 0x0110);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG122, 0xffff);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG123, 0xffff);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG234, 0x0180);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG238, 0x0120);
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG120, 0x9014);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG239, 0x0177);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG14A, 0xee20);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG19b, 0x0111);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG147, 0x0000);
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG2D1, 0x0733);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG236, 0x0020);
+
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG190, 0x0110);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG191, 0x4444);        // hvga_rsel 	3b'100
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_MCC_CTRL_AND_TX_POWER_CTRL, 0x0350);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE7, 0x6666);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE9, 0x0002);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_TX_FILTER, 0x0005);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE6, 0x1111);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG23, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG24, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG25, 0x0000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG26, 0x0006);
+	phy_write_mmd(phydev, 0x07, MTK_PHY_RG_DEV07_REG3C, 0x0006);
+
+	phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_52B5);
+	__mtk_tr_write(phydev, 0x1, 0xd, 0x26, 0x444444);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x00, 0x00002b);	// enhance rx
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x01, 0x6fb90a);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x17, 0x060671);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x18, 0x0e2f00);
+
+	__mtk_tr_write(phydev, 0x0, 0x7, 0x15, 0x0055a0);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x06, 0x2ebaef);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x11, 0x040001);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x03, 0x000004);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x13, 0x018670);
+
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x1b, 0x000072);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x1c, 0x003210);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x14, 0x00024a);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0d, 0x02194f);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0c, 0x00504d);
+
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0f, 0x003028);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x03, 0x082422);
+	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
+
+	return 0;
+}
+
+static int post_init_cal_sw(struct phy_device *phydev, u8 pair_id)
+{
+	/* Default init */
+	printk("  Default post init: %d!", phydev->mdio.addr);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG269, 0x444f);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26A, 0x3333);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26F, 0x7777);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG271, 0x7e14);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG272, 0x7cff);
+
+	phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_52B5);
+	__mtk_tr_write(phydev, 0x0, 0x7, 0x15, 0x0055a0);
+	__mtk_tr_write(phydev, 0x0, 0x7, 0x17, 0x07ff3f);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x00, 0x00001e);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x01, 0x6fb90a);
+	__mtk_tr_write(phydev, 0x1, 0xf, 0x18, 0x0e2f00);
+	__mtk_tr_write(phydev, 0x1, 0xd, 0x26, 0x444444);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x03, 0x000004);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x06, 0x2ebaef);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x13, 0x018670);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x08, 0x00000b);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0c, 0x00504d);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0d, 0x02314f);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x0f, 0x003028);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x10, 0x00000a);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x11, 0x040001);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x14, 0x00024a);
+	__mtk_tr_write(phydev, 0x2, 0xd, 0x1c, 0x003210);
+	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
+
+	phy_write(phydev, 0x0,  0x0800);
+
+	return 0;
+}
+
 static int rext_cal_sw_p9(struct phy_device *phydev, u8 pair_id)
 {
 	/* Only port 0/phy id 9 can be used for rext sw calibration */
@@ -1430,6 +1630,9 @@ static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 
 	for (pair_n = start_pair; pair_n <= end_pair; pair_n++) {
 		switch (cal_item) {
+		case PRE_INIT:
+			ret = pre_init_cal_sw(phydev, pair_n);
+			break;
 		case REXT:
 			if (!rext_cal)
 				ret = rext_cal_sw(phydev, pair_n);
@@ -1442,6 +1645,12 @@ static int cal_sw(struct phy_device *phydev, enum CAL_ITEM cal_item,
 			break;
 		case TX_AMP:
 			ret = tx_amp_cal_sw(phydev, pair_n);
+			break;
+		case RX_OFFSET:
+			ret = rx_offset_cal_sw(phydev, pair_n);
+			break;
+		case POST_INIT:
+			ret = post_init_cal_sw(phydev, pair_n);
 			break;
 		default:
 			ret = rext_cal_sw_p9(phydev, pair_n);
@@ -1476,28 +1685,55 @@ static int start_cal(struct phy_device *phydev, enum CAL_ITEM cal_item,
 	return 0;
 }
 
+int init_once = 1;
+
 static int an7581_phy_calibration(struct phy_device *phydev)
 {
 	int ret = 0;
+	int i;
 	u32 buf[4];
 //	size_t len;
+	u32 real_mdio_addr = phydev->mdio.addr;
 
-	ret = start_cal(phydev, REXT, SW_M, NO_PAIR, NO_PAIR, buf);
-	if (ret)
-		goto out;
-	ret = start_cal(phydev, TX_R45, SW_M, PAIR_A, PAIR_D, buf);
-	if (ret)
-		goto out;
-	ret = start_cal(phydev, TX_OFFSET, SW_M, PAIR_A, PAIR_D, buf);
-	if (ret)
-		goto out;
-	ret = start_cal(phydev, TX_AMP, SW_M, PAIR_A, PAIR_D, buf);
-	if (ret)
-		goto out;
-/*	ret = start_cal(phydev, RX_OFFSET, SW_M, NO_PAIR, NO_PAIR, buf);
-	if (ret)
-		goto out;
-*/
+	printk("CL45 = %d", phydev->is_c45);
+	if (init_once) {
+		for (i = 9 ; i <= 12 ; i++) {
+
+			printk("GE AnaCal start = %d!", phydev->mdio.addr);
+
+			phydev->mdio.addr = 9;
+			ret = start_cal(phydev, PRE_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
+			if (ret)
+				goto out;
+
+			phydev->mdio.addr = i;
+			ret = start_cal(phydev, PRE_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
+			if (ret)
+				goto out;
+
+			ret = start_cal(phydev, REXT, SW_M, NO_PAIR, NO_PAIR, buf);
+			if (ret)
+				goto out;
+			ret = start_cal(phydev, TX_R45, SW_M, PAIR_A, PAIR_D, buf);
+			if (ret)
+				goto out;
+			ret = start_cal(phydev, TX_OFFSET, SW_M, PAIR_A, PAIR_D, buf);
+			if (ret)
+				goto out;
+			ret = start_cal(phydev, TX_AMP, SW_M, NO_PAIR, NO_PAIR, buf);
+			if (ret)
+				goto out;
+			ret = start_cal(phydev, RX_OFFSET, SW_M, PAIR_A, PAIR_D, buf);
+			if (ret)
+				goto out;
+			ret = start_cal(phydev, POST_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
+			if (ret)
+				goto out;
+		}
+		init_once = 0;
+	}
+	phydev->mdio.addr = real_mdio_addr;
+
 out:
 	return ret;
 }
@@ -1551,96 +1787,6 @@ static int an7581_phy_config_init(struct phy_device *phydev)
 	/* LED Config*/
 	mt7530_led_config_of(phydev);
 
-	/* Default init */
-	printk("  Default init");
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG273, 0x1000);	// i2mpb_tbh_ots
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG272, 0x0c2b);	// ps_op 0x3cff, for PHYD bug, need to workaround
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26A, 0x1113);
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG26F, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG268, 0x07f4);
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG269, 0x2114);	// ps_dri  //0x4344
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG271, 0x2c63);	// 0x4e13, for PHYD bug, need to workaround
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG044, 0x00a0);	// pair delay (digital)
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG27C, 0x0808);	// 10 base Tx
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG27B, 0x1177);	// disable 10 base-Te
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_DEV1F_REG417, 0x7775);
-
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG000, 0x0187);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG001, 0x01c3);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG002, 0x01c2);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG003, 0x0109);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG004, 0x020b);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG005, 0x0202);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG006, 0x0387);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG007, 0x03c5);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG008, 0x03c2);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG009, 0x0309);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG00A, 0x0008);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG00B, 0x0002);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG011, 0x0f00);
-
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_GBE_MODE_TX_DELAY_SEL, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_TEST_MODE_TX_DELAY_SEL, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG44, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG176, 0x6600);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG177, 0x0066);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG41, 0x3333);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG40, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG201, 0x4000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG3E, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG23C, 0x0a20);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG1A3, 0x00d2);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG1A4, 0x010e);
-
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG189, 0x0110);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG122, 0xffff);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG123, 0xffff);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG234, 0x0180);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG238, 0x0120);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_LPI_PCS_DSP_CTRL_REG120, 0x9014);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG239, 0x0177);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG14A, 0xee20);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG19b, 0x0111);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG147, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG2D1, 0x0733);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG2D1, 0x0733);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG236, 0x0020);
-
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG190, 0x0110);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG191, 0x4444);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_MCC_CTRL_AND_TX_POWER_CTRL, 0x0350);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE7, 0x6666);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE9, 0x0002);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_TX_FILTER, 0x0005);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGE6, 0x1111);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG23, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG24, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG25, 0x0000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REG26, 0x0006);
-	phy_write_mmd(phydev, 0x07, MTK_PHY_RG_DEV07_REG3C, 0x0006);
-
-	phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_52B5);
-	__mtk_tr_write(phydev, 0x1, 0xd, 0x26, 0x444444);
-	__mtk_tr_write(phydev, 0x1, 0xf, 0x00, 0x00002b);	// enchance rx
-	__mtk_tr_write(phydev, 0x1, 0xf, 0x01, 0x6fb90a);
-	__mtk_tr_write(phydev, 0x1, 0xf, 0x17, 0x060671);
-	__mtk_tr_write(phydev, 0x1, 0xf, 0x18, 0x0e2f00);
-
-	__mtk_tr_write(phydev, 0x0, 0x7, 0x15, 0x0055a0);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x06, 0x2ebaef);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x11, 0x040001);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x03, 0x000004);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x13, 0x018670);
-
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x1b, 0x000072);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x1c, 0x003210);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x14, 0x00024a);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x0d, 0x02194f);
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x0c, 0x00504d);
-
-	__mtk_tr_write(phydev, 0x2, 0xd, 0x0f, 0x003028);
-	__mtk_tr_write(phydev, 0x1, 0xf, 0x03, 0x082422);
-	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
 
 	return an7581_phy_calibration(phydev);
 }
