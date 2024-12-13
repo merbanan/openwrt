@@ -781,8 +781,8 @@ static int cal_cycle2(struct phy_device *phydev, int devad,
 	phy_set_bits_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CALIN,
 			 MTK_PHY_DA_CALIN_FLAG);
 
-	udelay(100);
-	mdelay(10); // mdelay for Hw calibration finish
+	udelay(20);
+//	mdelay(10); // mdelay for Hw calibration finish
 
 	ret = phy_read_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_AD_CAL_CLK) & MTK_PHY_DA_CAL_CLK;
 
@@ -920,14 +920,12 @@ retry2:
 		cal_idx += search_dir;
 
 		phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
-	mdelay(10); // mdelay for Hw calibration finish
+//	mdelay(10); // mdelay for Hw calibration finish
 		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_amp_reg, tx_amp_reg_mask, field_prep(tx_amp_reg_mask, cal_idx));
-	mdelay(10); // mdelay for Hw calibration finish
+//	mdelay(10); // mdelay for Hw calibration finish
 
 		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
-//		printk(" [%d] tx_amp_cal=%x wdata: %x [%d]", phydev->mdio.addr, tx_amp_reg, tmp, start_state);
-
-
+		printk(" [%d] tx_amp_cal=%x wdata: %x [%d]", phydev->mdio.addr, tx_amp_reg, tmp, start_state);
 
 		if (cal_comp_out < 0) {
 			dev_err(&phydev->mdio.dev, " GE Tx amp AnaCal cal_comp_out, %d!\n", cal_idx);
@@ -939,7 +937,7 @@ retry2:
 			dev_err(&phydev->mdio.dev, " GE Tx amp AnaCal Saturation, %x!\n", cal_idx);
 			ret = -EINVAL;
 			if (!retry)
-				goto restore;
+				break;
 			retry = 0;
 
 			cal_idx = 0x20;
@@ -991,6 +989,7 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 	u16 reg_temp, tx_offset_reg, tx_offset_reg_mask;
 	u8 tbl_idx, idx_offset, tx_offset_shift;
 	int retry = 1;
+	u8 pair_n;
 
 	/* Setup and enable TX_OFFSET calibration mode */
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0,
@@ -1012,7 +1011,9 @@ static int tx_offset_cal_sw(struct phy_device *phydev, u8 pair_id)
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0015, 0x0004);	// gating, cutoff thers pair
 
 	/* Set start value and initialize tx_offset calibration */
-	switch (pair_id) {
+	for (pair_n = PAIR_A; pair_n <= PAIR_D; pair_n++) {
+
+	switch (pair_n) {
 	case PAIR_A:
 		phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DEV1E_REGDD,
 			 MTK_PHY_RG_TXG_A_AMP_CAL_EN);
@@ -1098,7 +1099,7 @@ retry:
 		phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
 		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
 		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg);
-//		printk(" tx_offset_reg=%x wdata: %x ", tx_offset_reg, tmp);
+		printk(" [%d] tx_offset_reg=%x wdata: %x ", phydev->mdio.addr, tx_offset_reg, tmp);
 
 		if (cal_comp_out < 0) {
 			dev_err(&phydev->mdio.dev, " [%d] GE Tx offset AnaCal cal_comp_out, %d! [%d]\n", phydev->mdio.addr, tbl_idx, start_state);
@@ -1125,6 +1126,7 @@ retry:
 	}
 
 	printk("  [%d] GE Tx offset AnaCal Done! (%d)(0x%x) [%d]", phydev->mdio.addr, i+1, tbl_idx, start_state);
+	}
 
 restore:
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_DASN_DAC_IN0_A, 0);
@@ -1360,12 +1362,14 @@ static int rext_cal_sw(struct phy_device *phydev, u8 pair_id)
 		if (cal_comp_out != start_state) {
 			printk("  GE Rext AnaCal Done! (0x%x)", cal_idx);
 			phy_modify_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, MTK_PHY_RG_ZCAL_CTRL_MASK, cal_idx);
+			phy_write_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_RG_BG_RASEL, (cal_idx&0x3f) >>3);
 			goto restore;
 		}
 	}
 
-restore:
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG5, rg_ana_cal_rg5);
+
+restore:
 	phy_write_mmd(phydev, MDIO_MMD_VEND1, MTK_PHY_RG_ANA_CAL_RG0, 0x0);
 
 	/* Rext calibration can only be done once */
@@ -1479,6 +1483,7 @@ static int pre_init_cal_sw(struct phy_device *phydev, u8 pair_id)
 	__mtk_tr_write(phydev, 0x1, 0xf, 0x03, 0x082422);
 	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
 
+	printk("  , r31 = (%d, 0x%x)\n", phydev->mdio.addr, phy_read(phydev, 31));
 	return 0;
 }
 
@@ -1690,7 +1695,7 @@ int init_once = 1;
 static int an7581_phy_calibration(struct phy_device *phydev)
 {
 	int ret = 0;
-	int i;
+	int i,j;
 	u32 buf[4];
 //	size_t len;
 	u32 real_mdio_addr = phydev->mdio.addr;
@@ -1701,23 +1706,26 @@ static int an7581_phy_calibration(struct phy_device *phydev)
 
 			printk("GE AnaCal start = %d!", phydev->mdio.addr);
 
-			phydev->mdio.addr = 9;
-			ret = start_cal(phydev, PRE_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
-			if (ret)
-				goto out;
+// 			phydev->mdio.addr = 9;
+// 			ret = start_cal(phydev, PRE_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
+// 			if (ret)
+// 				goto out;
+
+			for (j = 9 ; j <= 12 ; j++) {
+				phydev->mdio.addr = j;
+				ret = start_cal(phydev, PRE_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
+				if (ret)
+					goto out;
+			}
 
 			phydev->mdio.addr = i;
-			ret = start_cal(phydev, PRE_INIT, SW_M, NO_PAIR, NO_PAIR, buf);
-			if (ret)
-				goto out;
-
 			ret = start_cal(phydev, REXT, SW_M, NO_PAIR, NO_PAIR, buf);
 			if (ret)
 				goto out;
 			ret = start_cal(phydev, TX_R45, SW_M, PAIR_A, PAIR_D, buf);
 			if (ret)
 				goto out;
-			ret = start_cal(phydev, TX_OFFSET, SW_M, PAIR_A, PAIR_D, buf);
+			ret = start_cal(phydev, TX_OFFSET, SW_M, NO_PAIR, NO_PAIR, buf);
 			if (ret)
 				goto out;
 			ret = start_cal(phydev, TX_AMP, SW_M, NO_PAIR, NO_PAIR, buf);
