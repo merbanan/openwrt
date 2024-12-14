@@ -925,7 +925,7 @@ retry2:
 //	mdelay(10); // mdelay for Hw calibration finish
 
 		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_amp_reg);
-		printk(" [%d] tx_amp_cal=%x wdata: %x [%d]", phydev->mdio.addr, tx_amp_reg, tmp, start_state);
+//		printk(" [%d] tx_amp_cal=%x wdata: %x [%d]", phydev->mdio.addr, tx_amp_reg, tmp, start_state);
 
 		if (cal_comp_out < 0) {
 			dev_err(&phydev->mdio.dev, " GE Tx amp AnaCal cal_comp_out, %d!\n", cal_idx);
@@ -1099,7 +1099,7 @@ retry:
 		phy_modify_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
 		cal_comp_out = cal_cycle2(phydev, MDIO_MMD_VEND1, tx_offset_reg, tx_offset_reg_mask, tbl_idx<<tx_offset_shift);
 		tmp = phy_read_mmd(phydev, MDIO_MMD_VEND1, tx_offset_reg);
-		printk(" [%d] tx_offset_reg=%x wdata: %x ", phydev->mdio.addr, tx_offset_reg, tmp);
+//		printk(" [%d] tx_offset_reg=%x wdata: %x ", phydev->mdio.addr, tx_offset_reg, tmp);
 
 		if (cal_comp_out < 0) {
 			dev_err(&phydev->mdio.dev, " [%d] GE Tx offset AnaCal cal_comp_out, %d! [%d]\n", phydev->mdio.addr, tbl_idx, start_state);
@@ -1483,6 +1483,14 @@ static int pre_init_cal_sw(struct phy_device *phydev, u8 pair_id)
 	__mtk_tr_write(phydev, 0x1, 0xf, 0x03, 0x082422);
 	phy_restore_page(phydev, MTK_PHY_PAGE_STANDARD, 0);
 
+	printk("Rext init stage\n");
+	phy_write(phydev, 0x1f, 0x0000);
+	phy_write(phydev, 0x0,  0x0140);
+	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x0100, 0xc000);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, 0x1010);
+	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0000);
+
+
 	printk("  , r31 = (%d, 0x%x)\n", phydev->mdio.addr, phy_read(phydev, 31));
 	return 0;
 }
@@ -1534,11 +1542,7 @@ static int rext_cal_sw_p9(struct phy_device *phydev, u8 pair_id)
 	int cnt = 0;
 	int tmp;
 
-	phy_write(phydev, 0x1f, 0x0000);
-	phy_write(phydev, 0x0,  0x0140);
-	phy_write_mmd(phydev, MDIO_MMD_VEND2, 0x0100, 0xc000);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0145, 0x1010);
-	phy_write_mmd(phydev, MDIO_MMD_VEND1, 0x0185, 0x0000);
+
 
 	analog_calibration_enable(phydev, MTK_PHY_RG_REXT_CALEN);
 
