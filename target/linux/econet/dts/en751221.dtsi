@@ -56,6 +56,31 @@
 		econet,shadow-interrupts = <7 2>, <8 3>, <13 12>, <30 29>;
 	};
 
+	chip_scu: syscon@1fa20000 {
+		compatible = "econet,en751221-chip-scu", "syscon";
+		reg = <0x1fa20000 0x200>;
+	};
+
+
+	system-controller@1fbf0200 {
+		compatible = "syscon", "simple-mfd";
+                        reg = <0x1fbf0200 0x100>;
+
+                        en751221_pinctrl: pinctrl {
+                                compatible = "econet,en751221-pinctrl";
+
+                                interrupt-parent = <&intc>;
+                                interrupts = <10>;
+
+                                gpio-controller;
+                                #gpio-cells = <1>;
+
+                                interrupt-controller;
+                                #interrupt-cells = <1>;
+                        };
+                };
+
+
 	uart: serial@1fbf0000 {
 		compatible = "ns16550";
 		reg = <0x1fbf0000 0x30>;
@@ -90,7 +115,7 @@
 
 	i2c: i2c@1fbf8000 {
 		compatible = "mediatek,mt7621-i2c";
-		reg = <0x0 0x1fbf8000 0x0 0x100>;
+		reg = <0x1fbf8000 0x100>;
 
 		clocks = <&i2cclock>;
 
