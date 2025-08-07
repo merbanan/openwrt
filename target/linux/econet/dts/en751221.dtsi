@@ -64,22 +64,31 @@
 
 	system-controller@1fbf0200 {
 		compatible = "syscon", "simple-mfd";
-                        reg = <0x1fbf0200 0x100>;
+		reg = <0x1fbf0200 0x100>;
 
-                        en751221_pinctrl: pinctrl {
-                                compatible = "econet,en751221-pinctrl";
+		en751221_pinctrl: pinctrl {
+			compatible = "econet,en751221-pinctrl";
 
-                                interrupt-parent = <&intc>;
-                                interrupts = <10>;
+			interrupt-parent = <&intc>;
+			interrupts = <10>;
 
-                                gpio-controller;
-                                #gpio-cells = <1>;
+			gpio-controller;
+			#gpio-cells = <2>;
 
-                                interrupt-controller;
-                                #interrupt-cells = <1>;
-                        };
-                };
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			gpio-ranges = <&en751221_pinctrl 0 13 29>;
 
+			i2c_pins: i2c-pins {
+				mux {
+					function = "pon_i2c";
+					groups = "pon_i2c";
+				};
+
+			};
+
+		};
+	};
 
 	uart: serial@1fbf0000 {
 		compatible = "ns16550";
@@ -124,6 +133,9 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		status = "ok";
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c_pins>;
+
+		status = "okay";
 	};
 };

@@ -279,6 +279,7 @@
 #define GPIO1_FLASH_MODE_CFG			BIT(1)
 #define GPIO0_FLASH_MODE_CFG			BIT(0)
 
+/* GPIOs Cont */
 #define REG_GPIO_CTRL2				0x0060
 #define REG_GPIO_CTRL3				0x0064
 
@@ -317,10 +318,11 @@
 #define GPIO17_FLASH_MODE_CFG			BIT(1)
 #define GPIO16_FLASH_MODE_CFG			BIT(0)
 
+/* GPIOs Cont */
 #define REG_GPIO_DATA1				0x0070
 #define REG_GPIO_OE1				0x0078
 
-#define ECONET_NUM_PINS				32
+#define ECONET_NUM_PINS				64
 #define ECONET_NUM_INT_PINS			16
 #define ECONET_PIN_BANK_SIZE			(ECONET_NUM_PINS / 2)
 #define ECONET_REG_GPIOCTRL_NUM_PIN		(ECONET_NUM_PINS / 4)
@@ -458,6 +460,7 @@ static struct pinctrl_pin_desc econet_pinctrl_pins[] = {
 
 static const int pon_pins[] = {29, 30, 31, 32, 33 };
 static const int pon_i2c_pins[] = { 2, 3 };
+static const int dmt_i2c_pins[] = { 27, 28 };
 static const int pon_tod_1pps_pins[] = { 35 };
 static const int gsw_tod_1pps_pins[] = { 35 };
 static const int dmt_tod_1pps_pins[] = { 35 };
@@ -511,6 +514,7 @@ static const int pcie_reset1_pins[] = { 44 };
 static const struct pingroup econet_pinctrl_groups[] = {
 	PINCTRL_PIN_GROUP(pon),
 	PINCTRL_PIN_GROUP(pon_i2c),
+	PINCTRL_PIN_GROUP(dmt_i2c),
 	PINCTRL_PIN_GROUP(pon_tod_1pps),
 	PINCTRL_PIN_GROUP(gsw_tod_1pps),
 	PINCTRL_PIN_GROUP(dmt_tod_1pps),
@@ -568,6 +572,7 @@ static const char *const tod_1pps_groups[] = { "pon_tod_1pps", "gsw_tod_1pps", "
 static const char *const sipo_groups[] = { "sipo", "sipo_rclk" };
 static const char *const uart_groups[] = { "uart2" };
 static const char *const pon_i2c_groups[] = { "pon_i2c" };
+static const char *const dmt_i2c_groups[] = { "dmt_i2c" };
 static const char *const ejtag_groups[] = { "ejtag" };
 static const char *const pcm_groups[] = { "pcm1", "pcm2" };
 static const char *const spi_groups[] = { "spi_quad", "spi_cs1" };
@@ -682,12 +687,25 @@ static const struct econet_pinctrl_func_group uart_func_group[] = {
 
 static const struct econet_pinctrl_func_group pon_i2c_func_group[] = {
 	{
-		.name = "i2c",
+		.name = "pon_i2c",
 		.regmap[0] = {
 			ECONET_FUNC_MUX,
 			REG_I2C_MODE,
 			PON_I2C_MODE_MASK,
 			PON_I2C_MODE_MASK
+		},
+		.regmap_size = 1,
+	},
+};
+
+static const struct econet_pinctrl_func_group dmt_i2c_func_group[] = {
+	{
+		.name = "dmt_i2c",
+		.regmap[0] = {
+			ECONET_FUNC_MUX,
+			REG_I2C_MODE,
+			GPIO_DSL_I2C_MODE_MASK,
+			GPIO_DSL_I2C_MODE_MASK
 		},
 		.regmap_size = 1,
 	},
@@ -1508,6 +1526,7 @@ static const struct econet_pinctrl_func econet_pinctrl_funcs[] = {
 	PINCTRL_FUNC_DESC(sipo),
 	PINCTRL_FUNC_DESC(uart),
 	PINCTRL_FUNC_DESC(pon_i2c),
+	PINCTRL_FUNC_DESC(dmt_i2c),
 	PINCTRL_FUNC_DESC(ejtag),
 	PINCTRL_FUNC_DESC(pcm),
 	PINCTRL_FUNC_DESC(spi),
@@ -1937,7 +1956,7 @@ static int econet_pinmux_set_mux(struct pinctrl_dev *pctrl_dev,
 	if (!grp)
 		return -EINVAL;
 
-	dev_dbg(pctrl_dev->dev, "enable function %s group %s\n",
+	dev_err(pctrl_dev->dev, "enable function %s group %s\n",
 		desc->func.name, grp->grp.name);
 
 	func = desc->data;
@@ -2341,27 +2360,18 @@ static int econet_pinctrl_probe(struct platform_device *pdev)
 	if (!pinctrl)
 		return -ENOMEM;
 	
-	dev_err(&pdev->dev, "devm_kzalloc");
-
 	pinctrl->regmap = device_node_to_regmap(dev->parent->of_node);
 	if (IS_ERR(pinctrl->regmap))
 		return PTR_ERR(pinctrl->regmap);
-
-	dev_err(&pdev->dev, "device_node_to_regmap");
-
 
 	map = syscon_regmap_lookup_by_compatible("econet,en751221-chip-scu");
 	if (IS_ERR(map))
 		return PTR_ERR(map);
 
-	dev_err(&pdev->dev, "syscon_regmap_lookup_by_compatible");
-
 	pinctrl->chip_scu = map;
 
 	err = devm_pinctrl_register_and_init(dev, &econet_pinctrl_desc,
 					     pinctrl, &pinctrl->ctrl);
-
-	dev_err(&pdev->dev, "devm_pinctrl_register_and_init");
 
 	if (err)
 		return err;
@@ -2397,12 +2407,10 @@ static int econet_pinctrl_probe(struct platform_device *pdev)
 		}
 	}
 
-	dev_err(dev, "pinctrl_enable");
 	err = pinctrl_enable(pinctrl->ctrl);
 	if (err)
 		return err;
 
-	dev_err(dev, "econet_pinctrl_add_gpiochip");
 	/* build gpio-chip */
 	return econet_pinctrl_add_gpiochip(pinctrl, pdev);
 }
