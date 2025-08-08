@@ -835,6 +835,7 @@ static const struct econet_pinctrl_func_group pwm_func_group[] = {
 	{
 		.name = "gpio0",
 		.regmap[0] = {
+//FIXME
 			ECONET_FUNC_MUX,
 			REG_GPIO_FLASH_MODE_CFG,
 			GPIO0_FLASH_MODE_CFG,
@@ -1970,15 +1971,16 @@ static int econet_pinmux_set_mux(struct pinctrl_dev *pctrl_dev,
 
 		for (j = 0; j < group->regmap_size; j++) {
 			switch (group->regmap[j].mux) {
-			case ECONET_FUNC_PWM_EXT_MUX:
 			case ECONET_FUNC_MUX:
-				regmap_update_bits(pinctrl->regmap,
+				regmap_update_bits(pinctrl->chip_scu,
 						   group->regmap[j].offset,
 						   group->regmap[j].mask,
 						   group->regmap[j].val);
 				break;
+			case ECONET_FUNC_PWM_MUX:
+			case ECONET_FUNC_PWM_EXT_MUX:
 			default:
-				regmap_update_bits(pinctrl->chip_scu,
+				regmap_update_bits(pinctrl->regmap,
 						   group->regmap[j].offset,
 						   group->regmap[j].mask,
 						   group->regmap[j].val);
