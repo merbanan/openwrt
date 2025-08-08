@@ -16,6 +16,15 @@
 		stdout-path = "/serial@1fbf0000:115200";
 		linux,usable-memory-range = <0x00020000 0x07fe0000>;
 	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		btn0 {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&en751221_pinctrl 0 GPIO_ACTIVE_LOW>;
+		};
+	};
 };
 
 &nand {
