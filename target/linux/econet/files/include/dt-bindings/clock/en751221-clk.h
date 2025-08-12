@@ -1,0 +1,10 @@
+/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
+
+#ifndef _DT_BINDINGS_CLOCK_AIROHA_EN751221_H_
+#define _DT_BINDINGS_CLOCK_AIROHA_EN751221_H_
+
+#define EN751221_CLK_GSW		0
+
+#define EN751221_NUM_CLOCKS	1
+
+#endif /* _DT_BINDINGS_CLOCK_AIROHA_EN751221_H_ */

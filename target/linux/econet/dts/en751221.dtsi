@@ -65,6 +65,12 @@
 		reg = <0x1fa20000 0x200>;
 	};
 
+	scuclk: clock-controller@1fa20000 {
+		compatible = "econet,en751221-scu";
+		reg = <0x1fb00000 0x10000>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
+	};
 
 	system-controller@1fbf0200 {
 		compatible = "syscon", "simple-mfd";
