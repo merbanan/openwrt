@@ -45,6 +45,9 @@
 #define REG_RST_CTRL1			0x834
 /* EN751221 */
 #define REG_NP_SCU_SSR3			0x94
+#define REG_DMTC			0x84
+#define REG_USBCTRL4			0xEC
+
 
 struct en_clk_desc {
 	int id;
@@ -381,6 +384,14 @@ static const u16 en7581_rst_map[] = {
 	[EN7581_XPON_MAC_RST]		= RST_NR_PER_BANK + 31,
 };
 
+static const u16 en7581_rst_ofs[] = {
+	REG_RST_CTRL2,
+	REG_RST_CTRL1,
+	REG_DMTC,
+	REG_USB_CTRL4,
+};
+
+
 static const u16 en751221_rst_map[] = {
 	/* RST_CTRL2 */
 	[EN751221_XPON_PHY_RST]		= 0,
@@ -415,7 +426,7 @@ static const u16 en751221_rst_map[] = {
 	[EN751221_UART2_RST]		= RST_NR_PER_BANK + 19,
 	[EN751221_GDMP_RST]		= RST_NR_PER_BANK + 20,
 	[EN751221_FE_RST]		= RST_NR_PER_BANK + 21,
-	[EN751221_USB_HOST_P0_RST]	= RST_NR_PER_BANK + 22,
+	[EN751221_USB_HOST_RST]		= RST_NR_PER_BANK + 22,
 	[EN751221_GSW_RST]		= RST_NR_PER_BANK + 23,
 	[EN751221_SFC2_PCM_RST]		= RST_NR_PER_BANK + 25,
 	[EN751221_PCIE0_RST]		= RST_NR_PER_BANK + 26,
@@ -424,6 +435,13 @@ static const u16 en751221_rst_map[] = {
 	[EN751221_PCIE_HB_RST]		= RST_NR_PER_BANK + 29,
 	[EN751221_SIMIF_RST]		= RST_NR_PER_BANK + 30,
 	[EN751221_XPON_MAC_RST]		= RST_NR_PER_BANK + 31,
+
+	/* DMTC */
+	[EN751221_DMT_RST]		= 2 * RST_NR_PER_BANK + 0,
+
+	/* USB CTRL4 */
+	[EN751221_USB_PHY_P0_RST]	= 3 * RST_NR_PER_BANK + 6,
+	[EN751221_USB_PHY_P1_RST]	= 3 * RST_NR_PER_BANK + 7,
 };
 
 static u32 en7523_get_base_rate(const struct en_clk_desc *desc, u32 val)
