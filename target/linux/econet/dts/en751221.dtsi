@@ -4,6 +4,10 @@
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
+#include <dt-bindings/phy/phy.h>
+#include <dt-bindings/clock/en7523-clk.h>
+#include <dt-bindings/phy/phy.h>
+#include <dt-bindings/reset/econet,en751221-reset.h>
 
 / {
 	compatible = "econet,en751221";
@@ -147,5 +151,34 @@
 		pinctrl-0 = <&i2c_pins>;
 
 		status = "okay";
+	};
+
+	usb0: usb@1fb90000 {
+		compatible = "mediatek,mtk-xhci";
+		reg = <0x1fb90000 0x3e00>,
+			<0x1fa80700 0x100>;
+		reg-names = "mac", "ippc";
+		interrupts = <17>;
+
+		phys = <&usb0_u2 PHY_TYPE_USB2>, <&usb0_u3 PHY_TYPE_USB3>;
+
+		resets = <&scuclk EN751221_USB_HOST_RST>;
+		reset-names = "usb_mac";
+		status = "okay";
+	};
+
+	phy@1fa80000 {
+		compatible = "econet,en751221-usb-phy";
+		reg = <0x1fa80000 0x10000>;
+
+		airoha,port-id = <0>;
+
+		usb0_u2: usb2-phy {
+			#phy-cells = <1>;
+		};
+
+		usb0_u3: usb3-phy {
+			#phy-cells = <1>;
+		};
 	};
 };
