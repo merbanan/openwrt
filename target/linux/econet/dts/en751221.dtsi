@@ -158,7 +158,10 @@
 		reg = <0x1fb90000 0x3e00>,
 			<0x1fa80700 0x100>;
 		reg-names = "mac", "ippc";
+
+		interrupt-parent = <&intc>;
 		interrupts = <17>;
+		interrupt-names = "host";
 
 		phys = <&usb0_u2 PHY_TYPE_USB2>, <&usb0_u3 PHY_TYPE_USB3>;
 
@@ -171,7 +174,7 @@
 		compatible = "econet,en751221-usb-phy";
 		reg = <0x1fa80000 0x10000>;
 
-		airoha,port-id = <0>;
+		econet,port-id = <0>;
 
 		usb0_u2: usb2-phy {
 			#phy-cells = <1>;
@@ -180,5 +183,6 @@
 		usb0_u3: usb3-phy {
 			#phy-cells = <1>;
 		};
+
 	};
 };
