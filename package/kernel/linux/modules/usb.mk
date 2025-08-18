@@ -69,6 +69,20 @@ endef
 
 $(eval $(call KernelPackage,usb-phy-nop))
 
+define KernelPackage/usb-econet-phy
+  TITLE:=Support for Econet USB phy
+  KCONFIG:=CONFIG_PHY_ECONET_USB
+  FILES:=$(LINUX_DIR)/drivers/usb/host/phy-econet-usb.ko
+  AUTOLOAD:=$(call AutoLoad,21,phy-econet-usb,1)
+  $(call AddDepends/usb)
+endef
+
+define KernelPackage/usb-econet-phy/description
+  Support for Econet USB phy
+endef
+
+$(eval $(call KernelPackage,usb-econet-phy))
+
 
 define KernelPackage/phy-ath79-usb
   TITLE:=Support for ATH79 USB PHY

@@ -74,6 +74,11 @@
 		reg = <0x1fb00000 0x10000>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;
+
+		scu_ssr: system-controller {
+			compatible = "econet,en751221-scu-ssr";
+		};
+
 	};
 
 	system-controller@1fbf0200 {
@@ -163,26 +168,44 @@
 		interrupts = <17>;
 		interrupt-names = "host";
 
-		phys = <&usb0_u2 PHY_TYPE_USB2>, <&usb0_u3 PHY_TYPE_USB3>;
+		phys = <&u2port0 PHY_TYPE_USB2>,
+		       <&u3port0 PHY_TYPE_USB3>,
+		       <&u2port1 PHY_TYPE_USB2>;
+
+		usb3-lpm-capable;
+		econet,setup-25mhz-xtal;
 
 		resets = <&scuclk EN751221_USB_HOST_RST>;
 		reset-names = "usb_mac";
+
 		status = "okay";
 	};
 
-	phy@1fa80000 {
-		compatible = "econet,en751221-usb-phy";
-		reg = <0x1fa80000 0x10000>;
+	u3phy: t-phy@1FA80000 {
+		compatible = "econet,en751221-u3phy";
+		reg = <0x1FA80000 0x700>;
+		ranges;
+		// status = "disabled";
 
-		econet,port-id = <0>;
-
-		usb0_u2: usb2-phy {
+		u2port0: usb-phy@1a0c4800 {
+			reg = <0x1FA80800 0x100>;
 			#phy-cells = <1>;
+			// clocks = <&ssusbsys CLK_SSUSB_U2_PHY_EN>;
+			// clock-names = "ref";
 		};
 
-		usb0_u3: usb3-phy {
+		u3port0: usb-phy@1FA80900 {
+			reg = <0x1FA80900 0x700>;
 			#phy-cells = <1>;
+			// clocks = <&clk25m>;
+			// clock-names = "ref";
 		};
 
+		u2port1: usb-phy@1fa81000 {
+			reg = <0x1fa81000 0x100>;
+			#phy-cells = <1>;
+			// clocks = <&ssusbsys CLK_SSUSB_U2_PHY_1P_EN>;
+			// clock-names = "ref";
+		};
 	};
 };
