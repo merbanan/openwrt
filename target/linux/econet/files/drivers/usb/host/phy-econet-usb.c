@@ -14,7 +14,7 @@
 #include <linux/regmap.h>
 
 /* SSUSB SIFSLV FMREG (0x100) */
-#define FMREG					0x00
+#define FMREG					0x100
 #define   FMCR0					0x00
 #define     RG_MONCLK_SEL			GENMASK(27, 26)
 #define       CN_MONCLK_SEL0			FIELD_PREP_CONST(RG_MONCLK_SEL, 0x0)
@@ -130,8 +130,8 @@ struct econet_usb_phy_priv {
 	struct device *dev;
 
 	unsigned int id;
-	void __iomem *fmreg_base;
-	struct regmap *fmreg_regmap;
+	void __iomem *base;
+	struct regmap *regmap;
 	struct econet_phy_instance **phys;
 	int nphys;
 };
@@ -139,7 +139,7 @@ struct econet_usb_phy_priv {
 static int u2_slew_rate_calibration(struct econet_usb_phy_priv *priv,
 	struct econet_phy_instance *instance)
 {
-	struct regmap *fmreg = priv->fmreg_regmap;
+	struct regmap *regmap = priv->regmap;
 	struct regmap *com = instance->regmap;
 	int fm_out;
 	u32 srctrl;
@@ -152,35 +152,35 @@ static int u2_slew_rate_calibration(struct econet_usb_phy_priv *priv,
 	usleep_range(1000, 1500);
 
 	/* Enable Free run clock */
-	regmap_set_bits(fmreg, FMREG + FMMONR1,	RG_FRCK_EN);
+	regmap_set_bits(regmap, FMREG + FMMONR1,	RG_FRCK_EN);
 
 	/* Select Monitor Clock */
 	if (instance->port_id == 0)
-		regmap_update_bits(fmreg, U2PHY_COM + FMCR0, RG_MONCLK_SEL, CN_MONCLK_SEL0);
+		regmap_update_bits(regmap, U2PHY_COM + FMCR0, RG_MONCLK_SEL, CN_MONCLK_SEL0);
 	else if (instance->port_id == 1)
-		regmap_update_bits(fmreg, U2PHY_COM + FMCR0, RG_MONCLK_SEL, CN_MONCLK_SEL1);
+		regmap_update_bits(regmap, U2PHY_COM + FMCR0, RG_MONCLK_SEL, CN_MONCLK_SEL1);
 	else {
 		dev_err(priv->dev, "invalid port id (%d)\n", instance->port_id);
 		return -EINVAL;
 	}
 
 	/* Set cyclecnt */
-	regmap_update_bits(fmreg, FMREG + FMCR0, RG_CYCLECNT,
+	regmap_update_bits(regmap, FMREG + FMCR0, RG_CYCLECNT,
 			   FIELD_PREP_CONST(RG_CYCLECNT, ECONET_USB_PHY_U2_FM_DET_CYCLE_CNT));
 
 	/* Enable Frequency meter */
-	regmap_set_bits(fmreg, FMREG + FMCR0, RG_FREQDET_EN);
+	regmap_set_bits(regmap, FMREG + FMCR0, RG_FREQDET_EN);
 
 	/* Timeout can happen and we will apply workaround at the end */
-	regmap_read_poll_timeout(fmreg, FMREG + FMMONR0, fm_out,
+	regmap_read_poll_timeout(regmap, FMREG + FMMONR0, fm_out,
 				 fm_out, ECONET_USB_PHY_FREQDET_SLEEP,
 				 ECONET_USB_PHY_FREQDET_TIMEOUT);
 //FIXME
 	/* Disable Frequency meter */
-	regmap_clear_bits(fmreg, FMREG + FMCR0, RG_FREQDET_EN);
+	regmap_clear_bits(regmap, FMREG + FMCR0, RG_FREQDET_EN);
 
 	/* Disable Free run clock */
-	regmap_clear_bits(fmreg, FMREG + FMMONR1, RG_FRCK_EN);
+	regmap_clear_bits(regmap, FMREG + FMMONR1, RG_FRCK_EN);
 
 	/* Disable HS TX SR calibration */
 	regmap_clear_bits(com, U2PHY_COM + USBPHYACR0, RG_HSTX_SRCAL_EN);
@@ -406,9 +406,9 @@ static int econet_usb_phy_probe(struct platform_device *pdev)
 	base = devm_platform_ioremap_resource(pdev, 0);
 
 	platform_set_drvdata(pdev, priv);
-	priv->fmreg_regmap = devm_regmap_init_mmio(dev, base, &econet_usb_phy_regmap_config);
-	if (IS_ERR(priv->fmreg_regmap))
-		return PTR_ERR(priv->fmreg_regmap);
+	priv->regmap = devm_regmap_init_mmio(dev, base, &econet_usb_phy_regmap_config);
+	if (IS_ERR(priv->regmap))
+		return PTR_ERR(priv->regmap);
 
 	port = 0;
 	for_each_child_of_node_scoped(np, child_np) {
