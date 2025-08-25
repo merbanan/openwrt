@@ -61,6 +61,11 @@
 #define PA2_RG_U2PLL_BW			GENMASK(21, 19)
 #define PA2_RG_SIF_U2PLL_FORCE_EN	BIT(18)
 
+/* EN751221 */
+#define EN_U3P_USBPHYACR0		0x010
+#define PA1_RG_U2_HSTX_SRCAL_EN	BIT(15)
+#define PA1_RG_U2_HSTX_SRCTRL		GENMASK(14, 12)
+
 #define U3P_USBPHYACR5		0x014
 #define PA5_RG_U2_HSTX_SRCAL_EN	BIT(15)
 #define PA5_RG_U2_HSTX_SRCTRL		GENMASK(14, 12)
@@ -72,6 +77,10 @@
 #define PA6_RG_U2_OTG_VBUSCMP_EN	BIT(20)
 #define PA6_RG_U2_DISCTH		GENMASK(7, 4)
 #define PA6_RG_U2_SQTH		GENMASK(3, 0)
+
+/* EN751221 */
+#define U3P_U2PHYACR3		0x01C
+#define P2C_RG_PHY_REV		GENMASK(7, 0)
 
 #define U3P_U2PHYACR4		0x020
 #define P2C_RG_USB20_GPIO_CTL		BIT(9)
@@ -308,6 +317,7 @@
 
 enum mtk_phy_version {
 	MTK_PHY_V1 = 1,
+	MTK_PHY_V1_EN,
 	MTK_PHY_V2,
 	MTK_PHY_V3,
 };
@@ -372,6 +382,7 @@ struct mtk_phy_instance {
 	bool bc12_en;
 	bool type_force_mode;
 	bool setup_25mhz_xtal;
+	int phy_rev;
 };
 
 struct mtk_tphy {
@@ -755,17 +766,20 @@ static void hs_slew_rate_calibrate(struct mtk_tphy *tphy,
 		return;
 
 	/* enable USB ring oscillator */
-	mtk_phy_set_bits(com + U3P_USBPHYACR5, PA5_RG_U2_HSTX_SRCAL_EN);
+	if (tphy->pdata->version == MTK_PHY_V1_EN)
+		mtk_phy_set_bits(com + EN_U3P_USBPHYACR0, PA1_RG_U2_HSTX_SRCAL_EN);
+	else
+		mtk_phy_set_bits(com + U3P_USBPHYACR5, PA5_RG_U2_HSTX_SRCAL_EN);
 	udelay(1);
 
 	/*enable free run clock */
 	mtk_phy_set_bits(fmreg + U3P_U2FREQ_FMMONR1, P2F_RG_FRCK_EN);
 
-	/* set cycle count as 1024, and select u2 channel */
+	/* set cycle count as 1024, and select u2 channel */ //XXX Checkme
 	tmp = readl(fmreg + U3P_U2FREQ_FMCR0);
 	tmp &= ~(P2F_RG_CYCLECNT | P2F_RG_MONCLK_SEL);
 	tmp |= FIELD_PREP(P2F_RG_CYCLECNT, U3P_FM_DET_CYCLE_CNT);
-	if (tphy->pdata->version == MTK_PHY_V1)
+	if ((tphy->pdata->version == MTK_PHY_V1) || (tphy->pdata->version == MTK_PHY_V1_EN))
 		tmp |= FIELD_PREP(P2F_RG_MONCLK_SEL, instance->index >> 1);
 
 	writel(tmp, fmreg + U3P_U2FREQ_FMCR0);
@@ -803,7 +817,10 @@ static void hs_slew_rate_calibrate(struct mtk_tphy *tphy,
 			     calibration_val);
 
 	/* disable USB ring oscillator */
-	mtk_phy_clear_bits(com + U3P_USBPHYACR5, PA5_RG_U2_HSTX_SRCAL_EN);
+	if (tphy->pdata->version == MTK_PHY_V1_EN)
+		mtk_phy_clear_bits(com + EN_U3P_USBPHYACR0, PA1_RG_U2_HSTX_SRCAL_EN);
+	else
+		mtk_phy_clear_bits(com + U3P_USBPHYACR5, PA5_RG_U2_HSTX_SRCAL_EN);
 }
 
 static void u3_phy_instance_init(struct mtk_tphy *tphy,
@@ -860,8 +877,6 @@ static void u3_phy_instance_init(struct mtk_tphy *tphy,
 		mtk_phy_update_field(phya + U3P_U3_PHYA_DA_REG9, P3A_RG_PLL_FBKDIV_PE1H, 0x18);
 
 		mtk_phy_update_field(phya + U3P_U3_PHYA_DA_REG9, P3A_RG_PLL_FBKDIV_PE2H, 0x18);
-
-		mtk_phy_update_field(phya + U3P_U3_PHYA_DA_REG9, P3A_RG_PLL_DELTA1_PE2H, 0x4a);
 
 		writel(0x18000000, phya + U3P_U3_PHYA_DA_REG12);
 
@@ -948,12 +963,13 @@ static void u2_phy_instance_init(struct mtk_tphy *tphy,
 		/* set SW PLL Stable mode to 1 for U2 LPM device remote wakeup */
 		mtk_phy_update_field(com + U3D_U2PHYDCR1, USB20_SW_PLLMODE, 0x1);
 	}
-	
-	/* DP/DM BC1.1 path Disable */
-	mtk_phy_clear_bits(com + U3P_USBPHYACR6, PA6_RG_U2_BC11_SW_EN);
 
-	mtk_phy_update_field(com + U3P_USBPHYACR6, PA6_RG_U2_SQTH, 2);
+	if (tphy->pdata->version != MTK_PHY_V1_EN) {
+		/* DP/DM BC1.1 path Disable */
+		mtk_phy_clear_bits(com + U3P_USBPHYACR6, PA6_RG_U2_BC11_SW_EN);
 
+		mtk_phy_update_field(com + U3P_USBPHYACR6, PA6_RG_U2_SQTH, 2);
+	}
 	/* Workaround only for mt8195, HW fix it for others (V3) */
 	u2_phy_pll_26m_set(tphy, instance);
 
@@ -967,12 +983,14 @@ static void u2_phy_instance_power_on(struct mtk_tphy *tphy,
 	void __iomem *com = u2_banks->com;
 	u32 index = instance->index;
 
-	/* OTG Enable */
-	mtk_phy_set_bits(com + U3P_USBPHYACR6, PA6_RG_U2_OTG_VBUSCMP_EN);
+	if (tphy->pdata->version != MTK_PHY_V1_EN) {
+		/* OTG Enable */
+		mtk_phy_set_bits(com + U3P_USBPHYACR6, PA6_RG_U2_OTG_VBUSCMP_EN);
 
-	mtk_phy_set_bits(com + U3P_U2PHYDTM1, P2C_RG_VBUSVALID | P2C_RG_AVALID);
+		mtk_phy_set_bits(com + U3P_U2PHYDTM1, P2C_RG_VBUSVALID | P2C_RG_AVALID);
 
-	mtk_phy_clear_bits(com + U3P_U2PHYDTM1, P2C_RG_SESSEND);
+		mtk_phy_clear_bits(com + U3P_U2PHYDTM1, P2C_RG_SESSEND);
+	}
 
 	if (tphy->pdata->avoid_rx_sen_degradation && index) {
 		mtk_phy_set_bits(com + U3D_U2PHYDCR0, P2C_RG_SIF_U2PLL_FORCE_ON);
@@ -989,12 +1007,14 @@ static void u2_phy_instance_power_off(struct mtk_tphy *tphy,
 	void __iomem *com = u2_banks->com;
 	u32 index = instance->index;
 
-	/* OTG Disable */
-	mtk_phy_clear_bits(com + U3P_USBPHYACR6, PA6_RG_U2_OTG_VBUSCMP_EN);
+	if (tphy->pdata->version != MTK_PHY_V1_EN) {
+		/* OTG Disable */
+		mtk_phy_clear_bits(com + U3P_USBPHYACR6, PA6_RG_U2_OTG_VBUSCMP_EN);
 
-	mtk_phy_clear_bits(com + U3P_U2PHYDTM1, P2C_RG_VBUSVALID | P2C_RG_AVALID);
+		mtk_phy_clear_bits(com + U3P_U2PHYDTM1, P2C_RG_VBUSVALID | P2C_RG_AVALID);
 
-	mtk_phy_set_bits(com + U3P_U2PHYDTM1, P2C_RG_SESSEND);
+		mtk_phy_set_bits(com + U3P_U2PHYDTM1, P2C_RG_SESSEND);
+	}
 
 	if (tphy->pdata->avoid_rx_sen_degradation && index) {
 		mtk_phy_clear_bits(com + U3P_U2PHYDTM0, P2C_RG_SUSPENDM | P2C_FORCE_SUSPENDM);
@@ -1585,6 +1605,7 @@ static struct phy *mtk_phy_xlate(struct device *dev,
 
 	switch (tphy->pdata->version) {
 	case MTK_PHY_V1:
+	case MTK_PHY_V1_EN:
 		phy_v1_banks_init(tphy, instance);
 		break;
 	case MTK_PHY_V2:
@@ -1645,7 +1666,7 @@ static const struct mtk_phy_pdata mt8195_pdata = {
 
 static const struct mtk_phy_pdata en751221_pdata = {
 	.avoid_rx_sen_degradation = false,
-	.version = MTK_PHY_V1,
+	.version = MTK_PHY_V1_EN,
 	.sw_pll_stable_mode = true,
 };
 
@@ -1753,6 +1774,13 @@ static int mtk_tphy_probe(struct platform_device *pdev)
 		retval = devm_clk_bulk_get_optional(subdev, TPHY_CLKS_CNT, clks);
 		if (retval)
 			return retval;
+
+		if (tphy->pdata->version < MTK_PHY_V1_EN) {
+			instance->phy_rev = -1;
+			/* Per port unique value */
+			device_property_read_u32(dev, "phy-rev",
+					 &instance->phy_rev);
+		}
 
 		retval = phy_type_syscon_get(instance, child_np);
 		if (retval)

@@ -544,7 +544,7 @@ dev_err(dev, "host\n");
 			dev_err(dev, "host defer\n");
 			return irq;
 		}
-
+dev_err(dev, "for backward compatibility\n");
 		/* for backward compatibility */
 		irq = platform_get_irq(pdev, 0);
 		if (irq < 0) {
@@ -632,7 +632,7 @@ dev_err(dev, "usb_create_hcd\n");
 	xhci = hcd_to_xhci(hcd);
 	xhci->main_hcd = hcd;
 	xhci->allow_single_roothub = 1;
-dev_err(dev, "wakeup\n");
+dev_err(dev, "wakeup2\n");
 	/*
 	 * imod_interval is the interrupt moderation value in nanoseconds.
 	 * The increment interval is 8 times as much as that defined in
@@ -641,10 +641,14 @@ dev_err(dev, "wakeup\n");
 	xhci->imod_interval = 5000;
 	device_property_read_u32(dev, "imod-interval-ns", &xhci->imod_interval);
 
+dev_err(dev, "usb_add_hcd\n");
 	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);
-	if (ret)
+	if (ret) {
+		dev_err(dev, "usb_add_hcd ref = %d\n", ret);
 		goto disable_device_wakeup;
+	}
 
+dev_err(dev, "xhci_has_one_roothub\n");
 	if (!xhci_has_one_roothub(xhci)) {
 		xhci->shared_hcd = usb_create_shared_hcd(driver, dev,
 							 dev_name(dev), hcd);
@@ -653,18 +657,21 @@ dev_err(dev, "wakeup\n");
 			goto dealloc_usb2_hcd;
 		}
 	}
+dev_err(dev, "xhci_get_usb3_hcd\n");
 
 	usb3_hcd = xhci_get_usb3_hcd(xhci);
 	if (usb3_hcd && HCC_MAX_PSA(xhci->hcc_params) >= 4 &&
 	    !(xhci->quirks & XHCI_BROKEN_STREAMS))
 		usb3_hcd->can_do_streams = 1;
 
+dev_err(dev, "usb_add_hcd\n");
 	if (xhci->shared_hcd) {
 		ret = usb_add_hcd(xhci->shared_hcd, irq, IRQF_SHARED);
 		if (ret)
 			goto put_usb3_hcd;
 	}
 
+dev_err(dev, "dev_pm_set_dedicated_wake_irq_reverse\n");
 	if (wakeup_irq > 0) {
 		ret = dev_pm_set_dedicated_wake_irq_reverse(dev, wakeup_irq);
 		if (ret) {
@@ -673,6 +680,8 @@ dev_err(dev, "wakeup\n");
 		}
 		dev_info(dev, "wakeup irq %d\n", wakeup_irq);
 	}
+
+dev_err(dev, "here------+\n");
 
 	device_enable_async_suspend(dev);
 	pm_runtime_mark_last_busy(dev);
@@ -683,29 +692,37 @@ dev_err(dev, "return\n");
 
 dealloc_usb3_hcd:
 	usb_remove_hcd(xhci->shared_hcd);
+dev_err(dev, "dealloc_usb3_hcd\n");
 
 put_usb3_hcd:
 	usb_put_hcd(xhci->shared_hcd);
+dev_err(dev, "put_usb3_hcd\n");
 
 dealloc_usb2_hcd:
 	xhci_mtk_sch_exit(mtk);
 	usb_remove_hcd(hcd);
+dev_err(dev, "dealloc_usb2_hcd\n");
 
 disable_device_wakeup:
 	device_init_wakeup(dev, false);
+dev_err(dev, "disable_device_wakeup\n");
 
 put_usb2_hcd:
 	usb_put_hcd(hcd);
+dev_err(dev, "put_usb2_hcd\n");
 
 disable_clk:
 	clk_bulk_disable_unprepare(BULK_CLKS_NUM, mtk->clks);
+dev_err(dev, "disable_clk\n");
 
 disable_ldos:
 	regulator_bulk_disable(BULK_VREGS_NUM, mtk->supplies);
+dev_err(dev, "disable_ldos\n");
 
 disable_pm:
 	pm_runtime_put_noidle(dev);
 	pm_runtime_disable(dev);
+dev_err(dev, "disable_pm\n");
 	return ret;
 }
 
