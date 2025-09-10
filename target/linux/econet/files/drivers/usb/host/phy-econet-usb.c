@@ -13,14 +13,13 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
-/* SSUSB SIFSLV FMREG (0x100) */
+/* SSUSB SIFSLV SPLLC (0x0) */
+#define SPLLC					0x00
+
+/* SSUSB SIFSLV FMREG (0x100) offset based on SSUSB SIFSLV SPLLC */
 #define FMREG					0x100
 #define   FMCR0					0x00
 #define     RG_MONCLK_SEL			GENMASK(27, 26)
-#define       CN_MONCLK_SEL0			FIELD_PREP_CONST(RG_MONCLK_SEL, 0x0)
-#define       CN_MONCLK_SEL1			FIELD_PREP_CONST(RG_MONCLK_SEL, 0x1)
-#define       CN_MONCLK_SEL2			FIELD_PREP_CONST(RG_MONCLK_SEL, 0x2)
-#define       CN_MONCLK_SEL3			FIELD_PREP_CONST(RG_MONCLK_SEL, 0x3)
 #define     RG_FREQDET_EN			BIT(24)
 #define     RG_CYCLECNT				GENMASK(23, 0)
 #define   FMMONR0				0x0c
@@ -144,7 +143,7 @@ static int u2_slew_rate_calibration(struct econet_usb_phy_priv *priv,
 	int fm_out;
 	u32 srctrl;
 
-	dev_info(priv->dev, "%s\n", __func__);
+	dev_info(priv->dev, "%s port_id %d\n", __func__, instance->port_id);
 
 	/* Enable HS TX SR calibration */
 	regmap_set_bits(com, U2PHY_COM + USBPHYACR0, RG_HSTX_SRCAL_EN);
@@ -155,14 +154,7 @@ static int u2_slew_rate_calibration(struct econet_usb_phy_priv *priv,
 	regmap_set_bits(regmap, FMREG + FMMONR1,	RG_FRCK_EN);
 
 	/* Select Monitor Clock */
-	if (instance->port_id == 0)
-		regmap_update_bits(regmap, U2PHY_COM + FMCR0, RG_MONCLK_SEL, CN_MONCLK_SEL0);
-	else if (instance->port_id == 1)
-		regmap_update_bits(regmap, U2PHY_COM + FMCR0, RG_MONCLK_SEL, CN_MONCLK_SEL1);
-	else {
-		dev_err(priv->dev, "invalid port id (%d)\n", instance->port_id);
-		return -EINVAL;
-	}
+	regmap_update_bits(regmap, U2PHY_COM + FMCR0, RG_MONCLK_SEL, instance->port_id);
 
 	/* Set cyclecnt */
 	regmap_update_bits(regmap, FMREG + FMCR0, RG_CYCLECNT,
@@ -175,7 +167,9 @@ static int u2_slew_rate_calibration(struct econet_usb_phy_priv *priv,
 	regmap_read_poll_timeout(regmap, FMREG + FMMONR0, fm_out,
 				 fm_out, ECONET_USB_PHY_FREQDET_SLEEP,
 				 ECONET_USB_PHY_FREQDET_TIMEOUT);
-//FIXME
+
+	dev_info(priv->dev, "%s fm_out value = %x\n", __func__, fm_out);
+
 	/* Disable Frequency meter */
 	regmap_clear_bits(regmap, FMREG + FMCR0, RG_FREQDET_EN);
 
@@ -196,7 +190,7 @@ static int u2_slew_rate_calibration(struct econet_usb_phy_priv *priv,
 		srctrl = ECONET_USB_PHY_REF_CK * ECONET_USB_PHY_U2_SR_COEF;
 		srctrl = (srctrl * ECONET_USB_PHY_U2_FM_DET_CYCLE_CNT) / fm_out;
 		srctrl = DIV_ROUND_CLOSEST(srctrl, ECONET_USB_PHY_U2_SR_COEF_DIVISOR);
-		dev_dbg(priv->dev, "SR calibration applied: %x\n", srctrl);
+		dev_info(priv->dev, "SR calibration applied: %x\n", srctrl);
 	}
 
 	regmap_update_bits(com, U2PHY_COM + FMCR0, USBPHYACR0,

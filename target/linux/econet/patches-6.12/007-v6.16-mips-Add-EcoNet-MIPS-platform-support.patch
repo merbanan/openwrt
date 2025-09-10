@@ -33,7 +33,7 @@ Signed-off-by: Thomas Bogendoerfer <tsbogend@alpha.franken.de>
  platform-$(CONFIG_LANTIQ)		+= lantiq/
 --- a/arch/mips/Kconfig
 +++ b/arch/mips/Kconfig
-@@ -388,6 +388,30 @@ config MACH_DECSTATION
+@@ -388,6 +388,32 @@ config MACH_DECSTATION
  
  	  otherwise choose R3000.
  
@@ -41,9 +41,11 @@ Signed-off-by: Thomas Bogendoerfer <tsbogend@alpha.franken.de>
 +	bool "EcoNet MIPS family"
 +	select BOOT_RAW
 +	select CPU_BIG_ENDIAN
-+	select DEBUG_ZBOOT
++	select DEBUG_ZBOOT if DEBUG_KERNEL
++	select DMA_NONCOHERENT
 +	select EARLY_PRINTK_8250
 +	select ECONET_EN751221_TIMER
++	select SERIAL_8250
 +	select SERIAL_OF_PLATFORM
 +	select SYS_SUPPORTS_BIG_ENDIAN
 +	select SYS_HAS_CPU_MIPS32_R1

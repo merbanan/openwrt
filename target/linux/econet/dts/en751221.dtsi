@@ -167,12 +167,13 @@
 		interrupt-parent = <&intc>;
 		interrupts = <17>;
 		interrupt-names = "host";
-
 		phys = <&u2port0 PHY_TYPE_USB2>,
 		       <&u3port0 PHY_TYPE_USB3>,
 		       <&u2port1 PHY_TYPE_USB2>;
 
 		usb3-lpm-capable;
+		imod-interval-ns = <40000>;
+
 
 		resets = <&scuclk EN751221_USB_HOST_RST>;
 		reset-names = "usb_mac";
@@ -185,6 +186,10 @@
 		reg = <0x1FA80000 0x700>;
 		ranges;
 		// status = "disabled";
+
+		//resets = <&scuclk EN751221_USB_HOST_RST>;
+		//#define EN751221_USB_PHY_P0_RST		40
+		//#define EN751221_USB_PHY_P1_RST		41
 
 		u2port0: usb-phy@1fa80800 {
 			reg = <0x1fa80800 0x100>;
