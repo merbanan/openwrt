@@ -743,12 +743,14 @@ static int en7523_reset_update(struct reset_controller_dev *rcdev,
 static int en7523_reset_assert(struct reset_controller_dev *rcdev,
 			       unsigned long id)
 {
+	pr_err("en7523_reset_assert\n");
 	return en7523_reset_update(rcdev, id, true);
 }
 
 static int en7523_reset_deassert(struct reset_controller_dev *rcdev,
 				 unsigned long id)
 {
+	pr_err("en7523_reset_deassert\n");
 	return en7523_reset_update(rcdev, id, false);
 }
 
@@ -758,6 +760,8 @@ static int en7523_reset_status(struct reset_controller_dev *rcdev,
 	struct en_rst_data *rst_data = container_of(rcdev, struct en_rst_data, rcdev);
 	void __iomem *addr = rst_data->base + rst_data->bank_ofs[id / RST_NR_PER_BANK];
 
+	pr_err("en7523_reset_status\n");
+
 	return !!(readl(addr) & BIT(id % RST_NR_PER_BANK));
 }
 
@@ -766,6 +770,7 @@ static int en7523_reset_xlate(struct reset_controller_dev *rcdev,
 {
 	struct en_rst_data *rst_data = container_of(rcdev, struct en_rst_data, rcdev);
 
+	pr_err("en7523_reset_xlate\n");
 	if (reset_spec->args[0] >= rcdev->nr_resets)
 		return -EINVAL;
 
@@ -921,7 +926,7 @@ static const struct en_clk_soc_data en7581_data = {
 static const struct of_device_id of_match_clk_en7523[] = {
 	{ .compatible = "airoha,en7523-scu", .data = &en7523_data },
 	{ .compatible = "airoha,en7581-scu", .data = &en7581_data },
-	{ .compatible = "airoha,en751221-scu", .data = &en751221_data },
+	{ .compatible = "econet,en751221-scu", .data = &en751221_data },
 	{ /* sentinel */ }
 };
 

@@ -74,11 +74,6 @@
 		reg = <0x1fb00000 0x10000>;
 		#clock-cells = <1>;
 		#reset-cells = <1>;
-
-		scu_ssr: system-controller {
-			compatible = "econet,en751221-scu-ssr";
-		};
-
 	};
 
 	system-controller@1fbf0200 {
@@ -216,6 +211,99 @@
 			// phy-rev = <0>;
 			// clocks = <&ssusbsys CLK_SSUSB_U2_PHY_1P_EN>;
 			// clock-names = "ref";
+		};
+	};
+
+	eth0: ethernet@1fb50000 {
+		compatible = "econet,en751221-eth";
+		reg = <0x1fb50000 0x2600>,
+		      <0x1fb54000 0x4000>;
+	};
+
+	switch: switch@1f580000 {
+		compatible = "airoha,en7581-switch";
+		reg = <0x1f580000 0x8000>;
+		resets = <&scuclk EN751221_GSW_RST>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupt-parent = <&intc>;
+		interrupts = <15>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gsw_port0: port@0 {
+				reg = <0>;
+				label = "lan0";
+				phy-mode = "internal";
+				phy-handle = <&gsw_phy0>;
+			};
+
+			gsw_port1: port@1 {
+				reg = <1>;
+				label = "lan1";
+				phy-mode = "internal";
+				phy-handle = <&gsw_phy1>;
+			};
+
+			gsw_port2: port@2 {
+				reg = <2>;
+				label = "lan2";
+				phy-mode = "internal";
+				phy-handle = <&gsw_phy2>;
+			};
+
+			gsw_port3: port@3 {
+				reg = <3>;
+				label = "lan3";
+				phy-mode = "internal";
+				phy-handle = <&gsw_phy3>;
+			};
+
+			port@6 {
+				reg = <6>;
+				ethernet = <&eth0>;
+				phy-mode = "internal";
+
+				fixed-link {
+					speed = <10000>;
+					full-duplex;
+					pause;
+				};
+			};
+		};
+
+		mdio {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			gsw_phy0: ethernet-phy@0 {
+				compatible = "ethernet-phy-ieee802.3-c22";
+				reg = <9>;
+				phy-mode = "internal";
+			};
+
+			gsw_phy1: ethernet-phy@1 {
+				compatible = "ethernet-phy-ieee802.3-c22";
+				reg = <10>;
+				phy-mode = "internal";
+			};
+
+			gsw_phy2: ethernet-phy@2 {
+				compatible = "ethernet-phy-ieee802.3-c22";
+				reg = <11>;
+				phy-mode = "internal";
+			};
+
+			gsw_phy3: ethernet-phy@3 {
+				compatible = "ethernet-phy-ieee802.3-c22";
+				reg = <12>;
+				phy-mode = "internal";
+			};
 		};
 	};
 };
