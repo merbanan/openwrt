@@ -790,8 +790,9 @@ static int en751221_reset_register(struct device *dev, void __iomem *base)
 	rst_data = devm_kzalloc(dev, sizeof(*rst_data), GFP_KERNEL);
 	if (!rst_data)
 		return -ENOMEM;
+pr_err("en751221_reset_register start\n");
 
-	rst_data->bank_ofs = en7581_rst_ofs;
+	rst_data->bank_ofs = en751221_rst_ofs;
 	rst_data->idx_map = en751221_rst_map;
 	rst_data->base = base;
 
@@ -802,6 +803,7 @@ static int en751221_reset_register(struct device *dev, void __iomem *base)
 	rst_data->rcdev.of_reset_n_cells = 1;
 	rst_data->rcdev.owner = THIS_MODULE;
 	rst_data->rcdev.dev = dev;
+pr_err("en751221_reset_register mid\n");
 
 	return devm_reset_controller_register(dev, &rst_data->rcdev);
 }
@@ -860,17 +862,17 @@ static int en751221_clk_hw_init(struct platform_device *pdev,
 {
 	struct regmap *map;
 	void __iomem *base;
-
+pr_err("en751221_clk_hw_init\n");
 	map = syscon_regmap_lookup_by_compatible("econet,en751221-chip-scu");
 	if (IS_ERR(map))
 		return PTR_ERR(map);
-
+pr_err("en751221_clk_hw_init after\n");
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
 	en751221_register_clocks(&pdev->dev, clk_data, map, base);
-
+pr_err("en751221_clk_hw_init last\n");
 	return en751221_reset_register(&pdev->dev, base);
 }
 

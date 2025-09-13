@@ -31,22 +31,23 @@ mt7988_probe(struct platform_device *pdev)
 
 	priv->bus = NULL;
 	priv->dev = &pdev->dev;
-
+dev_err(&pdev->dev, "mt7988_probe 1\n");
 	ret = mt7530_probe_common(priv);
 	if (ret)
 		return ret;
-
-/*	priv->rstc = devm_reset_control_get(&pdev->dev, NULL);
+dev_err(&pdev->dev, "mt7988_probe 22\n");
+	priv->rstc = devm_reset_control_get(&pdev->dev, NULL);
 	if (IS_ERR(priv->rstc)) {
 		dev_err(&pdev->dev, "Couldn't get our reset line\n");
 		return PTR_ERR(priv->rstc);
 	}
-*/
+
 	base_addr = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base_addr)) {
 		dev_err(&pdev->dev, "cannot request I/O memory space\n");
 		return -ENXIO;
 	}
+dev_err(&pdev->dev, "mt7988_probe 3\n");
 
 	sw_regmap_config = devm_kzalloc(&pdev->dev, sizeof(*sw_regmap_config), GFP_KERNEL);
 	if (!sw_regmap_config)
@@ -60,7 +61,7 @@ mt7988_probe(struct platform_device *pdev)
 	priv->regmap = devm_regmap_init_mmio(&pdev->dev, base_addr, sw_regmap_config);
 	if (IS_ERR(priv->regmap))
 		return PTR_ERR(priv->regmap);
-
+dev_err(&pdev->dev, "mt7988_probe 3\n");
 	return dsa_register_switch(priv->ds);
 }
 
