@@ -19,6 +19,7 @@ config NET_ECONET
 	tristate "Econet SoC Gigabit Ethernet support"
 	depends on NET_DSA || !NET_DSA
 	select PAGE_POOL
+	select REGMAP_MMIO
 	help
 	  This driver supports the gigabit ethernet MACs in the
 	  Econet SoC family.

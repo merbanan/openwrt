@@ -229,7 +229,35 @@
 	eth0: ethernet@1fb50000 {
 		compatible = "econet,en751221-eth";
 		reg = <0x1fb50000 0x2600>,
-		      <0x1fb54000 0x4000>;
+		      <0x1fb54000 0x2000>,
+		      <0x1fb56000 0x2000>;
+
+		reg-names = "fe", "qdma0", "qdma1";
+
+		resets = <&scuclk EN751221_FE_RST>,
+			 <&scuclk EN751221_FE_PDMA_RST>,
+			 <&scuclk EN751221_FE_QDMA_RST>,
+
+		reset-names = "fe", "pdma", "qdma";
+
+		interrupts = <21>,
+			     <22>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		gdm1: ethernet@1 {
+			compatible = "econet,eth-mac";
+			reg = <1>;
+			phy-mode = "internal";
+			status = "disabled";
+
+			fixed-link {
+				speed = <10000>;
+				full-duplex;
+				pause;
+			};
+		};
 	};
 
 	switch: switch@1fb58000 {
