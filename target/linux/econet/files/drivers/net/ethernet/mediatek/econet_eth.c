@@ -54,6 +54,21 @@ static void econet_set_macaddr(struct econet_gdm_port *port, const u8 *addr)
 	econet_fe_wr(eth, reg, val);
 }
 
+static void econet_fe_maccr_init(struct econet_eth *eth)
+{
+	int p;
+
+	for (p = 1; p <= ARRAY_SIZE(eth->ports); p++)
+		econet_fe_set(eth, REG_GDM_FWD_CFG(p),
+			      GDM_TCP_CKSUM | GDM_UDP_CKSUM | GDM_IP4_CKSUM |
+			      GDM_DROP_CRC_ERR);
+
+	econet_fe_rmw(eth, REG_CDM1_VLAN_CTRL, CDM1_VLAN_MASK,
+		      FIELD_PREP(CDM1_VLAN_MASK, 0x8100));
+
+	econet_fe_set(eth, REG_FE_CPORT_CFG, FE_CPORT_PAD);
+}
+
 static void econet_eth_set_port_fwd_cfg(struct econet_eth *eth, u32 addr, u32 val)
 {
 
@@ -66,6 +81,156 @@ static void econet_eth_set_port_fwd_cfg(struct econet_eth *eth, u32 addr, u32 va
 	econet_fe_rmw(eth, addr, GDM_MYMACFQ_MASK,
 		      FIELD_PREP(GDM_MYMACFQ_MASK, val));
 }
+
+
+
+static void econet_fe_vip_setup(struct econet_eth *eth)
+{
+	econet_fe_wr(eth, REG_FE_VIP_PATN(0), 0x01);
+	econet_fe_wr(eth, REG_FE_VIP_EN(0), PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 2) | PATN_EN_MASK);
+
+	econet_fe_wr(eth, REG_FE_VIP_PATN(1), 0x0806);
+	econet_fe_wr(eth, REG_FE_VIP_EN(1),
+		     PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 0) |
+		     PATN_EN_MASK);
+
+	econet_fe_wr(eth, REG_FE_VIP_PATN(2), 0x02);
+	econet_fe_wr(eth, REG_FE_VIP_EN(2),
+		     PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 2) |
+		     PATN_EN_MASK);
+
+	econet_fe_wr(eth, REG_FE_VIP_PATN(3), 0x8863);
+	econet_fe_wr(eth, REG_FE_VIP_EN(3),
+		     PATN_FCPU_EN_MASK | FIELD_PREP(PATN_TYPE_MASK, 0) |
+		     PATN_EN_MASK);
+
+	econet_fe_wr(eth, REG_FE_VIP_PATN(4), 0xc021);
+	econet_fe_wr(eth, REG_FE_VIP_EN(4),
+		     PATN_FCPU_EN_MASK | PATN_SP_EN_MASK |
+		     FIELD_PREP(PATN_TYPE_MASK, 1) | PATN_EN_MASK);
+
+	econet_fe_wr(eth, REG_FE_VIP_PATN(5), 0x3a);
+	econet_fe_wr(eth, REG_FE_VIP_EN(5),
+		     PATN_FCPU_EN_MASK | PATN_SP_EN_MASK |
+		     FIELD_PREP(PATN_TYPE_MASK, 2) | PATN_EN_MASK);
+}
+
+static void econet_fe_crsn_qsel_init(struct econet_eth *eth)
+{
+	/* CDM1_CRSN_QSEL */
+	econet_fe_rmw(eth, REG_CDM1_CRSN_QSEL(1), 0x3,
+				 CDM1_QSEL_Q1L);
+}
+
+static int econet_fe_init(struct econet_eth *eth)
+{
+
+	econet_fe_maccr_init(eth);
+
+	/* PSE IQ reserve */
+	econet_fe_rmw(eth, REG_PSE_IQ_REV1, PSE_IQ_RES1_P2_MASK,
+		      FIELD_PREP(PSE_IQ_RES1_P2_MASK, 0x20));
+	econet_fe_rmw(eth, REG_PSE_IQ_REV2,
+		      PSE_IQ_RES2_P5_MASK | PSE_IQ_RES2_P4_MASK,
+		      FIELD_PREP(PSE_IQ_RES2_P5_MASK, 0x40));
+
+
+	econet_fe_vip_setup(eth);
+//	econet_fe_pse_ports_init(eth);
+
+// 	econet_fe_set(eth, REG_GDM_MISC_CFG,
+// 		      GDM2_RDM_ACK_WAIT_PREF_MASK |
+// 		      GDM2_CHN_VLD_MODE_MASK);
+// 	econet_fe_rmw(eth, REG_CDM2_FWD_CFG, CDM2_OAM_QSEL_MASK,
+// 		      FIELD_PREP(CDM2_OAM_QSEL_MASK, 15));
+
+	econet_fe_crsn_qsel_init(eth);
+
+	econet_fe_clear(eth, REG_FE_CPORT_CFG, FE_CPORT_DIS_GSW2FE_CRC_MASK);
+	econet_fe_clear(eth, REG_FE_CPORT_CFG, FE_CPORT_QUEUE_XFC_MASK);
+	econet_fe_set(eth, REG_FE_CPORT_CFG, FE_CPORT_PORT_XFC_MASK);
+
+	econet_fe_set(eth, REG_CDM1_VLAN_CTRL, UNTAG_EN);
+	econet_fe_set(eth, REG_CDM1_VLAN_CTRL, STAG_EN);
+
+	return 0;
+}
+
+
+static int econet_qdma_init(struct platform_device *pdev,
+			    struct econet_eth *eth,
+			    struct econet_qdma *qdma)
+{
+	int err = 0, id = qdma - &eth->qdma[0];
+	const char *res;
+
+	qdma->eth = eth;
+	res = devm_kasprintf(eth->dev, GFP_KERNEL, "qdma%d", id);
+	if (!res)
+		return -ENOMEM;
+
+	qdma->regs = devm_platform_ioremap_resource_byname(pdev, res);
+	if (IS_ERR(qdma->regs))
+		return dev_err_probe(eth->dev, PTR_ERR(qdma->regs),
+				     "failed to iomap qdma%d regs\n", id);
+
+// 	err = econet_qdma_init_irq_banks(pdev, qdma);
+// 	if (err)
+// 		return err;
+//
+// 	err = econet_qdma_init_rx(qdma);
+// 	if (err)
+// 		return err;
+//
+// 	err = econet_qdma_init_tx(qdma);
+// 	if (err)
+// 		return err;
+//
+// 	err = econet_qdma_init_hfwd_queues(qdma);
+// 	if (err)
+// 		return err;
+
+// 	err = econet_qdma_hw_init(qdma);
+// 	if (err)
+// 		return err;
+
+	return err;
+}
+
+static int econet_hw_init(struct platform_device *pdev,
+			  struct econet_eth *eth)
+{
+	int err, i;
+
+	err = reset_control_bulk_assert(ARRAY_SIZE(eth->rsts), eth->rsts);
+	if (err)
+		return err;
+
+	msleep(20);
+	err = reset_control_bulk_deassert(ARRAY_SIZE(eth->rsts), eth->rsts);
+	if (err)
+		return err;
+
+	msleep(20);
+	err = econet_fe_init(eth);
+	if (err)
+		return err;
+
+	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++) {
+		err = econet_qdma_init(pdev, eth, &eth->qdma[i]);
+		if (err)
+			return err;
+	}
+
+// 	err = econet_ppe_init(eth);
+// 	if (err)
+// 		return err;
+
+	set_bit(DEV_STATE_INITIALIZED, &eth->state);
+
+	return 0;
+}
+
 
 static int econet_dev_init(struct net_device *dev)
 {
@@ -253,9 +418,9 @@ static int econet_probe(struct platform_device *pdev)
 	strscpy(eth->napi_dev->name, "qdma_eth", sizeof(eth->napi_dev->name));
 	platform_set_drvdata(pdev, eth);
 
-// 	err = econet_hw_init(pdev, eth);
-// 	if (err)
-// 		goto error_hw_cleanup;
+	err = econet_hw_init(pdev, eth);
+	if (err)
+		goto error_hw_cleanup;
 
 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
 		econet_qdma_start_napi(&eth->qdma[i]);
@@ -281,7 +446,7 @@ error_napi_stop:
 //	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
 //		econet_qdma_stop_napi(&eth->qdma[i]);
 //	econet_ppe_deinit(eth);
-//error_hw_cleanup:
+error_hw_cleanup:
 //	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
 //		econet_hw_cleanup(&eth->qdma[i]);
 

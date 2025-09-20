@@ -30,6 +30,13 @@
 #define ECONET_NUM_RX_RING		32
 #define ECONET_NUM_NETDEV_TX_RINGS	(ECONET_NUM_TX_RING + \
 					 ECONET_NUM_QOS_CHANNELS)
+enum {
+	CRSN_08 = 0x8,
+	CRSN_21 = 0x15, /* KA */
+	CRSN_22 = 0x16, /* hit bind and force route to CPU */
+	CRSN_24 = 0x18,
+	CRSN_25 = 0x19,
+};
 
 enum {
 	FE_PSE_PORT_CDM1,
@@ -40,6 +47,10 @@ enum {
 	FE_PSE_PORT_CDM2,
 	FE_PSE_PORT_CDM2_HWF,
 	FE_PSE_PORT_DROP = 0x7,
+};
+
+enum {
+	DEV_STATE_INITIALIZED,
 };
 
 struct econet_qdma {

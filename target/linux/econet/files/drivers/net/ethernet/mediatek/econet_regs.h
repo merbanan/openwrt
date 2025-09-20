@@ -35,6 +35,14 @@
 
 #define REG_FE_FOE_TS			0x0010
 
+#define REG_PSE_IQ_REV1			(PSE_BASE + 0x08)
+#define PSE_IQ_RES1_P2_MASK		GENMASK(23, 16)
+
+#define REG_PSE_IQ_REV2			(PSE_BASE + 0x0c)
+#define PSE_IQ_RES2_P5_MASK		GENMASK(15, 8)
+#define PSE_IQ_RES2_P4_MASK		GENMASK(7, 0)
+
+
 #define REG_FE_VIP_EN(_n)		(0x0300 + ((_n) << 3))
 #define PATN_FCPU_EN_MASK		BIT(7)
 #define PATN_SWP_EN_MASK		BIT(6)
@@ -48,7 +56,7 @@
 #define PATN_SP_MASK			GENMASK(15, 0)
 
 #define REG_CDM1_VLAN_CTRL		CDM1_BASE
-#define CDM1_CDM_TPID			GENMASK(31, 16)
+#define CDM1_VLAN_MASK			GENMASK(31, 16)
 #define UNTAG_EN			BIT(1)
 #define STAG_EN				BIT(0)
 
@@ -59,6 +67,19 @@
 #define REG_CDM1_FWD_CFG		(CDM1_BASE + 0x08)
 
 #define REG_CDM2_FWD_CFG		(CDM2_BASE + 0x08)
+
+#define REG_CDM1_CRSN_QSEL(_n)		(CDM1_BASE + 0x10 + ((_n) << 2))
+#define CDM1_QSEL_Q0 			0
+#define CDM1_QSEL_Q1L 			2
+#define CDM1_QSEL_Q1H 			3
+
+#define REG_CDM2_FWD_CFG		(CDM2_BASE + 0x08)
+#define CDM2_OAM_QSEL_MASK		GENMASK(31, 27)
+#define CDM2_VIP_QSEL_MASK		GENMASK(24, 20)
+
+#define REG_CDM2_CRSN_QSEL(_n)		(CDM2_BASE + 0x10 + ((_n) << 2))
+#define CDM2_CRSN_QSEL_REASON_MASK(_n)	\
+	GENMASK(4 + (((_n) % 4) << 3),	(((_n) % 4) << 3))
 
 #define REG_GDM_FWD_CFG(_n)		GDM_BASE(_n)
 #define GDM_DROP_CRC_ERR		BIT(23)
@@ -86,6 +107,12 @@
 
 #define REG_GDM_TXCHN_EN(_n)		(GDM_BASE(_n) + 0x24)
 #define REG_GDM_RXCHN_EN(_n)		(GDM_BASE(_n) + 0x28)
+
+#define REG_FE_CPORT_CFG		(GDM1_BASE + 0x40)
+#define FE_CPORT_DIS_GSW2FE_CRC_MASK	BIT(30)
+#define FE_CPORT_PAD			BIT(26)
+#define FE_CPORT_PORT_XFC_MASK		BIT(25)
+#define FE_CPORT_QUEUE_XFC_MASK		BIT(24)
 
 #define REG_FE_GDM_MIB_CLEAR(_n)	(GDM_BASE(_n) + 0xf0)
 #define FE_GDM_MIB_RX_CLEAR_MASK	BIT(1)
