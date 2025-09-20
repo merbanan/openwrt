@@ -236,7 +236,7 @@
 
 		resets = <&scuclk EN751221_FE_RST>,
 			 <&scuclk EN751221_FE_PDMA_RST>,
-			 <&scuclk EN751221_FE_QDMA_RST>,
+			 <&scuclk EN751221_FE_QDMA_RST>;
 
 		reset-names = "fe", "pdma", "qdma";
 

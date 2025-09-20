@@ -1,9 +1,10 @@
-// SPDX-License-Identifier: GPL-2.0-only
-￼
-￼/*
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
  * Copyright (c) 2025 
  * Author: Benjamin Larsson <benjamin.larsson@genexis.eu>
  */
+
+/* Very heavily based on code written by Lorenzo Bianconi <lorenzo@kernel.org> */
 
 #include <linux/etherdevice.h>
 #include <linux/kernel.h>
@@ -14,178 +15,309 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 
+#include "econet_regs.h"
+#include "econet_eth.h"
 
-struct econet_eth {
-	struct device *dev;
-	void __iomem *base;
-	void __iomem *qdma_base;
-
-	struct regmap *regmap_fe;
-	struct regmap *regmap_qdma;
-
-	struct phylink *phylink;
-	struct phylink_config phylink_config;
-	phy_interface_t interface;
-	int speed;
-};
-
-static int econet_eth_init(struct net_device *dev)
+u32 econet_rr(void __iomem *base, u32 offset)
 {
-	struct econet_eth *eth = netdev_priv(dev);
-	const u8 *addr = dev->dev_addr;
-	u32 mac_h, mac_lmin, mac_lmax;
-	int err;
-
-	mac_h = (addr[2] << 24) | (addr[3] << 16) | (addr[4] << 8) | addr[5];
-	mac_l = (addr[0] << 8) | addr[1];
-	my_mac_mask = 0xf8;
-
-	/* GDM1 */
-	err = regmap_update_bits(eth->regmap_fe, REG_GDM1_MAC_LSB, GDM1_MAC_ADR_LSB_MASK, mac_h);
-	if (err)
-		return err;
-
-	err = regmap_update_bits(eth->regmap_fe, REG_GDM1_MAC_MSB, GDM1_MAC_ADR_MSB_MASK, mac_l);
-	if (err)
-		return err;
-
-	err =  regmap_update_bits(eth->regmap_fe, REG_GDM1_MAC_MSB, GDM1_LAN_MY_MAC_MASK. my_mac_mask);
-	if (err)
-		return err;
-
-	/* GDM2 */
-	err = regmap_update_bits(eth->regmap_fe, REG_GDM2_MAC_LSB, GDM2_MAC_ADR_LSB_MASK, mac_h);
-	if (err)
-		return err;
-
-	err = regmap_update_bits(eth->regmap_fe, REG_GDM2_MAC_MSB, GDM2_MAC_ADR_MSB_MASK, mac_l);
-	if (err)
-		return err;
-
-	err = regmap_update_bits(eth->regmap_fe, REG_GDM2_MAC_MSB, GDM2_WAN_MY_MAC_MASK. my_mac_mask);
-	if (err)
-		return err;
-err:
-	return err;
+	return readl(base + offset);
 }
 
-static int econet_eth_set_port_fwd_cfg(struct econet_eth *eth, u32 addr, u32 val)
+void econet_wr(void __iomem *base, u32 offset, u32 val)
 {
-	int err;
-
-	err = regmap_update_bits(eth->regmap_fe, addr, GDM1_UN_DP_MASK, val);
-	if (err)
-		return err;
-
-	err = regmap_update_bits(eth->regmap_fe, addr, GDM1_MC_DP_MASK, val);
-	if (err)
-		return err;
-
-	err = regmap_update_bits(eth->regmap_fe, addr, GDM1_BC_DP_MASK, val);
-	if (err)
-		return err;
-
-	return regmap_update_bits(eth->regmap_fe, addr, GDM1_MYMAC_DP_MASK, val);
+	writel(val, base + offset);
 }
 
-static int econet_eth_set_gdm_port(struct airoha_eth *eth, int port,
-				    bool enable)
+u32 econet_rmw(void __iomem *base, u32 offset, u32 mask, u32 val)
 {
-	u32 vip_port, cfg_addr, val = enable ? 4 : 0xf;
-	int err;
+	val |= (econet_rr(base, offset) & ~mask);
+	econet_wr(base, offset, val);
 
-	switch (port) {
-	case 1:
-		return econet_eth_set_port_fwd_cfg(eth, REG_GDM1_FWD_CFG, val);
+	return val;
+}
+
+static void econet_set_macaddr(struct econet_gdm_port *port, const u8 *addr)
+{
+	struct econet_eth *eth = port->qdma->eth;
+	u32 val, reg;
+
+	reg = econet_is_lan_gdm_port(port) ? REG_GDM_MAC_LSB(1)
+					   : REG_GDM_MAC_LSB(2);
+
+	val = (addr[2] << 24) | (addr[3] << 16) | (addr[4] << 8) | addr[5];
+	econet_fe_wr(eth, reg, val);
+
+	reg = econet_is_lan_gdm_port(port) ? REG_GDM_MAC_MSB(1)
+					   : REG_GDM_MAC_MSB(2);
+
+	val = (0xf8 << 16) | (addr[0] << 8) | addr[1];
+	econet_fe_wr(eth, reg, val);
+}
+
+static void econet_eth_set_port_fwd_cfg(struct econet_eth *eth, u32 addr, u32 val)
+{
+
+	econet_fe_rmw(eth, addr, GDM_OCFQ_MASK,
+		      FIELD_PREP(GDM_OCFQ_MASK, val));
+	econet_fe_rmw(eth, addr, GDM_MCFQ_MASK,
+		      FIELD_PREP(GDM_MCFQ_MASK, val));
+	econet_fe_rmw(eth, addr, GDM_BCFQ_MASK,
+		      FIELD_PREP(GDM_BCFQ_MASK, val));
+	econet_fe_rmw(eth, addr, GDM_MYMACFQ_MASK,
+		      FIELD_PREP(GDM_MYMACFQ_MASK, val));
+}
+
+static int econet_dev_init(struct net_device *dev)
+{
+	struct econet_gdm_port *port = netdev_priv(dev);
+	struct econet_eth *eth = port->qdma->eth;
+	u32 pse_port;
+
+	econet_set_macaddr(port, dev->dev_addr);
+
+	switch (port->id) {
 	case 2:
-		return econet_eth_set_port_fwd_cfg(eth, REG_GDM2_FWD_CFG, val);
+		pse_port = FE_PSE_PORT_PPE;
+		break;
 	default:
-		return -EINVAL;
+		pse_port = FE_PSE_PORT_PPE;
+		break;
 	}
 
-	return econet_eth_set_port_fwd_cfg(eth, cfg_addr, val);
-}
-
-static int econet_eth_set_gdm_ports(struct econet_eth *eth, bool enable)
-{
-	const int port_list[] = { 1, 2 };
-	int i, err;
-
-	for (i = 0; i < ARRAY_SIZE(port_list); i++) {
-		err = econet_eth_set_gdm_port(eth, port_list[i], enable);
-		if (err)
-			return err;
-	}
+	econet_eth_set_port_fwd_cfg(eth, REG_GDM_FWD_CFG(port->id), pse_port);
 
 	return 0;
 }
 
-static netdev_tx_t econet_eth_start_xmit(struct sk_buff *skb,
+
+static netdev_tx_t econet_dev_start_xmit(struct sk_buff *skb,
 					 struct net_device *dev)
 {
 	return NETDEV_TX_OK;
 }
 
-static int econet_eth_change_mtu(struct net_device *dev, int new_mtu)
+static int econet_dev_change_mtu(struct net_device *dev, int new_mtu)
 {
 	dev->mtu = new_mtu;
 	return 0;
 }
 
-static const struct net_device_ops econet_eth_netdev_ops = {
-	.ndo_start_xmit		= econet_eth_start_xmit,
-	.ndo_change_mtu		= econet_eth_change_mtu,
+static const struct net_device_ops econet_netdev_ops = {
+	.ndo_init		= econet_dev_init,
+	.ndo_start_xmit		= econet_dev_start_xmit,
+	.ndo_change_mtu		= econet_dev_change_mtu,
 };
 
-static int econet_eth_probe(struct platform_device *pdev)
+static void econet_qdma_start_napi(struct econet_qdma *qdma)
 {
-	struct econet_eth *eth;
+// 	int i;
+// 
+// 	for (i = 0; i < ARRAY_SIZE(qdma->q_tx_irq); i++)
+// 		napi_enable(&qdma->q_tx_irq[i].napi);
+// 
+// 	for (i = 0; i < ARRAY_SIZE(qdma->q_rx); i++) {
+// 		if (!qdma->q_rx[i].ndesc)
+// 			continue;
+// 
+// 		napi_enable(&qdma->q_rx[i].napi);
+// 	}
+}
+
+static int econet_alloc_gdm_port(struct econet_eth *eth,
+				 struct device_node *np, int index)
+{
+	const __be32 *id_ptr = of_get_property(np, "reg", NULL);
+	struct econet_gdm_port *port;
+	struct econet_qdma *qdma;
 	struct net_device *dev;
+	int err, p;
+	u32 id;
+
+	if (!id_ptr) {
+		dev_err(eth->dev, "missing gdm port id\n");
+		return -EINVAL;
+	}
+
+	id = be32_to_cpup(id_ptr);
+	p = id - 1;
+
+	if (!id || id > ARRAY_SIZE(eth->ports)) {
+		dev_err(eth->dev, "invalid gdm port id: %d\n", id);
+		return -EINVAL;
+	}
+
+	if (eth->ports[p]) {
+		dev_err(eth->dev, "duplicate gdm port id: %d\n", id);
+		return -EINVAL;
+	}
+
+	dev = devm_alloc_etherdev_mqs(eth->dev, sizeof(*port),
+				      ECONET_NUM_NETDEV_TX_RINGS,
+				      ECONET_NUM_RX_RING);
+	if (!dev) {
+		dev_err(eth->dev, "alloc_etherdev failed\n");
+		return -ENOMEM;
+	}
+
+	qdma = &eth->qdma[index % ECONET_MAX_NUM_QDMA];
+	dev->netdev_ops = &econet_netdev_ops;
+//	dev->ethtool_ops = &econet_ethtool_ops;
+	dev->max_mtu = ECONET_MAX_MTU;
+	dev->watchdog_timeo = 5 * HZ;
+	dev->hw_features = NETIF_F_IP_CSUM | NETIF_F_RXCSUM |
+			   NETIF_F_TSO6 | NETIF_F_IPV6_CSUM;
+
+	dev->features |= dev->hw_features;
+	dev->vlan_features = dev->hw_features;
+	dev->dev.of_node = np;
+//	dev->irq = qdma->irq_banks[0].irq;
+	SET_NETDEV_DEV(dev, eth->dev);
+
+	/* reserve hw queues for HTB offloading */
+	err = netif_set_real_num_tx_queues(dev, ECONET_NUM_TX_RING);
+	if (err)
+		return err;
+
+	err = of_get_ethdev_address(np, dev);
+	if (err) {
+		if (err == -EPROBE_DEFER)
+			return err;
+
+		eth_hw_addr_random(dev);
+		dev_info(eth->dev, "generated random MAC address %pM\n",
+			 dev->dev_addr);
+	}
+
+	port = netdev_priv(dev);
+//	u64_stats_init(&port->stats.syncp);
+//	spin_lock_init(&port->stats.lock);
+	port->qdma = qdma;
+	port->dev = dev;
+	port->id = id;
+	eth->ports[p] = port;
+
+// 	err = econet_metadata_dst_alloc(port);
+// 	if (err)
+// 		return err;
+
+	err = register_netdev(dev);
+	if (err)
+		goto free_metadata_dst;
+
+	return 0;
+
+free_metadata_dst:
+	//econet_metadata_dst_free(port);
+	return err;
+}
+
+static int econet_probe(struct platform_device *pdev)
+{
+	struct device_node *np;
+	struct econet_eth *eth;
+	int i, err;
 
 	eth = devm_kzalloc(&pdev->dev, sizeof(*eth), GFP_KERNEL);
 	if (!eth)
 		return -ENOMEM;
 
 	eth->dev = &pdev->dev;
-	eth->base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(eth->base))
-		return PTR_ERR(eth->base);
 
-	eth->qdma_base = devm_platform_ioremap_resource(pdev, 1);
-	if (IS_ERR(eth->qdma_base))
-		return PTR_ERR(eth->qdma_base);
+	err = dma_set_mask_and_coherent(eth->dev, DMA_BIT_MASK(32));
+	if (err) {
+		dev_err(eth->dev, "failed configuring DMA mask\n");
+		return err;
+	}
 
-	dev = devm_alloc_etherdev(&pdev->dev, sizeof(*eth));
-	if (!dev)
+	if (IS_ERR(eth->fe_regs))
+		return dev_err_probe(eth->dev, PTR_ERR(eth->fe_regs),
+				     "failed to iomap fe regs\n");
+
+	eth->rsts[0].id = "fe";
+	eth->rsts[1].id = "pdma";
+	eth->rsts[2].id = "qdma";
+	err = devm_reset_control_bulk_get_exclusive(eth->dev,
+						    ARRAY_SIZE(eth->rsts),
+						    eth->rsts);
+	if (err) {
+		dev_err(eth->dev, "failed to get bulk reset lines\n");
+		return err;
+	}
+
+	eth->napi_dev = alloc_netdev_dummy(0);
+	if (!eth->napi_dev)
 		return -ENOMEM;
 
-	dev->netdev_ops = &econet_eth_netdev_ops;
-	dev->max_mtu = ECONET_MAX_MTU;
-	SET_NETDEV_DEV(dev, &pdev->dev);
+	/* Enable threaded NAPI by default */
+	eth->napi_dev->threaded = true;
+	strscpy(eth->napi_dev->name, "qdma_eth", sizeof(eth->napi_dev->name));
+	platform_set_drvdata(pdev, eth);
 
-	return register_netdev(dev);
+// 	err = econet_hw_init(pdev, eth);
+// 	if (err)
+// 		goto error_hw_cleanup;
+
+	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+		econet_qdma_start_napi(&eth->qdma[i]);
+
+	i = 0;
+	for_each_child_of_node(pdev->dev.of_node, np) {
+		if (!of_device_is_compatible(np, "econet,eth-mac"))
+			continue;
+
+		if (!of_device_is_available(np))
+			continue;
+
+		err = econet_alloc_gdm_port(eth, np, i++);
+		if (err) {
+			of_node_put(np);
+			goto error_napi_stop;
+		}
+	}
+
+	return 0;
+
+error_napi_stop:
+//	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+//		econet_qdma_stop_napi(&eth->qdma[i]);
+//	econet_ppe_deinit(eth);
+//error_hw_cleanup:
+//	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+//		econet_hw_cleanup(&eth->qdma[i]);
+
+//	for (i = 0; i < ARRAY_SIZE(eth->ports); i++) {
+//		struct econet_gdm_port *port = eth->ports[i];
+
+//		if (port && port->dev->reg_state == NETREG_REGISTERED) {
+//			unregister_netdev(port->dev);
+//			econet_metadata_dst_free(port);
+//		}
+//	}
+//	free_netdev(eth->napi_dev);
+//	platform_set_drvdata(pdev, NULL);
+
+	return err;
 }
 
-static void econet_eth_remove(struct platform_device *pdev)
+static void econet_remove(struct platform_device *pdev)
 {
 }
 
-const struct of_device_id of_econet_eth_match[] = {
+const struct of_device_id of_econet_match[] = {
 	{ .compatible = "econet,en751221-eth" },
 	{ /* sentinel */ }
 };
 
-static struct platform_driver econet_eth_driver = {
-	.probe = econet_eth_probe,
-	.remove_new = econet_eth_remove,
+static struct platform_driver econet_driver = {
+	.probe = econet_probe,
+	.remove_new = econet_remove,
 	.driver = {
-		.name = "econet_eth",
-		.of_match_table = of_econet_eth_match,
+		.name = KBUILD_MODNAME,
+		.of_match_table = of_econet_match,
 	},
 };
-module_platform_driver(econet_eth_driver);
+module_platform_driver(econet_driver);
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Lorenzo Bianconi <lorenzo@kernel.org>");
 MODULE_AUTHOR("Benjamin Larsson <benjamin.larsson@genexis.eu>");
 MODULE_DESCRIPTION("Ethernet driver for Econet SoC");
