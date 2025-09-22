@@ -281,4 +281,66 @@
 #define HW_FWD_PKTSIZE_OVERHEAD_MASK		GENMASK(23, 16)
 #define HW_FWD_DESC_NUM_MASK			GENMASK(12, 0)
 
+#define REG_INT_STATUS				0x0050
+#define XPON_PHY_INT				BIT(24)
+#define EPON_MAC_INT				BIT(17)
+#define GPON_MAC_INT				BIT(16)
+#define RX1_COHERENT_INT			BIT(15)
+#define TX1_COHERENT_INT			BIT(14)
+#define RX0_COHERENT_INT			BIT(13)
+#define TX0_COHERENT_INT			BIT(12)
+#define RX_PKT_OVERFLOW_INT			BIT(11)
+#define FWD_DSCP_LOW_INT			BIT(10)
+#define IRQ_FULL_INT				BIT(9)
+#define FWD_DSCP_EMPTY_INT			BIT(8)
+#define NO_RX1_CPU_DSCP_INT			BIT(7)
+#define NO_TX1_CPU_DSCP_INT			BIT(6)
+#define RX1_DONE_INT				BIT(5)
+#define TX1_DONE_INT				BIT(4)
+#define NO_RX0_CPU_DSCP_INT			BIT(3)
+#define NO_TX0_CPU_DSCP_INT			BIT(2)
+#define RX0_DONE_INT				BIT(1)
+#define TX0_DONE_INT				BIT(0)
+
+#define REG_INT_ENABLE				0x0054
+#define XPON_PHY_EN				BIT(24)
+#define EPON_MAC_EN				BIT(17)
+#define GPON_MAC_EN				BIT(16)
+#define RX1_COHERENT_EN				BIT(15)
+#define TX1_COHERENT_EN				BIT(14)
+#define RX0_COHERENT_EN				BIT(13)
+#define TX0_COHERENT_EN				BIT(12)
+#define RX_PKT_OVERFLOW_EN			BIT(11)
+#define FWD_DSCP_LOW_EN				BIT(10)
+#define IRQ_FULL_EN				BIT(9)
+#define FWD_DSCP_EMPTY_EN			BIT(8)
+#define NO_RX1_CPU_DSCP_EN			BIT(7)
+#define NO_TX1_CPU_DSCP_EN			BIT(6)
+#define RX1_DONE_EN				BIT(5)
+#define TX1_DONE_EN				BIT(4)
+#define NO_RX0_CPU_DSCP_EN			BIT(3)
+#define NO_TX0_CPU_DSCP_EN			BIT(2)
+#define RX0_DONE_EN				BIT(1)
+#define TX0_DONE_EN				BIT(0)
+
+
+
+struct econet_qdma_desc {
+	__be32 rsv;
+	__be32 ctrl;
+	__be32 addr;
+	__be32 data;
+	__be32 msg0;
+	__be32 msg1;
+	__be32 msg2;
+	__be32 msg3;
+};
+
+struct econet_qdma_fwd_desc {
+	__be32 addr;
+	__be32 ctrl0;
+	__be32 msg0;
+	__be32 msg1;
+};
+
 #endif /* ECONET_751221_REGS_H */

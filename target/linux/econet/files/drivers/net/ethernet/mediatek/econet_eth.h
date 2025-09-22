@@ -17,7 +17,7 @@
 
 #define ECONET_MAX_NUM_GDM_PORTS	2
 #define ECONET_MAX_NUM_QDMA		2
-//#define ECONET_MAX_NUM_IRQ_BANKS	4
+#define ECONET_MAX_NUM_IRQ_BANKS	1
 #define ECONET_MAX_DSA_PORTS		7
 #define ECONET_MAX_NUM_RSTS		3
 #define ECONET_MAX_NUM_XSI_RSTS		5
@@ -26,10 +26,16 @@
 /* QDMA1 (LAN) can handle 8 channels and QDMA2 (WAN) can handle 32 */
 #define ECONET_NUM_QOS_CHANNELS		4
 #define ECONET_NUM_QOS_QUEUES		8
-#define ECONET_NUM_TX_RING		32
-#define ECONET_NUM_RX_RING		32
+#define ECONET_NUM_TX_RING		2
+#define ECONET_NUM_RX_RING		2
 #define ECONET_NUM_NETDEV_TX_RINGS	(ECONET_NUM_TX_RING + \
 					 ECONET_NUM_QOS_CHANNELS)
+
+enum {
+	QDMA_INT_REG_IDX0,
+	QDMA_INT_REG_MAX
+};
+
 enum {
 	CRSN_08 = 0x8,
 	CRSN_21 = 0x15, /* KA */
@@ -53,18 +59,91 @@ enum {
 	DEV_STATE_INITIALIZED,
 };
 
+struct econet_queue_entry {
+	union {
+		void *buf;
+		struct sk_buff *skb;
+	};
+	dma_addr_t dma_addr;
+	u16 dma_len;
+};
+
+struct econet_queue {
+	struct econet_qdma *qdma;
+
+	/* protect concurrent queue accesses */
+	spinlock_t lock;
+	struct econet_queue_entry *entry;
+	struct econet_qdma_desc *desc;
+	u16 head;
+	u16 tail;
+
+	int queued;
+	int ndesc;
+	int free_thr;
+	int buf_size;
+
+	struct napi_struct napi;
+	struct page_pool *page_pool;
+	struct sk_buff *skb;
+};
+
+struct econet_tx_irq_queue {
+	struct econet_qdma *qdma;
+
+	struct napi_struct napi;
+
+	int size;
+	u32 *q;
+};
+
+struct econet_hw_stats {
+	/* protect concurrent hw_stats accesses */
+	spinlock_t lock;
+	struct u64_stats_sync syncp;
+
+	/* get_stats64 */
+	u64 rx_ok_pkts;
+	u64 tx_ok_pkts;
+	u64 rx_ok_bytes;
+	u64 tx_ok_bytes;
+	u64 rx_multicast;
+	u64 rx_errors;
+	u64 rx_drops;
+	u64 tx_drops;
+	u64 rx_crc_error;
+	u64 rx_over_errors;
+	/* ethtool stats */
+	u64 tx_broadcast;
+	u64 tx_multicast;
+	u64 tx_len[7];
+	u64 rx_broadcast;
+	u64 rx_fragment;
+	u64 rx_jabber;
+	u64 rx_len[7];
+};
+
+struct econet_irq_bank {
+	struct econet_qdma *qdma;
+
+	/* protect concurrent irqmask accesses */
+	spinlock_t irq_lock;
+	u32 irqmask;
+	int irq;
+};
+
 struct econet_qdma {
 	struct econet_eth *eth;
 	void __iomem *regs;
 
 	atomic_t users;
 
-//	struct econet_irq_bank irq_banks[ECONET_MAX_NUM_IRQ_BANKS];
+	struct econet_irq_bank irq_bank;
 
-//	struct econet_tx_irq_queue q_tx_irq[ECONET_NUM_TX_IRQ];
+	struct econet_tx_irq_queue q_tx_irq;
 
-//	struct econet_queue q_tx[ECONET_NUM_TX_RING];
-//	struct econet_queue q_rx[ECONET_NUM_RX_RING];
+	struct econet_queue q_tx[ECONET_NUM_TX_RING];
+	struct econet_queue q_rx[ECONET_NUM_RX_RING];
 };
 
 struct econet_gdm_port {

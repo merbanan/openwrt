@@ -124,7 +124,6 @@ static void econet_fe_crsn_qsel_init(struct econet_eth *eth)
 
 static int econet_fe_init(struct econet_eth *eth)
 {
-
 	econet_fe_maccr_init(eth);
 
 	/* PSE IQ reserve */
@@ -156,6 +155,77 @@ static int econet_fe_init(struct econet_eth *eth)
 	return 0;
 }
 
+static irqreturn_t econet_irq_handler(int irq, void *dev_instance)
+{
+	struct econet_irq_bank *irq_bank = dev_instance;
+	struct econet_qdma *qdma = irq_bank->qdma;
+	u32 rx_intr_mask = 0, rx_intr;
+	u32 intr;
+	int i;
+
+	intr = econet_qdma_rr(qdma, REG_INT_STATUS);
+	intr &= irq_bank->irqmask;
+	econet_qdma_wr(qdma, REG_INT_STATUS, intr);
+
+	if (!test_bit(DEV_STATE_INITIALIZED, &qdma->eth->state))
+		return IRQ_NONE;
+
+	rx_intr = intr & (RX1_DONE_INT | RX0_DONE_INT);
+	if (rx_intr) {
+//		econet_qdma_irq_disable(irq_bank, QDMA_INT_REG_IDX0, rx_intr);
+		rx_intr_mask |= rx_intr;
+	}
+
+	for (i = 0; rx_intr_mask && i < ARRAY_SIZE(qdma->q_rx); i++) {
+		if (!qdma->q_rx[i].ndesc)
+			continue;
+
+		if (rx_intr_mask & BIT(i))
+			napi_schedule(&qdma->q_rx[i].napi);
+	}
+
+	if (intr & (TX1_DONE_INT | TX0_DONE_INT)) {
+//		if (!(intr & TX_DONE_INT_MASK(i)))
+//			continue;
+
+//		econet_qdma_irq_disable(irq_bank, QDMA_INT_REG_IDX0,
+//					TX_DONE_INT_MASK);
+		napi_schedule(&qdma->q_tx_irq.napi);
+	}
+
+	return IRQ_HANDLED;
+}
+
+static int econet_qdma_init_irq_bank(struct platform_device *pdev,
+				      struct econet_qdma *qdma)
+{
+	struct econet_eth *eth = qdma->eth;
+	int id = qdma - &eth->qdma[0];
+
+	struct econet_irq_bank *irq_bank = &(qdma->irq_bank);
+	int err, irq_index = 4 * id;
+	const char *name;
+
+	spin_lock_init(&irq_bank->irq_lock);
+	irq_bank->qdma = qdma;
+
+	irq_bank->irq = platform_get_irq(pdev, irq_index);
+	if (irq_bank->irq < 0)
+		return irq_bank->irq;
+
+	name = devm_kasprintf(eth->dev, GFP_KERNEL,
+				KBUILD_MODNAME ".%d", irq_index);
+	if (!name)
+		return -ENOMEM;
+
+	err = devm_request_irq(eth->dev, irq_bank->irq,
+				econet_irq_handler, IRQF_SHARED, name,
+				irq_bank);
+	if (err)
+		return err;
+
+	return 0;
+}
 
 static int econet_qdma_init(struct platform_device *pdev,
 			    struct econet_eth *eth,
@@ -174,9 +244,9 @@ static int econet_qdma_init(struct platform_device *pdev,
 		return dev_err_probe(eth->dev, PTR_ERR(qdma->regs),
 				     "failed to iomap qdma%d regs\n", id);
 
-// 	err = econet_qdma_init_irq_banks(pdev, qdma);
-// 	if (err)
-// 		return err;
+	err = econet_qdma_init_irq_bank(pdev, qdma);
+	if (err)
+		return err;
 //
 // 	err = econet_qdma_init_rx(qdma);
 // 	if (err)
