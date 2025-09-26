@@ -31,6 +31,14 @@
 #define ECONET_NUM_NETDEV_TX_RINGS	(ECONET_NUM_TX_RING + \
 					 ECONET_NUM_QOS_CHANNELS)
 
+#define IRQ_QUEUE_LEN(_n)		((_n) ? 1024 : 2048)
+// FIXME, all these values are guess work
+// 1024 is used in the ref sdk when using Pon in one path
+// these buffers also consume memory
+#define TX_DSCP_NUM			256
+#define RX_DSCP_NUM(_n)			\
+	((_n) ==  1 ? 1024 : 1024)
+
 enum {
 	QDMA_INT_REG_IDX0,
 	QDMA_INT_REG_MAX

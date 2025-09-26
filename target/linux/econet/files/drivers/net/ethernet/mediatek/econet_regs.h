@@ -323,7 +323,26 @@
 #define RX0_DONE_EN				BIT(1)
 #define TX0_DONE_EN				BIT(0)
 
+#define REG_RX_RING_BASE(_n)	\
+	((_n) == 1 ? 0x010C : 0x000C)
+#define REG_TX_RING_BASE(_n)	\
+	((_n) == 1 ? 0x0108 : 0x0008)
 
+#define REG_RX_RING_SIZE			0x0100
+#define RX_RING_SIZE_MASK(_n)	\
+	((_n) == 1 ? GENMASK(27, 16) : GENMASK(11, 0))
+#define RX_RING_SIZE_MASK_0			GENMASK(11, 0)
+#define RX_RING_SIZE_MASK_1			GENMASK(27, 16)
+
+#define REG_RX_RING_THR				0x0104
+#define RX_RING_THR_MASK(_n)	\
+	((_n) == 1 ? GENMASK(27, 16) : GENMASK(11, 0))
+#define RX_RING_THR_MASK_0			GENMASK(11, 0)
+#define RX_RING_THR_MASK_1			GENMASK(27, 16)
+
+#define REG_RX_DMA_IDX(_n)	\
+	((_n) == 1 ? 0x01C : 0x11C)
+#define RX_RING_DMA_IDX_MASK			GENMASK(11, 0)
 
 struct econet_qdma_desc {
 	__be32 rsv;

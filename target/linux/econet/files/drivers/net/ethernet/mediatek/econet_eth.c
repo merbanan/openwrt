@@ -6,14 +6,16 @@
 
 /* Very heavily based on code written by Lorenzo Bianconi <lorenzo@kernel.org> */
 
-#include <linux/etherdevice.h>
-#include <linux/kernel.h>
-#include <linux/netdevice.h>
 #include <linux/of.h>
 #include <linux/of_net.h>
-#include <linux/phylink.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
-#include <linux/regmap.h>
+#include <linux/tcp.h>
+#include <linux/u64_stats_sync.h>
+#include <net/dst_metadata.h>
+#include <net/page_pool/helpers.h>
+#include <net/pkt_cls.h>
+#include <uapi/linux/ppp_defs.h>
 
 #include "econet_regs.h"
 #include "econet_eth.h"
@@ -227,6 +229,95 @@ static int econet_qdma_init_irq_bank(struct platform_device *pdev,
 	return 0;
 }
 
+static int econet_qdma_init_rx_queue(struct econet_queue *q,
+				     struct econet_qdma *qdma, int ndesc)
+{
+	const struct page_pool_params pp_params = {
+		.order = 0,
+		.pool_size = 256,
+		.flags = PP_FLAG_DMA_MAP | PP_FLAG_DMA_SYNC_DEV,
+		.dma_dir = DMA_FROM_DEVICE,
+		.max_len = PAGE_SIZE,
+		.nid = NUMA_NO_NODE,
+		.dev = qdma->eth->dev,
+		.napi = &q->napi,
+	};
+	struct econet_eth *eth = qdma->eth;
+	int qid = q - &qdma->q_rx[0], thr;
+	dma_addr_t dma_addr;
+
+	q->buf_size = PAGE_SIZE / 2;
+	q->ndesc = ndesc;
+	q->qdma = qdma;
+
+	q->entry = devm_kzalloc(eth->dev, q->ndesc * sizeof(*q->entry),
+				GFP_KERNEL);
+	if (!q->entry)
+		return -ENOMEM;
+
+	q->page_pool = page_pool_create(&pp_params);
+	if (IS_ERR(q->page_pool)) {
+		int err = PTR_ERR(q->page_pool);
+
+		q->page_pool = NULL;
+		return err;
+	}
+
+	q->desc = dmam_alloc_coherent(eth->dev, q->ndesc * sizeof(*q->desc),
+				      &dma_addr, GFP_KERNEL);
+	if (!q->desc)
+		return -ENOMEM;
+
+//	netif_napi_add(eth->napi_dev, &q->napi, econet_qdma_rx_napi_poll);
+
+	econet_qdma_wr(qdma, REG_RX_RING_BASE(qid), dma_addr);
+	thr = clamp(ndesc >> 3, 1, 32);
+
+	if (qid==1) {
+		econet_qdma_rmw(qdma, REG_RX_RING_SIZE,
+				RX_RING_SIZE_MASK_1,
+				FIELD_PREP(RX_RING_SIZE_MASK_1, ndesc));
+
+		econet_qdma_rmw(qdma, REG_RX_RING_THR, RX_RING_THR_MASK(qid),
+				FIELD_PREP(RX_RING_THR_MASK_1, thr));
+	} else {
+		econet_qdma_rmw(qdma, REG_RX_RING_SIZE,
+				RX_RING_SIZE_MASK_1,
+				FIELD_PREP(RX_RING_SIZE_MASK_0, ndesc));
+
+		econet_qdma_rmw(qdma, REG_RX_RING_THR, RX_RING_THR_MASK(qid),
+				FIELD_PREP(RX_RING_THR_MASK_0, thr));
+	}
+	econet_qdma_rmw(qdma, REG_RX_DMA_IDX(qid), RX_RING_DMA_IDX_MASK,
+			FIELD_PREP(RX_RING_DMA_IDX_MASK, q->head));
+
+//	econet_qdma_fill_rx_queue(q);
+
+	return 0;
+}
+
+
+static int econet_qdma_init_rx(struct econet_qdma *qdma)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(qdma->q_rx); i++) {
+		int err;
+
+		if (!((RX1_DONE_INT | RX0_DONE_INT) & BIT(i))) {
+			/* rx-queue not binded to irq */
+			continue;
+		}
+
+		err = econet_qdma_init_rx_queue(&qdma->q_rx[i], qdma,
+						RX_DSCP_NUM(i));
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int econet_qdma_init(struct platform_device *pdev,
 			    struct econet_eth *eth,
 			    struct econet_qdma *qdma)
@@ -247,10 +338,10 @@ static int econet_qdma_init(struct platform_device *pdev,
 	err = econet_qdma_init_irq_bank(pdev, qdma);
 	if (err)
 		return err;
-//
-// 	err = econet_qdma_init_rx(qdma);
-// 	if (err)
-// 		return err;
+
+ 	err = econet_qdma_init_rx(qdma);
+ 	if (err)
+ 		return err;
 //
 // 	err = econet_qdma_init_tx(qdma);
 // 	if (err)
@@ -554,5 +645,6 @@ static struct platform_driver econet_driver = {
 module_platform_driver(econet_driver);
 
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Lorenzo Bianconi <lorenzo@kernel.org>");
 MODULE_AUTHOR("Benjamin Larsson <benjamin.larsson@genexis.eu>");
 MODULE_DESCRIPTION("Ethernet driver for Econet SoC");
