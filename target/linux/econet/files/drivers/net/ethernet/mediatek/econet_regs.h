@@ -344,6 +344,39 @@
 	((_n) == 1 ? 0x01C : 0x11C)
 #define RX_RING_DMA_IDX_MASK			GENMASK(11, 0)
 
+#define REG_RX_CPU_IDX(_n)	\
+	((_n) == 1 ? 0x018 : 0x118)
+#define RX_RING_CPU_IDX_MASK			GENMASK(11, 0)
+
+//FIXME not all bits are valid
+/* CTRL */
+#define QDMA_DESC_DONE_MASK		BIT(31)
+#define QDMA_DESC_DROP_MASK		BIT(30) /* tx: drop - rx: overflow */
+#define QDMA_DESC_LEN_MASK		GENMASK(15, 0)
+/* DATA */
+#define QDMA_DESC_NEXT_ID_MASK		GENMASK(15, 0)
+/* TX MSG0 */
+#define QDMA_ETH_TXMSG_MIC_IDX_MASK	BIT(30)
+#define QDMA_ETH_TXMSG_SP_TAG_MASK	GENMASK(29, 14)
+#define QDMA_ETH_TXMSG_ICO_MASK		BIT(13)
+#define QDMA_ETH_TXMSG_UCO_MASK		BIT(12)
+#define QDMA_ETH_TXMSG_TCO_MASK		BIT(11)
+#define QDMA_ETH_TXMSG_TSO_MASK		BIT(10)
+#define QDMA_ETH_TXMSG_FAST_MASK	BIT(9)
+#define QDMA_ETH_TXMSG_OAM_MASK		BIT(8)
+#define QDMA_ETH_TXMSG_CHAN_MASK	GENMASK(7, 3)
+#define QDMA_ETH_TXMSG_QUEUE_MASK	GENMASK(2, 0)
+/* TX MSG1 */
+#define QDMA_ETH_TXMSG_NO_DROP		BIT(31)
+#define QDMA_ETH_TXMSG_METER_MASK	GENMASK(30, 24)	/* 0x7f no meters */
+#define QDMA_ETH_TXMSG_FPORT_MASK	GENMASK(23, 20)
+#define QDMA_ETH_TXMSG_NBOQ_MASK	GENMASK(19, 15)
+#define QDMA_ETH_TXMSG_HWF_MASK		BIT(14)
+#define QDMA_ETH_TXMSG_HOP_MASK		BIT(13)
+#define QDMA_ETH_TXMSG_PTP_MASK		BIT(12)
+#define QDMA_ETH_TXMSG_ACNT_G1_MASK	GENMASK(10, 6)	/* 0x1f do not count */
+#define QDMA_ETH_TXMSG_ACNT_G0_MASK	GENMASK(5, 0)	/* 0x3f do not count */
+
 struct econet_qdma_desc {
 	__be32 rsv;
 	__be32 ctrl;

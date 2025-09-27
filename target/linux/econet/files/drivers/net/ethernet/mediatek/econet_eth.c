@@ -229,6 +229,50 @@ static int econet_qdma_init_irq_bank(struct platform_device *pdev,
 	return 0;
 }
 
+static int econet_qdma_fill_rx_queue(struct econet_queue *q)
+{
+	struct econet_qdma *qdma = q->qdma;
+	int qid = q - &qdma->q_rx[0];
+	int nframes = 0;
+
+	while (q->queued < q->ndesc - 1) {
+		struct econet_queue_entry *e = &q->entry[q->head];
+		struct econet_qdma_desc *desc = &q->desc[q->head];
+		struct page *page;
+		int offset;
+		u32 val;
+
+		page = page_pool_dev_alloc_frag(q->page_pool, &offset,
+						q->buf_size);
+		if (!page)
+			break;
+
+		q->head = (q->head + 1) % q->ndesc;
+		q->queued++;
+		nframes++;
+
+		e->buf = page_address(page) + offset;
+		e->dma_addr = page_pool_get_dma_addr(page) + offset;
+		e->dma_len = SKB_WITH_OVERHEAD(q->buf_size);
+
+		val = FIELD_PREP(QDMA_DESC_LEN_MASK, e->dma_len);
+		WRITE_ONCE(desc->ctrl, cpu_to_le32(val));
+		WRITE_ONCE(desc->addr, cpu_to_le32(e->dma_addr));
+		val = FIELD_PREP(QDMA_DESC_NEXT_ID_MASK, q->head);
+		WRITE_ONCE(desc->data, cpu_to_le32(val));
+		WRITE_ONCE(desc->msg0, 0);
+		WRITE_ONCE(desc->msg1, 0);
+		WRITE_ONCE(desc->msg2, 0);
+		WRITE_ONCE(desc->msg3, 0);
+
+		econet_qdma_rmw(qdma, REG_RX_CPU_IDX(qid),
+				RX_RING_CPU_IDX_MASK,
+				FIELD_PREP(RX_RING_CPU_IDX_MASK, q->head));
+	}
+
+	return nframes;
+}
+
 static int econet_qdma_init_rx_queue(struct econet_queue *q,
 				     struct econet_qdma *qdma, int ndesc)
 {
@@ -291,7 +335,7 @@ static int econet_qdma_init_rx_queue(struct econet_queue *q,
 	econet_qdma_rmw(qdma, REG_RX_DMA_IDX(qid), RX_RING_DMA_IDX_MASK,
 			FIELD_PREP(RX_RING_DMA_IDX_MASK, q->head));
 
-//	econet_qdma_fill_rx_queue(q);
+	econet_qdma_fill_rx_queue(q);
 
 	return 0;
 }
