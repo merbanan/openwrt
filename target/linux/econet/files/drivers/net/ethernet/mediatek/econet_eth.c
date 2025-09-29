@@ -362,6 +362,89 @@ static int econet_qdma_init_rx(struct econet_qdma *qdma)
 	return 0;
 }
 
+static int econet_qdma_init_tx_queue(struct econet_queue *q,
+				     struct econet_qdma *qdma, int size)
+{
+	struct econet_eth *eth = qdma->eth;
+	int i, qid = q - &qdma->q_tx[0];
+	dma_addr_t dma_addr;
+
+	spin_lock_init(&q->lock);
+	q->ndesc = size;
+	q->qdma = qdma;
+	q->free_thr = 1 + MAX_SKB_FRAGS;
+
+	q->entry = devm_kzalloc(eth->dev, q->ndesc * sizeof(*q->entry),
+				GFP_KERNEL);
+	if (!q->entry)
+		return -ENOMEM;
+
+	q->desc = dmam_alloc_coherent(eth->dev, q->ndesc * sizeof(*q->desc),
+				      &dma_addr, GFP_KERNEL);
+	if (!q->desc)
+		return -ENOMEM;
+
+	for (i = 0; i < q->ndesc; i++) {
+		u32 val;
+
+		val = FIELD_PREP(QDMA_DESC_DONE_MASK, 1);
+		WRITE_ONCE(q->desc[i].ctrl, cpu_to_le32(val));
+	}
+
+	econet_qdma_wr(qdma, REG_TX_RING_BASE(qid), dma_addr);
+	econet_qdma_rmw(qdma, REG_TX_CPU_IDX(qid), TX_RING_CPU_IDX_MASK,
+			FIELD_PREP(TX_RING_CPU_IDX_MASK, q->head));
+	econet_qdma_rmw(qdma, REG_TX_DMA_IDX(qid), TX_RING_DMA_IDX_MASK,
+			FIELD_PREP(TX_RING_DMA_IDX_MASK, q->head));
+
+	return 0;
+}
+
+static int econet_qdma_tx_irq_init(struct econet_tx_irq_queue *irq_q,
+				   struct econet_qdma *qdma, int size)
+{
+	struct econet_eth *eth = qdma->eth;
+	dma_addr_t dma_addr;
+
+//	netif_napi_add_tx(eth->napi_dev, &irq_q->napi,
+//			  econet_qdma_tx_napi_poll);
+	irq_q->q = dmam_alloc_coherent(eth->dev, size * sizeof(u32),
+				       &dma_addr, GFP_KERNEL);
+	if (!irq_q->q)
+		return -ENOMEM;
+
+	memset(irq_q->q, 0xff, size * sizeof(u32));
+	irq_q->size = size;
+	irq_q->qdma = qdma;
+
+	econet_qdma_wr(qdma, REG_TX_IRQ_BASE, dma_addr);
+	econet_qdma_rmw(qdma, REG_TX_IRQ_CFG, TX_IRQ_DEPTH_MASK,
+			FIELD_PREP(TX_IRQ_DEPTH_MASK, size));
+	econet_qdma_rmw(qdma, REG_TX_IRQ_CFG, TX_IRQ_THR_MASK,
+			FIELD_PREP(TX_IRQ_THR_MASK, 1));
+
+	return 0;
+}
+
+static int econet_qdma_init_tx(struct econet_qdma *qdma)
+{
+	int i, err;
+
+	err = econet_qdma_tx_irq_init(&qdma->q_tx_irq, qdma,
+					IRQ_QUEUE_LEN);
+	if (err)
+		return err;
+
+	for (i = 0; i < ARRAY_SIZE(qdma->q_tx); i++) {
+		err = econet_qdma_init_tx_queue(&qdma->q_tx[i], qdma,
+						TX_DSCP_NUM);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int econet_qdma_init(struct platform_device *pdev,
 			    struct econet_eth *eth,
 			    struct econet_qdma *qdma)
@@ -383,13 +466,13 @@ static int econet_qdma_init(struct platform_device *pdev,
 	if (err)
 		return err;
 
- 	err = econet_qdma_init_rx(qdma);
+	err = econet_qdma_init_rx(qdma);
+	if (err)
+		return err;
+
+	err = econet_qdma_init_tx(qdma);
  	if (err)
  		return err;
-//
-// 	err = econet_qdma_init_tx(qdma);
-// 	if (err)
-// 		return err;
 //
 // 	err = econet_qdma_init_hfwd_queues(qdma);
 // 	if (err)

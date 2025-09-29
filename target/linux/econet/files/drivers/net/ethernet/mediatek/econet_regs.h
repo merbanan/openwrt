@@ -348,6 +348,22 @@
 	((_n) == 1 ? 0x018 : 0x118)
 #define RX_RING_CPU_IDX_MASK			GENMASK(11, 0)
 
+#define REG_TX_CPU_IDX(_n)	\
+	((_n) == 1 ? 0x010 : 0x110)
+#define TX_RING_CPU_IDX_MASK			GENMASK(11, 0)
+
+#define REG_TX_IRQ_CFG				0x0064
+#define TX_IRQ_THR_MASK				GENMASK(27, 16)
+#define TX_IRQ_DEPTH_MASK			GENMASK(11, 0)
+
+
+#define REG_TX_DMA_IDX(_n)	\
+	((_n) == 1 ? 0x014 : 0x114)
+
+#define TX_RING_DMA_IDX_MASK			GENMASK(11, 0)
+
+#define REG_TX_IRQ_BASE				0x0060
+
 //FIXME not all bits are valid
 /* CTRL */
 #define QDMA_DESC_DONE_MASK		BIT(31)
