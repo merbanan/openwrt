@@ -30,7 +30,7 @@
 #define ECONET_NUM_RX_RING		2
 #define ECONET_NUM_NETDEV_TX_RINGS	(ECONET_NUM_TX_RING + \
 					 ECONET_NUM_QOS_CHANNELS)
-
+#define HW_DSCP_NUM			2048
 #define IRQ_QUEUE_LEN			1024
 
 // FIXME, all these values are guess work

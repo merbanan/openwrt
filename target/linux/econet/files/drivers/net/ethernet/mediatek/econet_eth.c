@@ -445,6 +445,73 @@ static int econet_qdma_init_tx(struct econet_qdma *qdma)
 	return 0;
 }
 
+static int econet_qdma_init_hfwd_queues(struct econet_qdma *qdma)
+{
+	int size, index, num_desc = HW_DSCP_NUM;
+	struct econet_eth *eth = qdma->eth;
+	int id = qdma - &eth->qdma[0];
+	u32 status, buf_size;
+	dma_addr_t dma_addr;
+	const char *name;
+
+	name = devm_kasprintf(eth->dev, GFP_KERNEL, "qdma%d-buf", id);
+	if (!name)
+		return -ENOMEM;
+
+	buf_size = id ? ECONET_MAX_PACKET_SIZE / 2 : ECONET_MAX_PACKET_SIZE;
+	index = of_property_match_string(eth->dev->of_node,
+					 "memory-region-names", name);
+	if (index >= 0) {
+		struct reserved_mem *rmem;
+		struct device_node *np;
+
+		/* Consume reserved memory for hw forwarding buffers queue if
+		 * available in the DTS
+		 */
+		np = of_parse_phandle(eth->dev->of_node, "memory-region",
+				      index);
+		if (!np)
+			return -ENODEV;
+
+		rmem = of_reserved_mem_lookup(np);
+		of_node_put(np);
+		dma_addr = rmem->base;
+		/* Compute the number of hw descriptors according to the
+		 * reserved memory size and the payload buffer size
+		 */
+		num_desc = div_u64(rmem->size, buf_size);
+	} else {
+		size = buf_size * num_desc;
+		if (!dmam_alloc_coherent(eth->dev, size, &dma_addr,
+					 GFP_KERNEL))
+			return -ENOMEM;
+	}
+
+	econet_qdma_wr(qdma, REG_FWD_BUF_BASE, dma_addr);
+
+	size = num_desc * sizeof(struct econet_qdma_fwd_desc);
+	if (!dmam_alloc_coherent(eth->dev, size, &dma_addr, GFP_KERNEL))
+		return -ENOMEM;
+
+	econet_qdma_wr(qdma, REG_FWD_DSCP_BASE, dma_addr);
+	/* QDMA0: 2KB. QDMA1: 1KB */
+	econet_qdma_rmw(qdma, REG_HW_FWD_DSCP_CFG,
+			HW_FWD_DSCP_PAYLOAD_SIZE_MASK,
+			FIELD_PREP(HW_FWD_DSCP_PAYLOAD_SIZE_MASK, !!id));
+	econet_qdma_rmw(qdma, REG_HW_FWD_DSCP_CFG, FWD_DSCP_LOW_THR_MASK,
+			FIELD_PREP(FWD_DSCP_LOW_THR_MASK, 128));
+
+	econet_qdma_rmw(qdma, REG_LMGR_INIT_CFG,
+			LMGR_INIT_START | HW_FWD_DESC_NUM_MASK,
+			FIELD_PREP(HW_FWD_DESC_NUM_MASK, num_desc) |
+			LMGR_INIT_START);
+
+	return read_poll_timeout(econet_qdma_rr, status,
+				 !(status & LMGR_INIT_START), USEC_PER_MSEC,
+				 30 * USEC_PER_MSEC, true, qdma,
+				 REG_LMGR_INIT_CFG);
+}
+
 static int econet_qdma_init(struct platform_device *pdev,
 			    struct econet_eth *eth,
 			    struct econet_qdma *qdma)
@@ -473,10 +540,10 @@ static int econet_qdma_init(struct platform_device *pdev,
 	err = econet_qdma_init_tx(qdma);
  	if (err)
  		return err;
-//
-// 	err = econet_qdma_init_hfwd_queues(qdma);
-// 	if (err)
-// 		return err;
+
+	err = econet_qdma_init_hfwd_queues(qdma);
+	if (err)
+		return err;
 
 // 	err = econet_qdma_hw_init(qdma);
 // 	if (err)
