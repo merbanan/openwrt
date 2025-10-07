@@ -38,6 +38,41 @@ u32 econet_rmw(void __iomem *base, u32 offset, u32 mask, u32 val)
 	return val;
 }
 
+static void econet_qdma_set_irqmask(struct econet_irq_bank *irq_bank,
+				    int index, u32 clear, u32 set)
+{
+	struct econet_qdma *qdma = irq_bank->qdma;
+//	int bank = qdma->irq_bank;
+	unsigned long flags;
+
+	spin_lock_irqsave(&irq_bank->irq_lock, flags);
+
+	irq_bank->irqmask &= ~clear;
+	irq_bank->irqmask |= set;
+	econet_qdma_wr(qdma, REG_INT_ENABLE,
+		       irq_bank->irqmask);
+	/* Read irq_enable register in order to guarantee the update above
+	 * completes in the spinlock critical section.
+	 */
+	econet_qdma_rr(qdma, REG_INT_ENABLE);
+
+	spin_unlock_irqrestore(&irq_bank->irq_lock, flags);
+}
+
+static void econet_qdma_irq_enable(struct econet_irq_bank *irq_bank,
+				   int index, u32 mask)
+{
+	econet_qdma_set_irqmask(irq_bank, index, 0, mask);
+}
+
+/*
+static void econet_qdma_irq_disable(struct econet_irq_bank *irq_bank,
+				    int index, u32 mask)
+{
+	econet_qdma_set_irqmask(irq_bank, index, mask, 0);
+}
+*/
+
 static void econet_set_macaddr(struct econet_gdm_port *port, const u8 *addr)
 {
 	struct econet_eth *eth = port->qdma->eth;
@@ -156,6 +191,50 @@ static int econet_fe_init(struct econet_eth *eth)
 
 	return 0;
 }
+
+static int econet_qdma_hw_init(struct econet_qdma *qdma)
+{
+	/* clear pending irqs */
+	econet_qdma_wr(qdma, REG_INT_STATUS, 0xffffffff);
+	/* setup irqs */
+//XPON_PHY_EN
+//EPON_MAC_EN
+//GPON_MAC_EN
+	econet_qdma_irq_enable(&qdma->irq_bank, REG_INT_ENABLE,
+			       RX1_COHERENT_EN |
+			       TX1_COHERENT_EN |
+			       RX0_COHERENT_EN |
+			       TX0_COHERENT_EN |
+			       RX_PKT_OVERFLOW_EN |
+			       IRQ_FULL_EN |
+			       NO_RX1_CPU_DSCP_EN |
+			       RX1_DONE_EN |
+			       TX1_DONE_EN |
+			       NO_RX0_CPU_DSCP_EN |
+			       RX0_DONE_EN |
+			       TX0_DONE_EN);
+
+	econet_qdma_wr(qdma, REG_QDMA_GLOBAL_CFG,
+		       GLOBAL_CFG_RX_2B_OFFSET_MASK |
+		       GLOBAL_CFG_MSG_WORD_SWAP_MASK |
+		       GLOBAL_CFG_DSCP_BYTE_SWAP_MASK |
+		       GLOBAL_CFG_PAYLOAD_BYTE_SWAP_MASK |
+		       GLOBAL_CFG_TX_IMMEDIATE_DONE_MASK |
+		       GLOBAL_CFG_IRQ_EN_MASK |
+		       GLOBAL_CFG_TX_WB_DONE_MASK |
+		       FIELD_PREP(GLOBAL_CFG_BURST_SIZE_MASK, 3) |
+		       GLOBAL_CFG_RX_DMA_EN_MASK |
+		       GLOBAL_CFG_TX_DMA_EN_MASK);
+
+//	econet_qdma_init_qos(qdma);
+
+	econet_qdma_set(qdma, REG_TXQ_CNGST_CFG,
+			TXQ_CNGST_DROP_EN | TXQ_CNGST_DEI_DROP_EN);
+//	econet_qdma_init_qos_stats(qdma);
+
+	return 0;
+}
+
 
 static irqreturn_t econet_irq_handler(int irq, void *dev_instance)
 {
@@ -545,9 +624,9 @@ static int econet_qdma_init(struct platform_device *pdev,
 	if (err)
 		return err;
 
-// 	err = econet_qdma_hw_init(qdma);
-// 	if (err)
-// 		return err;
+	err = econet_qdma_hw_init(qdma);
+	if (err)
+		return err;
 
 	return err;
 }
