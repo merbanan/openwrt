@@ -65,13 +65,13 @@ static void econet_qdma_irq_enable(struct econet_irq_bank *irq_bank,
 	econet_qdma_set_irqmask(irq_bank, index, 0, mask);
 }
 
-/*
+
 static void econet_qdma_irq_disable(struct econet_irq_bank *irq_bank,
 				    int index, u32 mask)
 {
 	econet_qdma_set_irqmask(irq_bank, index, mask, 0);
 }
-*/
+
 
 static void econet_set_macaddr(struct econet_gdm_port *port, const u8 *addr)
 {
@@ -253,7 +253,7 @@ static irqreturn_t econet_irq_handler(int irq, void *dev_instance)
 
 	rx_intr = intr & (RX1_DONE_INT | RX0_DONE_INT);
 	if (rx_intr) {
-//		econet_qdma_irq_disable(irq_bank, QDMA_INT_REG_IDX0, rx_intr);
+		econet_qdma_irq_disable(irq_bank, QDMA_INT_REG_IDX0, rx_intr);
 		rx_intr_mask |= rx_intr;
 	}
 
