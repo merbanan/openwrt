@@ -242,6 +242,7 @@ static irqreturn_t econet_irq_handler(int irq, void *dev_instance)
 	struct econet_qdma *qdma = irq_bank->qdma;
 	u32 rx_intr_mask = 0, rx_intr;
 	u32 intr;
+	u32 tx_intr_mask = 0;
 	int i;
 
 	intr = econet_qdma_rr(qdma, REG_INT_STATUS);
@@ -265,12 +266,13 @@ static irqreturn_t econet_irq_handler(int irq, void *dev_instance)
 			napi_schedule(&qdma->q_rx[i].napi);
 	}
 
-	if (intr & (TX1_DONE_INT | TX0_DONE_INT)) {
+	tx_intr_mask = (TX1_DONE_INT | TX0_DONE_INT);
+	if (intr & (tx_intr_mask)) {
 //		if (!(intr & TX_DONE_INT_MASK(i)))
 //			continue;
 
-//		econet_qdma_irq_disable(irq_bank, QDMA_INT_REG_IDX0,
-//					TX_DONE_INT_MASK);
+		econet_qdma_irq_disable(irq_bank, QDMA_INT_REG_IDX0,
+					tx_intr_mask);
 		napi_schedule(&qdma->q_tx_irq.napi);
 	}
 
@@ -709,17 +711,16 @@ static const struct net_device_ops econet_netdev_ops = {
 
 static void econet_qdma_start_napi(struct econet_qdma *qdma)
 {
-// 	int i;
-// 
-// 	for (i = 0; i < ARRAY_SIZE(qdma->q_tx_irq); i++)
-// 		napi_enable(&qdma->q_tx_irq[i].napi);
-// 
-// 	for (i = 0; i < ARRAY_SIZE(qdma->q_rx); i++) {
-// 		if (!qdma->q_rx[i].ndesc)
-// 			continue;
-// 
-// 		napi_enable(&qdma->q_rx[i].napi);
-// 	}
+	int i;
+
+	napi_enable(&qdma->q_tx_irq.napi);
+
+	for (i = 0; i < ARRAY_SIZE(qdma->q_rx); i++) {
+//		if (!qdma->q_rx[i].ndesc)
+//			continue;
+
+		napi_enable(&qdma->q_rx[i].napi);
+	}
 }
 
 static int econet_alloc_gdm_port(struct econet_eth *eth,
