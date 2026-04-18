@@ -18,11 +18,16 @@ These are needed by mt7915 NPU RX offload: the WiFi driver allocates
 the ring, calls wlan_rx_ring_setup, then polls wlan_rx_get_cpu_idx /
 wlan_rx_set_dma_idx from its NAPI handler to drain received frames.
 
+The internal implementation functions in airoha_npu.c use the
+noun_verb naming convention (rx_ring_set, rx_cpu_idx_get,
+rx_dma_idx_set) to avoid name collisions with the public verb_noun
+inline wrappers in airoha_offload.h.
+
 Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
 ---
- drivers/net/ethernet/airoha/airoha_npu.c  | 29 ++++++++++++++++
- include/linux/soc/airoha/airoha_offload.h | 55 ++++++++++++++++++++++++++++++
- 2 files changed, 84 insertions(+)
+ drivers/net/ethernet/airoha/airoha_npu.c  | 27 +++++++++++++++++++++++++++
+ include/linux/soc/airoha/airoha_offload.h | 44 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 71 insertions(+), 0 deletions(-)
 
 --- a/drivers/net/ethernet/airoha/airoha_npu.c
 +++ b/drivers/net/ethernet/airoha/airoha_npu.c
@@ -30,8 +35,8 @@ Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
  	regmap_clear_bits(npu->regmap, REG_IRQ_RXDONE(q), NPU_IRQ_RX_MASK(q));
  }
  
-+static int airoha_npu_wlan_rx_ring_setup(struct airoha_npu *npu, int qid,
-+					  dma_addr_t base, u32 count)
++static int airoha_npu_wlan_rx_ring_set(struct airoha_npu *npu, int qid,
++				       dma_addr_t base, u32 count)
 +{
 +	regmap_write(npu->regmap, REG_RX_BASE(qid), (u32)base);
 +	regmap_write(npu->regmap, REG_RX_DSCP_NUM(qid), count);
@@ -40,7 +45,7 @@ Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
 +	return 0;
 +}
 +
-+static u32 airoha_npu_wlan_rx_get_cpu_idx(struct airoha_npu *npu, int qid)
++static u32 airoha_npu_wlan_rx_cpu_idx_get(struct airoha_npu *npu, int qid)
 +{
 +	u32 val;
 +
@@ -48,8 +53,8 @@ Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
 +	return val;
 +}
 +
-+static void airoha_npu_wlan_rx_set_dma_idx(struct airoha_npu *npu, int qid,
-+					    u32 idx)
++static void airoha_npu_wlan_rx_dma_idx_set(struct airoha_npu *npu, int qid,
++					   u32 idx)
 +{
 +	regmap_write(npu->regmap, REG_RX_DMA_IDX(qid), idx);
 +}
@@ -61,9 +66,9 @@ Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
  	npu->ops.wlan_get_irq_status = airoha_npu_wlan_irq_status_get;
  	npu->ops.wlan_enable_irq = airoha_npu_wlan_irq_enable;
  	npu->ops.wlan_disable_irq = airoha_npu_wlan_irq_disable;
-+	npu->ops.wlan_rx_ring_setup = airoha_npu_wlan_rx_ring_setup;
-+	npu->ops.wlan_rx_get_cpu_idx = airoha_npu_wlan_rx_get_cpu_idx;
-+	npu->ops.wlan_rx_set_dma_idx = airoha_npu_wlan_rx_set_dma_idx;
++	npu->ops.wlan_rx_ring_setup = airoha_npu_wlan_rx_ring_set;
++	npu->ops.wlan_rx_get_cpu_idx = airoha_npu_wlan_rx_cpu_idx_get;
++	npu->ops.wlan_rx_set_dma_idx = airoha_npu_wlan_rx_dma_idx_set;
  
  	npu->regmap = devm_regmap_init_mmio(dev, base, &regmap_config);
  	if (IS_ERR(npu->regmap))
