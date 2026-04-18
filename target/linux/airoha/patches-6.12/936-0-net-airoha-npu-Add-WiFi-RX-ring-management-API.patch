@@ -1,0 +1,136 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: airoha: npu: Add WiFi RX ring management API
+
+Expose three new operations through the airoha_npu ops vector so that
+external WiFi drivers (e.g. mt7915 on EN7523) can manage the NPU
+host-adapter output ring:
+
+  wlan_rx_ring_setup  - write the hostadpt ring base address and
+                        descriptor count into the NPU registers and
+                        reset both index registers to zero.
+  wlan_rx_get_cpu_idx - read the NPU write pointer (REG_RX_CPU_IDX),
+                        i.e. the index of the next descriptor the NPU
+                        will fill.
+  wlan_rx_set_dma_idx - write the host read pointer (REG_RX_DMA_IDX)
+                        to tell the NPU how far the host has consumed.
+
+These are needed by mt7915 NPU RX offload: the WiFi driver allocates
+the ring, calls wlan_rx_ring_setup, then polls wlan_rx_get_cpu_idx /
+wlan_rx_set_dma_idx from its NAPI handler to drain received frames.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+ drivers/net/ethernet/airoha/airoha_npu.c  | 29 ++++++++++++++++
+ include/linux/soc/airoha/airoha_offload.h | 55 ++++++++++++++++++++++++++++++
+ 2 files changed, 84 insertions(+)
+
+--- a/drivers/net/ethernet/airoha/airoha_npu.c
++++ b/drivers/net/ethernet/airoha/airoha_npu.c
+@@ -719,6 +719,30 @@
+ 	regmap_clear_bits(npu->regmap, REG_IRQ_RXDONE(q), NPU_IRQ_RX_MASK(q));
+ }
+ 
++static int airoha_npu_wlan_rx_ring_setup(struct airoha_npu *npu, int qid,
++					  dma_addr_t base, u32 count)
++{
++	regmap_write(npu->regmap, REG_RX_BASE(qid), (u32)base);
++	regmap_write(npu->regmap, REG_RX_DSCP_NUM(qid), count);
++	regmap_write(npu->regmap, REG_RX_CPU_IDX(qid), 0);
++	regmap_write(npu->regmap, REG_RX_DMA_IDX(qid), 0);
++	return 0;
++}
++
++static u32 airoha_npu_wlan_rx_get_cpu_idx(struct airoha_npu *npu, int qid)
++{
++	u32 val;
++
++	regmap_read(npu->regmap, REG_RX_CPU_IDX(qid), &val);
++	return val;
++}
++
++static void airoha_npu_wlan_rx_set_dma_idx(struct airoha_npu *npu, int qid,
++					    u32 idx)
++{
++	regmap_write(npu->regmap, REG_RX_DMA_IDX(qid), idx);
++}
++
+ struct airoha_npu *airoha_npu_get(struct device *dev)
+ {
+ 	struct platform_device *pdev;
+@@ -929,6 +953,9 @@
+ 	npu->ops.wlan_get_irq_status = airoha_npu_wlan_irq_status_get;
+ 	npu->ops.wlan_enable_irq = airoha_npu_wlan_irq_enable;
+ 	npu->ops.wlan_disable_irq = airoha_npu_wlan_irq_disable;
++	npu->ops.wlan_rx_ring_setup = airoha_npu_wlan_rx_ring_setup;
++	npu->ops.wlan_rx_get_cpu_idx = airoha_npu_wlan_rx_get_cpu_idx;
++	npu->ops.wlan_rx_set_dma_idx = airoha_npu_wlan_rx_set_dma_idx;
+ 
+ 	npu->regmap = devm_regmap_init_mmio(dev, base, &regmap_config);
+ 	if (IS_ERR(npu->regmap))
+--- a/include/linux/soc/airoha/airoha_offload.h
++++ b/include/linux/soc/airoha/airoha_offload.h
+@@ -228,6 +228,11 @@
+ 		u32 (*wlan_get_irq_status)(struct airoha_npu *npu, int q);
+ 		void (*wlan_enable_irq)(struct airoha_npu *npu, int q);
+ 		void (*wlan_disable_irq)(struct airoha_npu *npu, int q);
++		int (*wlan_rx_ring_setup)(struct airoha_npu *npu, int qid,
++					  dma_addr_t base, u32 count);
++		u32 (*wlan_rx_get_cpu_idx)(struct airoha_npu *npu, int qid);
++		void (*wlan_rx_set_dma_idx)(struct airoha_npu *npu, int qid,
++					    u32 idx);
+ 	} ops;
+ #endif
+ };
+@@ -282,6 +287,26 @@
+ {
+ 	npu->ops.wlan_disable_irq(npu, q);
+ }
++
++static inline int airoha_npu_wlan_rx_ring_setup(struct airoha_npu *npu,
++						 int qid, dma_addr_t base,
++						 u32 count)
++{
++	return npu->ops.wlan_rx_ring_setup(npu, qid, base, count);
++}
++
++static inline u32 airoha_npu_wlan_rx_get_cpu_idx(struct airoha_npu *npu,
++						  int qid)
++{
++	return npu->ops.wlan_rx_get_cpu_idx(npu, qid);
++}
++
++static inline void airoha_npu_wlan_rx_set_dma_idx(struct airoha_npu *npu,
++						   int qid, u32 idx)
++{
++	npu->ops.wlan_rx_set_dma_idx(npu, qid, idx);
++}
++
+ #else
+ static inline struct airoha_npu *airoha_npu_get(struct device *dev)
+ {
+@@ -336,6 +361,25 @@
+ static inline void airoha_npu_wlan_disable_irq(struct airoha_npu *npu, int q)
+ {
+ }
++
++static inline int airoha_npu_wlan_rx_ring_setup(struct airoha_npu *npu,
++						 int qid, dma_addr_t base,
++						 u32 count)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline u32 airoha_npu_wlan_rx_get_cpu_idx(struct airoha_npu *npu,
++						  int qid)
++{
++	return 0;
++}
++
++static inline void airoha_npu_wlan_rx_set_dma_idx(struct airoha_npu *npu,
++						   int qid, u32 idx)
++{
++}
++
+ #endif
+ 
+ #endif /* AIROHA_OFFLOAD_H */

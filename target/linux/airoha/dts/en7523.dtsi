@@ -326,6 +326,8 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pcie0_rst_pins>;
 
+		airoha,npu = <&npu>;
+
 		#interrupt-cells = <1>;
 		interrupt-map-mask = <0 0 0 7>;
 		interrupt-map = <0 0 0 1 &pcie_intc0 0>,
@@ -357,6 +359,8 @@
 
 		pinctrl-names = "default";
 		pinctrl-0 = <&pcie1_rst_pins>;
+
+		airoha,npu = <&npu>;
 
 		#interrupt-cells = <1>;
 		interrupt-map-mask = <0 0 0 7>;
