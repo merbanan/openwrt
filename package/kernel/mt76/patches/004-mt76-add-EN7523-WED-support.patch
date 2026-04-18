@@ -1,0 +1,192 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Date: Fri, 18 Apr 2025 00:00:00 +0000
+Subject: [PATCH] mt76: add EN7523 WED (Wireless Ethernet Dispatch) support
+
+The Airoha EN7523 SoC provides a WED engine exposed through the
+CONFIG_NET_AIROHA_SOC_WED kernel config symbol.  The mt76 driver guards
+all WED code with CONFIG_NET_MEDIATEK_SOC_WED, which is only set on
+ARCH_MEDIATEK systems.  EN7523 is ARCH_AIROHA, so the WED code was
+never compiled in.
+
+The kernel's <linux/soc/mediatek/mtk_wed.h> already uses
+  #if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+for its own guards.  Apply the same pattern to every WED guard inside
+mt76 so that the EN7523 WED driver (airoha_wed) can attach to mt7915
+and mt7916 PCIe WiFi cards.
+
+Also default wed_enable to true so WED is active without requiring an
+explicit modprobe option; it can still be disabled at runtime via the
+module parameter.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+ dma.c         | 2 +-
+ dma.h         | 2 +-
+ mt76.h        | 4 ++--
+ mt7915/main.c | 4 ++--
+ mt7915/mcu.c  | 4 ++--
+ mt7915/mmio.c | 5 +++--
+ tx.c          | 4 ++--
+ wed.c         | 2 +-
+ 8 files changed, 14 insertions(+), 13 deletions(-)
+
+diff --git a/dma.c b/dma.c
+index f8c2fe5..ca63b35 100644
+--- a/dma.c
++++ b/dma.c
+@@ -981,7 +981,7 @@ mt76_dma_rx_process(struct mt76_dev *dev, struct mt76_queue *q, int budget)
+ 	bool more;
+ 
+ 	if ((q->flags & MT_QFLAG_WED_RRO_EN) ||
+-	    (IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) &&
++	    ((IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) || IS_ENABLED(CONFIG_NET_AIROHA_SOC_WED)) &&
+ 	     mt76_queue_is_wed_tx_free(q))) {
+ 		dma_idx = Q_READ(q, dma_idx);
+ 		check_ddone = true;
+diff --git a/dma.h b/dma.h
+index 298ceff..8a044dc 100644
+--- a/dma.h
++++ b/dma.h
+@@ -46,7 +46,7 @@
+ #define MT_FCE_INFO_LEN			4
+ #define MT_RX_RXWI_LEN			32
+ 
+-#if IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED)
++#if IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) || IS_ENABLED(CONFIG_NET_AIROHA_SOC_WED)
+ 
+ #define Q_READ(_q, _field) ({						\
+ 	u32 _offset = offsetof(struct mt76_queue_regs, _field);		\
+diff --git a/mt76.h b/mt76.h
+index 273f38e..f2bc385 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -1255,7 +1255,7 @@ void mt76_wed_dma_reset(struct mt76_dev *dev);
+ int mt76_wed_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			  struct net_device *netdev, enum tc_setup_type type,
+ 			  void *type_data);
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ u32 mt76_wed_init_rx_buf(struct mtk_wed_device *wed, int size);
+ int mt76_wed_offload_enable(struct mtk_wed_device *wed);
+ int mt76_wed_dma_setup(struct mt76_dev *dev, struct mt76_queue *q, bool reset);
+@@ -1301,7 +1301,7 @@ static inline int mt76_wed_dma_setup(struct mt76_dev *dev, struct mt76_queue *q,
+ 
+ static inline struct mt76_dev *mt76_wed_to_dev(struct mtk_wed_device *wed)
+ {
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	if (wed->wlan.hif2)
+ 		return container_of(wed, struct mt76_dev, mmio.wed_hif2);
+ #endif /* CONFIG_NET_MEDIATEK_SOC_WED */
+diff --git a/mt7915/main.c b/mt7915/main.c
+index 8eca65e..8ac1c65 100644
+--- a/mt7915/main.c
++++ b/mt7915/main.c
+@@ -1759,7 +1759,7 @@ out:
+ 	return ret;
+ }
+ 
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ static int
+ mt7915_net_fill_forward_path(struct ieee80211_hw *hw,
+ 			     struct ieee80211_vif *vif,
+@@ -1861,7 +1861,7 @@ const struct ieee80211_ops mt7915_ops = {
+ 	.sta_add_debugfs = mt7915_sta_add_debugfs,
+ #endif
+ 	.set_radar_background = mt7915_set_radar_background,
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	.net_fill_forward_path = mt7915_net_fill_forward_path,
+ 	.net_setup_tc = mt76_wed_net_setup_tc,
+ #endif
+diff --git a/mt7915/mcu.c b/mt7915/mcu.c
+index c9567aa..3b0b6ed 100644
+--- a/mt7915/mcu.c
++++ b/mt7915/mcu.c
+@@ -1781,7 +1781,7 @@ out:
+ 
+ int mt7915_mcu_wed_enable_rx_stats(struct mt7915_dev *dev)
+ {
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	struct mtk_wed_device *wed = &dev->mt76.mmio.wed;
+ 	struct {
+ 		__le32 args[2];
+@@ -2420,7 +2420,7 @@ int mt7915_mcu_init_firmware(struct mt7915_dev *dev)
+ 
+ 	mt76_connac_mcu_del_wtbl_all(&dev->mt76);
+ 
+-#if IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED)
++#if IS_ENABLED(CONFIG_NET_MEDIATEK_SOC_WED) || IS_ENABLED(CONFIG_NET_AIROHA_SOC_WED)
+ 	if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
+ 		if (is_mt7915(&dev->mt76) ||
+ 		    !mtk_wed_get_rx_capa(&dev->mt76.mmio.wed))
+diff --git a/mt7915/mmio.c b/mt7915/mmio.c
+index 2708b15..19b930e 100644
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -13,7 +13,8 @@
+ #include "../trace.h"
+ #include "../dma.h"
+ 
+-static bool wed_enable;
++/* Enable WED by default; can be overridden via module parameter */
++static bool wed_enable = true;
+ module_param(wed_enable, bool, 0644);
+ MODULE_PARM_DESC(wed_enable, "Enable Wireless Ethernet Dispatch support");
+ 
+@@ -577,7 +578,7 @@ static u32 mt7915_rmw(struct mt76_dev *mdev, u32 offset, u32 mask, u32 val)
+ 	return val;
+ }
+ 
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ static void mt7915_mmio_wed_update_rx_stats(struct mtk_wed_device *wed,
+ 					    struct mtk_wed_wo_rx_stats *stats)
+ {
+@@ -633,7 +634,7 @@ out:
+ int mt7915_mmio_wed_init(struct mt7915_dev *dev, void *pdev_ptr,
+ 			 bool pci, int *irq)
+ {
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	struct mtk_wed_device *wed = &dev->mt76.mmio.wed;
+ 	int ret;
+ 
+diff --git a/tx.c b/tx.c
+index 22f9690..19b1da5 100644
+--- a/tx.c
++++ b/tx.c
+@@ -875,7 +875,7 @@ int mt76_token_consume(struct mt76_dev *dev, struct mt76_txwi_cache **ptxwi)
+ 		}
+ 	}
+ 
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	if (mtk_wed_device_active(&dev->mmio.wed) &&
+ 	    token >= dev->mmio.wed.wlan.token_start)
+ 		dev->wed_token_count++;
+@@ -925,7 +925,7 @@ mt76_token_release(struct mt76_dev *dev, int token, bool *wake)
+ 			wake_up(&dev->tx_wait);
+ 		}
+ 
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 		if (mtk_wed_device_active(&dev->mmio.wed) &&
+ 		    token >= dev->mmio.wed.wlan.token_start &&
+ 		    --dev->wed_token_count == 0)
+diff --git a/wed.c b/wed.c
+index ed657d9..b379f16 100644
+--- a/wed.c
++++ b/wed.c
+@@ -28,7 +28,7 @@ void mt76_wed_release_rx_buf(struct mtk_wed_device *wed)
+ }
+ EXPORT_SYMBOL_GPL(mt76_wed_release_rx_buf);
+ 
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ u32 mt76_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
+ {
+ 	struct mtk_wed_bm_desc *desc = wed->rx_buf_ring.desc;
