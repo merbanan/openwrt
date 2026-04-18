@@ -1,0 +1,503 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Date: Sat, 19 Apr 2025 00:00:00 +0000
+Subject: [PATCH] mt76: add EN7523 NPU WiFi RX offload support
+
+The Airoha EN7523 SoC contains a Network Processing Unit (NPU) that can
+offload WiFi RX processing from the host CPU.  In this mode the WiFi
+chip's DMA ring is redirected to NPU-internal SRAM; the NPU performs
+BA reordering and PPE lookup, then writes completed frames into a
+host-allocated output ring (the "host-adapter" ring).  The host reads
+that ring from its NAPI handler.
+
+This patch adds the plumbing needed for mt7915/mt7916 PCIe cards to
+work in this mode when an Airoha NPU is present:
+
+  mt76.h        – add npu_rx_process drv-op hook; called in shared
+                  mt76_dma_rx_poll before falling back to standard
+                  DMA ring processing
+  dma.c         – invoke npu_rx_process when set in mt76_dma_rx_poll
+  mt7915.h      – add npu pointer, band index, BAR0 phys base, and
+                  host-adapter ring tracking to mt7915_dev; include
+                  airoha_offload.h; declare new helpers
+  pci.c         – obtain NPU reference from PCIe bridge OF node on
+                  probe; release it on remove; store BAR0 physical addr
+  mmio.c        – mt7915_mmio_npu_init(): send mailbox sequence
+                  (DRIVER_MODEL, PCIE_PORT_TYPE, PCIE_ADDR, DESC,
+                  init_reserved_memory, NPU_INIT_DONE), read back
+                  RXDESC_BASE and write it to the WiFi DMA register,
+                  allocate the host-adapter ring, register NPU WLAN IRQ;
+                  mt7915_npu_rx_process(): drain host-adapter ring and
+                  pass frames to the normal rx_skb path; re-enable the
+                  NPU IRQ in mt7915_rx_poll_complete when NPU is active
+  mt7915/dma.c  – call mt7915_mmio_npu_init() between NAPI setup and
+                  DMA enable; free host-adapter ring in dma_cleanup
+
+Requires the EN7523 PCIe nodes to carry airoha,npu = <&npu> in the DTS
+(so airoha_npu_get(pdev->bus->bridge) can find the NPU), and the NPU
+ring API patch (936-0-net-airoha-npu-Add-WiFi-RX-ring-management-API).
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+--- a/dma.c
++++ b/dma.c
+@@ -1081,7 +1081,17 @@
+ 	rcu_read_lock();
+ 
+ 	do {
+-		cur = mt76_dma_rx_process(dev, &dev->q_rx[qid], budget - done);
++		if (dev->drv->npu_rx_process) {
++			cur = dev->drv->npu_rx_process(dev, qid,
++						       budget - done);
++			if (cur < 0)
++				cur = mt76_dma_rx_process(dev,
++							  &dev->q_rx[qid],
++							  budget - done);
++		} else {
++			cur = mt76_dma_rx_process(dev, &dev->q_rx[qid],
++						  budget - done);
++		}
+ 		mt76_rx_poll_complete(dev, qid, napi);
+ 		done += cur;
+ 	} while (cur && done < budget);
+--- a/mt76.h
++++ b/mt76.h
+@@ -579,6 +579,8 @@
+ 
+ 	void (*rx_poll_complete)(struct mt76_dev *dev, enum mt76_rxq_id q);
+ 
++	int (*npu_rx_process)(struct mt76_dev *dev, int qid, int budget);
++
+ 	void (*rx_rro_ind_process)(struct mt76_dev *dev, void *data);
+ 	int (*rx_rro_add_msdu_page)(struct mt76_dev *dev, struct mt76_queue *q,
+ 				    dma_addr_t p, void *data);
+--- a/mt7915/dma.c
++++ b/mt7915/dma.c
+@@ -578,6 +578,20 @@
+ 	if (ret < 0)
+ 		return ret;
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++	/* NPU WiFi RX offload init: after NAPI setup, before DMA enable */
++	if (dev->npu) {
++		ret = mt7915_mmio_npu_init(dev);
++		if (ret) {
++			dev_warn(mdev->dev,
++				 "NPU init failed (%d), using normal DMA\n",
++				 ret);
++			airoha_npu_put(dev->npu);
++			dev->npu = NULL;
++		}
++	}
++#endif
++
+ 	netif_napi_add_tx(dev->mt76.tx_napi_dev, &dev->mt76.tx_napi,
+ 			  mt7915_poll_tx);
+ 	napi_enable(&dev->mt76.tx_napi);
+@@ -651,5 +665,9 @@
+ {
+ 	mt7915_dma_disable(dev, true);
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++	mt7915_npu_rx_ring_free(dev);
++#endif
++
+ 	mt76_dma_cleanup(&dev->mt76);
+ }
+--- a/mt7915/mmio.c
++++ b/mt7915/mmio.c
+@@ -578,6 +578,274 @@
+ 	return val;
+ }
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++
++static irqreturn_t mt7915_npu_irq_handler(int irq, void *data)
++{
++	struct mt7915_dev *dev = data;
++	struct mt76_dev *mdev = &dev->mt76;
++	u32 status;
++
++	/* ack and disable IRQ until NAPI re-enables it */
++	status = airoha_npu_wlan_get_irq_status(dev->npu, dev->npu_band_idx);
++	airoha_npu_wlan_set_irq_status(dev->npu, status);
++	airoha_npu_wlan_disable_irq(dev->npu, dev->npu_band_idx);
++
++	napi_schedule(&mdev->napi[MT_RXQ_MAIN]);
++	return IRQ_HANDLED;
++}
++
++static int mt7915_npu_rx_fill_slot(struct mt7915_dev *dev, int idx)
++{
++	struct mt7915_npu_rx_ring *ring = &dev->npu_rx;
++	struct sk_buff *skb;
++	dma_addr_t dma_addr;
++
++	skb = dev_alloc_skb(MT7915_NPU_SKB_SIZE);
++	if (!skb)
++		return -ENOMEM;
++
++	dma_addr = dma_map_single(dev->mt76.dev, skb->data,
++				  MT7915_NPU_SKB_SIZE, DMA_FROM_DEVICE);
++	if (dma_mapping_error(dev->mt76.dev, dma_addr)) {
++		dev_kfree_skb(skb);
++		return -ENOMEM;
++	}
++
++	ring->skbs[idx] = skb;
++	ring->skb_dma[idx] = dma_addr;
++	ring->desc[idx].addr = dma_addr;
++	ring->desc[idx].ctrl = 0;
++	ring->desc[idx].info = 0;
++	ring->desc[idx].data = 0;
++	ring->desc[idx].rsv = 0;
++	return 0;
++}
++
++void mt7915_npu_rx_ring_free(struct mt7915_dev *dev)
++{
++	struct mt7915_npu_rx_ring *ring = &dev->npu_rx;
++	int i;
++
++	if (!ring->desc)
++		return;
++
++	for (i = 0; i < ring->size; i++) {
++		if (ring->skbs && ring->skbs[i]) {
++			dma_unmap_single(dev->mt76.dev, ring->skb_dma[i],
++					 MT7915_NPU_SKB_SIZE, DMA_FROM_DEVICE);
++			dev_kfree_skb(ring->skbs[i]);
++		}
++	}
++
++	kfree(ring->skb_dma);
++	kfree(ring->skbs);
++	dma_free_coherent(dev->mt76.dev,
++			  ring->size * sizeof(*ring->desc),
++			  ring->desc, ring->desc_dma);
++	ring->desc = NULL;
++	ring->skbs = NULL;
++	ring->skb_dma = NULL;
++}
++
++static int mt7915_npu_rx_ring_alloc(struct mt7915_dev *dev)
++{
++	struct mt7915_npu_rx_ring *ring = &dev->npu_rx;
++	int i, ret;
++
++	ring->size = MT7915_NPU_RX_RING_SIZE;
++	ring->dma_idx = 0;
++
++	ring->desc = dma_alloc_coherent(dev->mt76.dev,
++					ring->size * sizeof(*ring->desc),
++					&ring->desc_dma, GFP_KERNEL);
++	if (!ring->desc)
++		return -ENOMEM;
++
++	ring->skbs = kcalloc(ring->size, sizeof(*ring->skbs), GFP_KERNEL);
++	if (!ring->skbs) {
++		ret = -ENOMEM;
++		goto free_desc;
++	}
++
++	ring->skb_dma = kcalloc(ring->size, sizeof(*ring->skb_dma), GFP_KERNEL);
++	if (!ring->skb_dma) {
++		ret = -ENOMEM;
++		goto free_skbs;
++	}
++
++	for (i = 0; i < ring->size; i++) {
++		ret = mt7915_npu_rx_fill_slot(dev, i);
++		if (ret)
++			goto free_ring;
++	}
++
++	return 0;
++
++free_ring:
++	while (--i >= 0) {
++		dma_unmap_single(dev->mt76.dev, ring->skb_dma[i],
++				 MT7915_NPU_SKB_SIZE, DMA_FROM_DEVICE);
++		dev_kfree_skb(ring->skbs[i]);
++	}
++	kfree(ring->skb_dma);
++	ring->skb_dma = NULL;
++free_skbs:
++	kfree(ring->skbs);
++	ring->skbs = NULL;
++free_desc:
++	dma_free_coherent(dev->mt76.dev,
++			  ring->size * sizeof(*ring->desc),
++			  ring->desc, ring->desc_dma);
++	ring->desc = NULL;
++	return ret;
++}
++
++int mt7915_mmio_npu_init(struct mt7915_dev *dev)
++{
++	struct mt76_dev *mdev = &dev->mt76;
++	struct airoha_npu *npu = dev->npu;
++	int band = dev->npu_band_idx;
++	u32 val, rxdesc_base;
++	int ret;
++
++	ret = mt7915_npu_rx_ring_alloc(dev);
++	if (ret)
++		return ret;
++
++	/* Tell NPU where to write processed frames (host-adapter ring) */
++	ret = airoha_npu_wlan_rx_ring_setup(npu, band,
++					     dev->npu_rx.desc_dma,
++					     dev->npu_rx.size);
++	if (ret)
++		goto free_ring;
++
++	/* WiFi chip variant */
++	val = is_mt7916(mdev) ? WLAN_MT7916_DBDC : WLAN_MT7915A;
++	ret = airoha_npu_wlan_send_msg(npu, band,
++				       WLAN_FUNC_SET_WAIT_DRIVER_MODEL,
++				       &val, sizeof(val), GFP_KERNEL);
++	if (ret)
++		goto free_ring;
++
++	/* PCIe port type (matches linux,pci-domain in DTS) */
++	val = band ? WLAN_PORT1 : WLAN_PORT0;
++	ret = airoha_npu_wlan_send_msg(npu, band,
++				       WLAN_FUNC_SET_WAIT_PCIE_PORT_TYPE,
++				       &val, sizeof(val), GFP_KERNEL);
++	if (ret)
++		goto free_ring;
++
++	/* Physical address of WiFi DMA ring base register in PCIe BAR0 */
++	val = (u32)(dev->phys_base + MT_RXQ_RING_BASE(MT_RXQ_MAIN));
++	ret = airoha_npu_wlan_send_msg(npu, band,
++				       WLAN_FUNC_SET_WAIT_PCIE_ADDR,
++				       &val, sizeof(val), GFP_KERNEL);
++	if (ret)
++		goto free_ring;
++
++	/* Number of descriptors for NPU internal WiFi DMA ring */
++	val = MT7915_NPU_WIFI_DESC_NUM;
++	ret = airoha_npu_wlan_send_msg(npu, band,
++				       WLAN_FUNC_SET_WAIT_DESC,
++				       &val, sizeof(val), GFP_KERNEL);
++	if (ret)
++		goto free_ring;
++
++	/* NPU reserved memory (BA nodes, packet buffers) */
++	ret = airoha_npu_wlan_init_reserved_memory(npu);
++	if (ret)
++		goto free_ring;
++
++	/* Signal NPU that WiFi-side init is complete */
++	val = 1;
++	ret = airoha_npu_wlan_send_msg(npu, band,
++				       WLAN_FUNC_SET_WAIT_NPU_INIT_DONE,
++				       &val, sizeof(val), GFP_KERNEL);
++	if (ret)
++		goto free_ring;
++
++	/* Get NPU internal WiFi DMA ring base, redirect WiFi DMA to it */
++	ret = airoha_npu_wlan_get_msg(npu, band,
++				      WLAN_FUNC_GET_WAIT_RXDESC_BASE,
++				      &rxdesc_base, sizeof(rxdesc_base),
++				      GFP_KERNEL);
++	if (ret)
++		goto free_ring;
++
++	writel(rxdesc_base, &mdev->q_rx[MT_RXQ_MAIN].regs->desc_base);
++
++	/* Register NPU WLAN IRQ */
++	ret = devm_request_irq(mdev->dev, npu->irqs[band],
++			       mt7915_npu_irq_handler, 0,
++			       "mt7915-npu-rx", dev);
++	if (ret)
++		goto free_ring;
++
++	airoha_npu_wlan_enable_irq(npu, band);
++	dev_info(mdev->dev, "NPU WiFi RX offload enabled (band %d)\n", band);
++	return 0;
++
++free_ring:
++	mt7915_npu_rx_ring_free(dev);
++	return ret;
++}
++
++static int mt7915_npu_rx_process(struct mt76_dev *mdev, int qid, int budget)
++{
++	struct mt7915_dev *dev = container_of(mdev, struct mt7915_dev, mt76);
++	struct mt7915_npu_rx_ring *ring = &dev->npu_rx;
++	int done = 0;
++
++	if (!dev->npu || qid != MT_RXQ_MAIN)
++		return -ENODEV;
++
++	while (done < budget) {
++		struct airoha_npu_rx_dma_desc *desc;
++		struct sk_buff *skb;
++		u32 cpu_idx, len, info = 0;
++		int idx = ring->dma_idx;
++
++		cpu_idx = airoha_npu_wlan_rx_get_cpu_idx(dev->npu,
++							  dev->npu_band_idx);
++		if (idx == cpu_idx)
++			break;
++
++		desc = &ring->desc[idx];
++		if (!(desc->ctrl & NPU_RX_DMA_DESC_DONE_MASK))
++			break;
++
++		len = FIELD_GET(NPU_RX_DMA_DESC_CUR_LEN_MASK, desc->ctrl);
++		skb = ring->skbs[idx];
++
++		dma_unmap_single(mdev->dev, ring->skb_dma[idx],
++				 MT7915_NPU_SKB_SIZE, DMA_FROM_DEVICE);
++
++		/* Refill slot before handing skb upward */
++		if (mt7915_npu_rx_fill_slot(dev, idx)) {
++			/* OOM: restore the slot and stop */
++			ring->skbs[idx] = skb;
++			ring->skb_dma[idx] = dma_map_single(mdev->dev,
++				skb->data, MT7915_NPU_SKB_SIZE, DMA_FROM_DEVICE);
++			desc->ctrl = 0;
++			break;
++		}
++
++		ring->dma_idx = (idx + 1) % ring->size;
++		airoha_npu_wlan_rx_set_dma_idx(dev->npu, dev->npu_band_idx,
++					       ring->dma_idx);
++
++		skb_put(skb, len);
++		*(u32 *)skb->cb = info;
++		mdev->drv->rx_skb(mdev, MT_RXQ_MAIN, skb, &info);
++		done++;
++	}
++
++	return done;
++}
++
++#endif /* CONFIG_NET_AIROHA_NPU */
++
+ #if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ static void mt7915_mmio_wed_update_rx_stats(struct mtk_wed_device *wed,
+ 					    struct mtk_wed_wo_rx_stats *stats)
+@@ -820,6 +1088,13 @@
+ {
+ 	struct mt7915_dev *dev = container_of(mdev, struct mt7915_dev, mt76);
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++	if (dev->npu && q == MT_RXQ_MAIN) {
++		airoha_npu_wlan_enable_irq(dev->npu, dev->npu_band_idx);
++		return;
++	}
++#endif
++
+ 	mt7915_irq_enable(dev, MT_INT_RX(q));
+ }
+ 
+@@ -932,6 +1207,9 @@
+ 		.rx_skb = mt7915_queue_rx_skb,
+ 		.rx_check = mt7915_rx_check,
+ 		.rx_poll_complete = mt7915_rx_poll_complete,
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++		.npu_rx_process = mt7915_npu_rx_process,
++#endif
+ 		.sta_add = mt7915_mac_sta_add,
+ 		.sta_event = mt7915_mac_sta_event,
+ 		.sta_remove = mt7915_mac_sta_remove,
+--- a/mt7915/mt7915.h
++++ b/mt7915/mt7915.h
+@@ -9,6 +9,10 @@
+ #include "../mt76_connac.h"
+ #include "regs.h"
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++#include <linux/soc/airoha/airoha_offload.h>
++#endif
++
+ #define MT7915_MAX_INTERFACES		19
+ #define MT7915_WTBL_SIZE		288
+ #define MT7916_WTBL_SIZE		544
+@@ -63,6 +67,21 @@
+ #define MT7915_HW_TOKEN_SIZE		4096
+ #define MT7915_TOKEN_SIZE		8192
+ 
++#define MT7915_NPU_RX_RING_SIZE		512
++#define MT7915_NPU_WIFI_DESC_NUM	1536
++#define MT7915_NPU_SKB_SIZE		MT_RX_BUF_SIZE
++
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++struct mt7915_npu_rx_ring {
++	struct airoha_npu_rx_dma_desc *desc;
++	dma_addr_t desc_dma;
++	struct sk_buff **skbs;
++	dma_addr_t *skb_dma;
++	u32 size;
++	u32 dma_idx;
++};
++#endif
++
+ #define MT7915_CFEND_RATE_DEFAULT	0x49	/* OFDM 24M */
+ #define MT7915_CFEND_RATE_11B		0x03	/* 11B LP, 11M */
+ 
+@@ -326,8 +345,26 @@
+ 	struct reset_control *rstc;
+ 	void __iomem *dcm;
+ 	void __iomem *sku;
++
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++	struct airoha_npu *npu;
++	u8 npu_band_idx;
++	resource_size_t phys_base;
++	struct mt7915_npu_rx_ring npu_rx;
++#endif
+ };
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++int mt7915_mmio_npu_init(struct mt7915_dev *dev);
++void mt7915_npu_rx_ring_free(struct mt7915_dev *dev);
++#else
++static inline int mt7915_mmio_npu_init(struct mt7915_dev *dev)
++{
++	return -EOPNOTSUPP;
++}
++static inline void mt7915_npu_rx_ring_free(struct mt7915_dev *dev) {}
++#endif
++
+ enum {
+ 	WFDMA0 = 0x0,
+ 	WFDMA1,
+--- a/mt7915/pci.c
++++ b/mt7915/pci.c
+@@ -133,6 +133,18 @@
+ 	if (IS_ERR(dev))
+ 		return PTR_ERR(dev);
+ 
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++	dev->phys_base = pci_resource_start(pdev, 0);
++	{
++		struct airoha_npu *npu = airoha_npu_get(pdev->bus->bridge);
++
++		if (!IS_ERR_OR_NULL(npu)) {
++			dev->npu = npu;
++			dev->npu_band_idx = (u8)pci_domain_nr(pdev->bus);
++		}
++	}
++#endif
++
+ 	mdev = &dev->mt76;
+ 	mt7915_wfsys_reset(dev);
+ 	hif2 = mt7915_pci_init_hif2(pdev);
+@@ -215,6 +227,12 @@
+ 	mdev = pci_get_drvdata(pdev);
+ 	dev = container_of(mdev, struct mt7915_dev, mt76);
+ 	mt7915_put_hif2(dev->hif2);
++
++#if IS_ENABLED(CONFIG_NET_AIROHA_NPU)
++	if (dev->npu)
++		airoha_npu_put(dev->npu);
++#endif
++
+ 	mt7915_unregister_device(dev);
+ }
+ 
