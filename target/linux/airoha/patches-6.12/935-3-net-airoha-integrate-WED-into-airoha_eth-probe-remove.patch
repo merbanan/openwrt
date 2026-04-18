@@ -1,0 +1,51 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: airoha: integrate WED into airoha_eth probe/remove
+
+Call airoha_wed_add_hw() for each phandle listed in the "airoha,wed"
+property of the ethernet DT node after hardware initialisation succeeds.
+Call airoha_wed_exit() during removal to release WED resources and clear
+the global mtk_soc_wed_ops pointer before any WiFi driver can attempt a
+new attach.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+ drivers/net/ethernet/airoha/airoha_eth.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+--- a/drivers/net/ethernet/airoha/airoha_eth.c
++++ b/drivers/net/ethernet/airoha/airoha_eth.c
+@@ -17,6 +17,7 @@
+ 
+ #include "airoha_regs.h"
+ #include "airoha_eth.h"
++#include "airoha_wed.h"
+ 
+ u32 airoha_rr(void __iomem *base, u32 offset)
+ {
+@@ -3338,6 +3339,18 @@
+ 	if (err)
+ 		goto error_netdev_free;
+ 
++	/* Register WED instances.  The DT eth node lists WED device nodes via
++	 * the "airoha,wed" phandle array (one entry per PCIe domain / WED hw).
++	 * Ownership of the node reference is transferred to the WED driver.
++	 */
++	for (i = 0; ; i++) {
++		struct device_node *wed_np =
++			of_parse_phandle(pdev->dev.of_node, "airoha,wed", i);
++		if (!wed_np)
++			break;
++		airoha_wed_add_hw(wed_np, i);
++	}
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+ 		airoha_qdma_start_napi(&eth->qdma[i]);
+ 
+@@ -3394,6 +3407,8 @@
+ 	struct airoha_eth *eth = platform_get_drvdata(pdev);
+ 	int i;
+ 
++	airoha_wed_exit();
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
+ 		airoha_qdma_stop_napi(&eth->qdma[i]);

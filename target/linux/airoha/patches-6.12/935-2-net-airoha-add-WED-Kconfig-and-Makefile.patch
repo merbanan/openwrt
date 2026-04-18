@@ -1,0 +1,48 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: airoha: add WED Kconfig option and Makefile rules
+
+Add CONFIG_NET_AIROHA_SOC_WED tristate and wire up the build rules
+for airoha_wed.c, airoha_wed_debugfs.c, and airoha_wed_ops.c.
+
+airoha_wed_ops.o is built as a standalone object (not part of airoha-eth)
+so that it is available before any WiFi driver loads, mirroring the
+structure of drivers/net/ethernet/mediatek/mtk_wed_ops.c.
+
+Add ccflags-y to include the MediaTek ethernet driver directory so that
+airoha_wed.h can include the private mtk_wed_regs.h header using a simple
+filename rather than a relative path.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+ drivers/net/ethernet/airoha/Kconfig  | 11 +++++++++++
+ drivers/net/ethernet/airoha/Makefile |  4 ++++
+ 2 files changed, 15 insertions(+)
+
+--- a/drivers/net/ethernet/airoha/Kconfig
++++ b/drivers/net/ethernet/airoha/Kconfig
+@@ -31,4 +31,15 @@
+ 	help
+ 	  Enable Aiorha flowtable statistic counters.
+ 
++config NET_AIROHA_SOC_WED
++	tristate "Airoha EN7523 WED support"
++	depends on NET_AIROHA
++	help
++	  Enable WiFi Ethernet Datapath (WED) hardware offload for the
++	  EN7523 SoC.  When enabled, mt76 WiFi drivers can offload
++	  WiFi-to-Ethernet TX through the WED engine rather than taking
++	  the slow path through the CPU.
++
++	  If unsure, say M.
++
+ endif #NET_VENDOR_AIROHA
+--- a/drivers/net/ethernet/airoha/Makefile
++++ b/drivers/net/ethernet/airoha/Makefile
+@@ -7,3 +7,7 @@
+ airoha-eth-y := airoha_eth.o airoha_ppe.o
+ airoha-eth-$(CONFIG_DEBUG_FS) += airoha_ppe_debugfs.o
+ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
++
++ccflags-y += -I$(srctree)/drivers/net/ethernet/mediatek
++obj-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed_ops.o
++airoha-eth-$(CONFIG_NET_AIROHA_SOC_WED) += airoha_wed.o airoha_wed_debugfs.o

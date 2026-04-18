@@ -455,6 +455,22 @@
 		memory-region-names = "binary", "pkt";
 	};
 
+	wed0: wed@1fa02000 {
+		compatible = "airoha,en7523-wed", "syscon";
+		reg = <0x1fa02000 0xb00>,
+		      <0x1fa06000 0x400>;
+		reg-names = "wed", "wdma";
+		interrupts = <GIC_SPI 67 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	wed1: wed@1fa03000 {
+		compatible = "airoha,en7523-wed", "syscon";
+		reg = <0x1fa03000 0xb00>,
+		      <0x1fa06400 0x400>;
+		reg-names = "wed", "wdma";
+		interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
 	eth: ethernet@1fb50000 {
 		compatible = "airoha,an7523-eth", "airoha,en7523-eth";
 		status = "disabled";
@@ -491,6 +507,7 @@
 		memory-region-names = "qdma0-buf", "qdma1-buf";
 
 		airoha,npu = <&npu>;
+		airoha,wed = <&wed0>, <&wed1>;
 
 		#address-cells = <1>;
 		#size-cells = <0>;

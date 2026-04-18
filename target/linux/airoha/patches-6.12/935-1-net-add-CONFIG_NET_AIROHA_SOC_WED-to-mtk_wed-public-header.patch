@@ -1,0 +1,60 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: mediatek: extend mtk_wed public API guards for Airoha WED
+
+The public header include/linux/soc/mediatek/mtk_wed.h gates its
+functional API behind #ifdef CONFIG_NET_MEDIATEK_SOC_WED.  The Airoha
+EN7523 WED driver (CONFIG_NET_AIROHA_SOC_WED) reuses the same struct
+layout and mtk_wed_device API, so extend every guard to also activate
+when Airoha WED is enabled.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+ include/linux/soc/mediatek/mtk_wed.h | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+--- a/include/linux/soc/mediatek/mtk_wed.h
++++ b/include/linux/soc/mediatek/mtk_wed.h
+@@ -83,7 +83,7 @@ struct mtk_wed_wo_rx_stats {
+ };
+
+ struct mtk_wed_device {
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	const struct mtk_wed_ops *ops;
+ 	struct device *dev;
+ 	struct mtk_wed_hw *hw;
+@@ -234,7 +234,7 @@ mtk_wed_device_attach(struct mtk_wed_de
+ {
+ 	int ret = -ENODEV;
+
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	rcu_read_lock();
+ 	dev->ops = rcu_dereference(mtk_soc_wed_ops);
+ 	if (dev->ops)
+@@ -249,7 +249,7 @@ mtk_wed_device_attach(struct mtk_wed_de
+
+ static inline bool mtk_wed_get_rx_capa(struct mtk_wed_device *dev)
+ {
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	if (dev->version == 3)
+ 		return dev->wlan.hw_rro;
+
+@@ -261,14 +261,14 @@ static inline bool mtk_wed_get_rx_capa(
+
+ static inline bool mtk_wed_is_amsdu_supported(struct mtk_wed_device *dev)
+ {
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ 	return dev->version == 3;
+ #else
+ 	return false;
+ #endif
+ }
+
+-#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++#if defined(CONFIG_NET_MEDIATEK_SOC_WED) || defined(CONFIG_NET_AIROHA_SOC_WED)
+ #define mtk_wed_device_active(_dev) !!(_dev)->ops
+ #define mtk_wed_device_detach(_dev) (_dev)->ops->detach(_dev)
+ #define mtk_wed_device_start(_dev, _mask) (_dev)->ops->start(_dev, _mask)
