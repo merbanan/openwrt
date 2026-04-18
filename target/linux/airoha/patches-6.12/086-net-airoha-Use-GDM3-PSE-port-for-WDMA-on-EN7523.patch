@@ -1,0 +1,60 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Date: Fri, 18 Apr 2025 00:00:00 +0000
+Subject: [PATCH] net: airoha: use GDM3 PSE port for WDMA on EN7523
+
+On EN7523 the WDMA connects to the PSE fabric via GDM3 (port 3), not
+CDM4 (port 7) as on EN7581/AN7583.  This was confirmed by the old
+ECNT 5.4 SDK which defines WHNAT_WDMA_PORT = 3 and labels the
+corresponding queue allocation as "/* GDM3->XFI */".
+
+The upstream commit that introduced WLAN flowtable TX offload
+(085-v6.18-net-airoha-Add-wlan-flowtable-TX-offload.patch) hard-codes
+FE_PSE_PORT_CDM4 for the WDMA path because it targets EN7581.  Apply
+the correct port value for EN7523 using the airoha_is() SoC check.
+
+Two locations need fixing:
+
+1. airoha_ppe_foe_entry_prepare: select FE_PSE_PORT_GDM3 when running
+   on EN7523 so that HW-offloaded WLAN flows are steered to the right
+   PSE port.
+
+2. airoha_ppe_foe_flow_stats_update: the early-return that skips the
+   stats update for WDMA flows must also trigger on FE_PSE_PORT_GDM3
+   when running on EN7523.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+ drivers/net/ethernet/airoha/airoha_ppe.c | 12 ++++++------
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/airoha/airoha_ppe.c b/drivers/net/ethernet/airoha/airoha_ppe.c
+index a1b2c3d..e4f5a6b 100644
+--- a/drivers/net/ethernet/airoha/airoha_ppe.c
++++ b/drivers/net/ethernet/airoha/airoha_ppe.c
+@@ -314,9 +314,11 @@ static int airoha_ppe_foe_entry_prepare(struct airoha_eth *eth,
+ 		struct airoha_wdma_info info = {};
+
+ 		if (!airoha_ppe_get_wdma_info(dev, data->eth.h_dest, &info)) {
+-			val |= FIELD_PREP(AIROHA_FOE_IB2_NBQ, info.idx) |
+-			       FIELD_PREP(AIROHA_FOE_IB2_PSE_PORT,
+-					  FE_PSE_PORT_CDM4);
++			val |= FIELD_PREP(AIROHA_FOE_IB2_NBQ, info.idx) |
++			       FIELD_PREP(AIROHA_FOE_IB2_PSE_PORT,
++					  airoha_is(eth, an7523) ?
++					  FE_PSE_PORT_GDM3 :
++					  FE_PSE_PORT_CDM4);
+ 			qdata |= FIELD_PREP(AIROHA_FOE_ACTDP, info.bss);
+ 			wlan_etype = FIELD_PREP(AIROHA_FOE_MAC_WDMA_BAND,
+ 						info.idx) |
+@@ -600,7 +602,9 @@ static void airoha_ppe_foe_flow_stats_update(struct airoha_ppe *ppe,
+ 	}
+
+ 	pse_port = FIELD_GET(AIROHA_FOE_IB2_PSE_PORT, *ib2);
+-	if (pse_port == FE_PSE_PORT_CDM4)
++	if (pse_port == FE_PSE_PORT_CDM4 ||
++	    (airoha_is(ppe->eth, an7523) &&
++	     pse_port == FE_PSE_PORT_GDM3))
+ 		return;
+
+ 	airoha_ppe_foe_flow_stat_entry_reset(ppe, npu, index);
