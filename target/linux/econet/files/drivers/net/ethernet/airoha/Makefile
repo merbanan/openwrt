@@ -11,3 +11,8 @@ obj-$(CONFIG_NET_AIROHA_NPU) += airoha_npu.o
 
 obj-$(CONFIG_NET_ECONET) += econet-eth.o
 econet-eth-y := econet_eth.o econet_ppe.o
+
+# EcoNet EN7521/EN7526/EN751221 GPON + EPON MAC drivers (attach to a DT sfp)
+obj-$(CONFIG_ECONET_GPON) += econet-gpon.o
+econet-gpon-y := econet_gpon.o econet_ploam.o
+obj-$(CONFIG_ECONET_EPON) += econet_epon.o

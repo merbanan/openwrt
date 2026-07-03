@@ -463,4 +463,28 @@
 		compatible = "sff,sfp";
 		i2c-bus = <&i2c_sfp>;
 	};
+
+	/*
+	 * xPON MAC (shared 0x1fb60000 block, GPON and EPON are mutually
+	 * exclusive modes). Both attach to the emulated SFP (&sfp0). A board
+	 * enables the one matching its optics. NB the interrupt line is a
+	 * placeholder - confirm the XPON MAC IRQ on silicon.
+	 */
+	gpon: gpon@1fb60000 {
+		compatible = "econet,en751221-gpon";
+		reg = <0x1fb60000 0x10000>;
+		interrupt-parent = <&intc>;
+		interrupts = <25>;
+		sfp = <&sfp0>;
+		status = "disabled";
+	};
+
+	epon: epon@1fb60000 {
+		compatible = "econet,en751221-epon";
+		reg = <0x1fb60000 0x10000>;
+		interrupt-parent = <&intc>;
+		interrupts = <25>;
+		sfp = <&sfp0>;
+		status = "disabled";
+	};
 };
