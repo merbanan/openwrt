@@ -133,17 +133,66 @@
 			status = "disabled";
 		};
 
-		mdio: mdio-bus {
+	};
+
+	/*
+	 * EN751221 nested dual-MT7530: the on-die switch (MMIO, ID_EN751221)
+	 * only wires the cascade port5 (TRGMII to the MCM) and the CPU port6
+	 * (to GDM1); the MCM switch (MDIO @ 0x1f, ID_EN751221_EXT) carries the
+	 * four user LAN ports + their PHYs.
+	 */
+	switch: switch@1fb58000 {
+		compatible = "econet,en751221-switch";
+		reg = <0x1fb58000 0x8000>;
+		resets = <&scuclk EN751221_GSW_RST>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		dsa,member = <0 0>;
+
+		interrupt-controller;
+		#interrupt-cells = <1>;
+		interrupt-parent = <&intc>;
+		interrupts = <15>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ondie_port5: port@5 {
+				reg = <5>;
+				phy-mode = "trgmii";
+				link = <&mcm_port6>;
+
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+				};
+			};
+
+			port@6 {
+				reg = <6>;
+				label = "cpu";
+				ethernet = <&gdm1>;
+				phy-mode = "trgmii";
+
+				fixed-link {
+					speed = <1000>;
+					full-duplex;
+				};
+			};
+		};
+
+		mdio {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
 			switch0: switch@1f {
-				compatible = "mediatek,mt7530";
-				#address-cells = <1>;
-				#size-cells = <0>;
+				compatible = "econet,en751221-switch";
 				reg = <0x1f>;
 				mediatek,mcm;
-				reset-names = "mcm";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				dsa,member = <0 1>;
 
 				ports {
 					#address-cells = <1>;
@@ -152,33 +201,54 @@
 					port@0 {
 						reg = <0>;
 						label = "lan0";
+						phy-handle = <&mcmphy0>;
 					};
 
 					port@1 {
 						reg = <1>;
 						label = "lan1";
+						phy-handle = <&mcmphy1>;
 					};
 
 					port@2 {
 						reg = <2>;
 						label = "lan2";
+						phy-handle = <&mcmphy2>;
 					};
 
 					port@3 {
 						reg = <3>;
 						label = "lan3";
+						phy-handle = <&mcmphy3>;
 					};
 
-					port@6 {
+					mcm_port6: port@6 {
 						reg = <6>;
-						label = "cpu";
-						ethernet = <&gdm1>;
 						phy-mode = "trgmii";
+						link = <&ondie_port5>;
 
 						fixed-link {
 							speed = <1000>;
 							full-duplex;
 						};
+					};
+				};
+
+				mdio {
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					mcmphy0: ethernet-phy@0 {
+						reg = <0>;
+					};
+					mcmphy1: ethernet-phy@1 {
+						reg = <1>;
+					};
+					mcmphy2: ethernet-phy@2 {
+						reg = <2>;
+					};
+					mcmphy3: ethernet-phy@3 {
+						reg = <3>;
 					};
 				};
 			};

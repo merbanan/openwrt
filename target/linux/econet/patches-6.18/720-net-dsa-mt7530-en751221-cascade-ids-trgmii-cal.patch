@@ -1,0 +1,200 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: dsa: mt7530: add EN751221 cascaded switch IDs + TRGMII cal
+
+The EcoNet EN751221 has two cascaded MT7530 switches: an on-die one
+(MMIO) and an external MCM one (MDIO @ 0x1f). Add ID_EN751221 (on-die)
+and ID_EN751221_EXT (MCM) to mt753x_table + the of_match tables, both
+MT7530-class, and port the OEM macMT7530doP6Cal TRGMII cascade
+calibration (sysfs-triggered once both switches probe).
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+---
+--- a/drivers/net/dsa/mt7530.h
++++ b/drivers/net/dsa/mt7530.h
+@@ -20,6 +20,8 @@
+ 	ID_MT7531 = 2,
+ 	ID_MT7988 = 3,
+ 	ID_EN7581 = 4,
++	ID_EN751221 = 5,
++	ID_EN751221_EXT = 6,
+ };
+ 
+ #define	NUM_TRGMII_CTRL			5
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -2321,6 +2321,106 @@
+ 	return ret;
+ }
+ 
++/* EN751221: TRGMII cascade calibration (ported from the OEM macMT7530doP6Cal).
++ * Sweeps the per-lane RX DAC tap on the on-die<->MCM TRGMII cascade link and
++ * centres it on the good window. HW-empirical (regs 0x7a10..0x7a70); triggered
++ * from user space via the en751221_trgmii_cal sysfs attr once both cascaded
++ * switches have probed.
++ */
++static struct mt7530_priv *g_en751221_ondie;
++static struct mt7530_priv *g_en751221_mcm;
++static int g_en751221_cal_sysfs;
++
++static u32 en751221_trgmii_errchk(struct mt7530_priv *rx, u32 reg)
++{
++	u32 v = mt7530_read(rx, reg);
++
++	mt7530_write(rx, reg, v | 0x40000000);
++	mt7530_write(rx, reg, v & ~0x40000000);
++	return (mt7530_read(rx, reg) & 0x00000f00) >> 8;
++}
++
++static void en751221_trgmii_cal(struct mt7530_priv *ondie,
++				struct mt7530_priv *mcm)
++{
++	static const u32 rd_reg[5] = { 0x7a10, 0x7a18, 0x7a20, 0x7a28, 0x7a30 };
++	static const u32 td_reg[5] = { 0x7a50, 0x7a58, 0x7a60, 0x7a68, 0x7a70 };
++	int dir, ch, dac;
++
++	dev_info(ondie->dev, "TRGMII cascade calibration start\n");
++	for (dir = 0; dir < 2; dir++) {
++		/* dir0: tx=on-die rx=MCM; dir1: tx=MCM rx=on-die */
++		struct mt7530_priv *tx = dir ? mcm : ondie;
++		struct mt7530_priv *rx = dir ? ondie : mcm;
++		u32 v;
++
++		v = mt7530_read(tx, 0x7a40);
++		mt7530_write(tx, 0x7a40, v | 0x80000000);
++
++		for (ch = 0; ch < 5; ch++) {
++			int win0 = 0, win1 = 0, state = 0;
++			u32 tap;
++
++			for (dac = 1; dac <= 127; dac++) {
++				u32 val, err;
++
++				v = mt7530_read(tx, td_reg[ch]);
++				mt7530_write(tx, td_reg[ch],
++					     (v & 0xffffff00) | 0x55);
++
++				v = mt7530_read(rx, rd_reg[ch]);
++				mt7530_write(rx, rd_reg[ch],
++					     (v & 0xffffff80) | dac);
++
++				err = en751221_trgmii_errchk(rx, rd_reg[ch]);
++				val = (mt7530_read(rx, rd_reg[ch]) &
++				       0x00ff0000) >> 16;
++
++				if (state == 0) {
++					if (val == 0x55 && err == 0) {
++						win0 = dac;
++						state = 1;
++					}
++				} else if (state == 1) {
++					if (val == 0x55 && err == 0)
++						win1 = dac;
++					else
++						state = 2;
++				}
++			}
++
++			v = mt7530_read(rx, rd_reg[ch]) & 0xffffff80;
++			if (state == 2 && win0 != win1) {
++				tap = (win0 + win1) >> 1;
++				dev_info(rx->dev,
++					 "trgmii cal dir%d ch%d win 0x%x~0x%x tap 0x%x\n",
++					 dir, ch, win0, win1, tap);
++				mt7530_write(rx, rd_reg[ch], v | tap);
++			} else {
++				dev_info(rx->dev,
++					 "trgmii cal dir%d ch%d FAIL (win 0x%x~0x%x), keep tap\n",
++					 dir, ch, win0, win1);
++			}
++		}
++
++		v = mt7530_read(tx, 0x7a40);
++		mt7530_write(tx, 0x7a40, v & ~0x80000000);
++	}
++	dev_info(ondie->dev, "TRGMII cascade calibration done\n");
++}
++
++static ssize_t en751221_trgmii_cal_store(struct device *d,
++					 struct device_attribute *a,
++					 const char *buf, size_t n)
++{
++	if (g_en751221_ondie && g_en751221_mcm)
++		en751221_trgmii_cal(g_en751221_ondie, g_en751221_mcm);
++	else
++		pr_warn("en751221 trgmii cal: switches not ready\n");
++	return n;
++}
++static DEVICE_ATTR_WO(en751221_trgmii_cal);
++
+ static int
+ mt7530_setup(struct dsa_switch *ds)
+ {
+@@ -2334,6 +2434,19 @@
+ 	u32 id, val;
+ 	int ret, i;
+ 
++	/* EN751221: stash each cascaded switch and expose the TRGMII
++	 * calibration trigger once both (on-die + MCM) have probed.
++	 */
++	if (priv->id == ID_EN751221)
++		g_en751221_ondie = priv;
++	else if (priv->id == ID_EN751221_EXT)
++		g_en751221_mcm = priv;
++	if (g_en751221_ondie && g_en751221_mcm && !g_en751221_cal_sysfs) {
++		if (!device_create_file(priv->dev,
++					&dev_attr_en751221_trgmii_cal))
++			g_en751221_cal_sysfs = 1;
++	}
++
+ 	/* The parent node of conduit netdev which holds the common system
+ 	 * controller also is the container for two GMACs nodes representing
+ 	 * as two netdev instances.
+@@ -3253,6 +3366,28 @@
+ 		.phy_write_c45 = mt7531_ind_c45_phy_write,
+ 		.mac_port_get_caps = en7581_mac_port_get_caps,
+ 	},
++	[ID_EN751221] = {
++		.id = ID_EN751221,
++		.pcs_ops = &mt7530_pcs_ops,
++		.sw_setup = mt7530_setup,
++		.phy_read_c22 = mt7530_phy_read_c22,
++		.phy_write_c22 = mt7530_phy_write_c22,
++		.phy_read_c45 = mt7530_phy_read_c45,
++		.phy_write_c45 = mt7530_phy_write_c45,
++		.mac_port_get_caps = mt7530_mac_port_get_caps,
++		.mac_port_config = mt7530_mac_config,
++	},
++	[ID_EN751221_EXT] = {
++		.id = ID_EN751221_EXT,
++		.pcs_ops = &mt7530_pcs_ops,
++		.sw_setup = mt7530_setup,
++		.phy_read_c22 = mt7530_phy_read_c22,
++		.phy_write_c22 = mt7530_phy_write_c22,
++		.phy_read_c45 = mt7530_phy_read_c45,
++		.phy_write_c45 = mt7530_phy_write_c45,
++		.mac_port_get_caps = mt7530_mac_port_get_caps,
++		.mac_port_config = mt7530_mac_config,
++	},
+ };
+ EXPORT_SYMBOL_GPL(mt753x_table);
+ 
+--- a/drivers/net/dsa/mt7530-mmio.c
++++ b/drivers/net/dsa/mt7530-mmio.c
+@@ -12,6 +12,7 @@
+ 
+ static const struct of_device_id mt7988_of_match[] = {
+ 	{ .compatible = "airoha,en7581-switch", .data = &mt753x_table[ID_EN7581], },
++	{ .compatible = "econet,en751221-switch", .data = &mt753x_table[ID_EN751221], },
+ 	{ .compatible = "mediatek,mt7988-switch", .data = &mt753x_table[ID_MT7988], },
+ 	{ /* sentinel */ },
+ };
+--- a/drivers/net/dsa/mt7530-mdio.c
++++ b/drivers/net/dsa/mt7530-mdio.c
+@@ -132,6 +132,7 @@
+ 	{ .compatible = "mediatek,mt7621", .data = &mt753x_table[ID_MT7621], },
+ 	{ .compatible = "mediatek,mt7530", .data = &mt753x_table[ID_MT7530], },
+ 	{ .compatible = "mediatek,mt7531", .data = &mt753x_table[ID_MT7531], },
++	{ .compatible = "econet,en751221-switch", .data = &mt753x_table[ID_EN751221_EXT], },
+ 	{ /* sentinel */ },
+ };
+ MODULE_DEVICE_TABLE(of, mt7530_of_match);
