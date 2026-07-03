@@ -11,12 +11,12 @@ Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
 ---
 --- a/drivers/net/dsa/mt7530.h
 +++ b/drivers/net/dsa/mt7530.h
-@@ -20,6 +20,8 @@
- 	ID_MT7531 = 2,
+@@ -21,6 +21,8 @@
  	ID_MT7988 = 3,
  	ID_EN7581 = 4,
-+	ID_EN751221 = 5,
-+	ID_EN751221_EXT = 6,
+ 	ID_AN7583 = 5,
++	ID_EN751221 = 6,
++	ID_EN751221_EXT = 7,
  };
  
  #define	NUM_TRGMII_CTRL			5
@@ -180,9 +180,9 @@ Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
  
 --- a/drivers/net/dsa/mt7530-mmio.c
 +++ b/drivers/net/dsa/mt7530-mmio.c
-@@ -12,6 +12,7 @@
- 
+@@ -13,6 +13,7 @@
  static const struct of_device_id mt7988_of_match[] = {
+ 	{ .compatible = "airoha,an7583-switch", .data = &mt753x_table[ID_AN7583], },
  	{ .compatible = "airoha,en7581-switch", .data = &mt753x_table[ID_EN7581], },
 +	{ .compatible = "econet,en751221-switch", .data = &mt753x_table[ID_EN751221], },
  	{ .compatible = "mediatek,mt7988-switch", .data = &mt753x_table[ID_MT7988], },
