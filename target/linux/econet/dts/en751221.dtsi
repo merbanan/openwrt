@@ -84,7 +84,7 @@
 		#reset-cells = <1>;
 	};
 
-	ethernet: ethernet@1fb50000 {
+	gmac0: ethernet: ethernet@1fb50000 {
 		compatible = "econet,en751221-eth";
 		/*
 		 * The econet_eth (airoha-derived) driver maps the Frame Engine
