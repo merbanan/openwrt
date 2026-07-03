@@ -1200,11 +1200,19 @@ static int econet_dev_open(struct net_device *dev)
 		econet_fe_clear(eth, REG_GDM_VLAN_CHK(port->id),
 				GDM_STAG_EN_MASK);
 
-	/* Without PPE offload, forward received frames straight to the CPU
-	 * port feeding this GDM's QDMA engine (GDM1->CDM1, GDM2->CDM2).
+	/*
+	 * With PPE offload active, steer ingress to the PPE (it builds an
+	 * unbind entry on a miss and forwards it to the CPU, so unmatched
+	 * traffic still reaches the stack). Otherwise forward received frames
+	 * straight to the CPU port feeding this GDM's QDMA engine
+	 * (GDM1->CDM1, GDM2->CDM2). Steering only happens once the engine is
+	 * enabled (same gate, set in hw_init) to avoid black-holing forwards.
 	 */
-	pse_port = econet_is_lan_gdm_port(port) ? FE_PSE_PORT_CDM1
-						: FE_PSE_PORT_CDM2;
+	if (econet_ppe_offload_enabled() && eth->ppe)
+		pse_port = FE_PSE_PORT_PPE;
+	else
+		pse_port = econet_is_lan_gdm_port(port) ? FE_PSE_PORT_CDM1
+							: FE_PSE_PORT_CDM2;
 	econet_eth_set_port_fwd_cfg(eth, REG_GDM_FWD_CFG(port->id), pse_port);
 
 	/* The GDM<->switch link is fixed (phy-mode "internal", fixed-link),

@@ -30,6 +30,21 @@
 #include "econet_eth.h"
 #include "econet_ppe.h"
 
+/*
+ * Default-off activation gate. When set (econet-eth.econet_ppe_offload=1) the
+ * PPE engine is enabled and GDM ingress is steered to it; otherwise the engine
+ * is left at reset and the GDM forwards to the CPU (no offload, no regression).
+ */
+static bool econet_ppe_offload;
+module_param(econet_ppe_offload, bool, 0444);
+MODULE_PARM_DESC(econet_ppe_offload,
+		 "Enable PPE hardware flow offload (default 0; experimental)");
+
+bool econet_ppe_offload_enabled(void)
+{
+	return econet_ppe_offload;
+}
+
 static DEFINE_SPINLOCK(ppe_lock);
 
 static const struct rhashtable_params econet_flow_table_params = {
@@ -649,6 +664,27 @@ static int econet_ppe_hw_init(struct econet_ppe *ppe)
 		      PPE_FLOW_CFG_IP4_NAT_MASK | PPE_FLOW_CFG_IP4_NAPT_MASK);
 
 	econet_ppe_cache_clear(eth);
+
+	/*
+	 * Activation (gated, default off): turn the engine on with the
+	 * mtk_ppe_start recipe (EN | IP4_L4_CS_DROP | IP4_CS_DROP |
+	 * FLOW_DROP_UPDATE = 0x20d). With an all-miss table and
+	 * SEARCH_MISS=FORWARD_BUILD, misses still go to the CPU, so the LAN
+	 * path is intact; GDM->PPE steering (dev_open) is what actually feeds
+	 * ingress to the engine and must only happen once EN is set.
+	 */
+	if (econet_ppe_offload) {
+		econet_fe_rmw(eth, REG_PPE_GLO_CFG,
+			      PPE_GLO_CFG_EN_MASK |
+			      PPE_GLO_CFG_IP4_L4_CS_DROP_MASK |
+			      PPE_GLO_CFG_IP4_CS_DROP_MASK |
+			      PPE_GLO_CFG_FLOW_DROP_UPDATE_MASK,
+			      PPE_GLO_CFG_EN_MASK |
+			      PPE_GLO_CFG_IP4_L4_CS_DROP_MASK |
+			      PPE_GLO_CFG_IP4_CS_DROP_MASK |
+			      PPE_GLO_CFG_FLOW_DROP_UPDATE_MASK);
+		dev_info(eth->dev, "PPE hardware flow offload enabled\n");
+	}
 
 	return 0;
 }

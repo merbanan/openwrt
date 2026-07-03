@@ -299,6 +299,13 @@ void econet_ppe_check_skb(struct econet_ppe *ppe, struct sk_buff *skb,
 int econet_ppe_setup_tc_block_cb(struct econet_eth *eth, void *type_data);
 
 /*
+ * PPE offload activation gate (default off). When enabled the engine is
+ * turned on in hw_init and dev_open steers GDM ingress to the PPE; otherwise
+ * the engine is left at reset and the GDM forwards to the CPU (no offload).
+ */
+bool econet_ppe_offload_enabled(void);
+
+/*
  * WHNAT (WiFi HW-NAT half-offload) vif registry (F1). The mt76 driver
  * registers each AP vif's netdev here (keyed by its mvif index) so the PPE
  * force-to-CPU downstream demux can mux NAT'd frames back to the right BSS.
