@@ -298,4 +298,20 @@ void econet_ppe_check_skb(struct econet_ppe *ppe, struct sk_buff *skb,
 			  u16 hash);
 int econet_ppe_setup_tc_block_cb(struct econet_eth *eth, void *type_data);
 
+/*
+ * WHNAT (WiFi HW-NAT half-offload) vif registry (F1). The mt76 driver
+ * registers each AP vif's netdev here (keyed by its mvif index) so the PPE
+ * force-to-CPU downstream demux can mux NAT'd frames back to the right BSS.
+ * See the whnat-wifi-hwnat notes; F2 (egress FoE build) and F3 (RX demux)
+ * datapath integration depend on the PPE offload being active.
+ */
+#define ECONET_WHNAT_MAX_VIF		16	/* OEM HWNAT_WLAN_IF_MAXNUM */
+#define ECONET_WHNAT_MAGIC_ETYPE	0x5678
+
+void econet_whnat_register_vif(struct net_device *dev, int idx);
+void econet_whnat_unregister_vif(int idx);
+struct net_device *econet_whnat_vif_by_idx(int idx);
+int econet_whnat_idx_by_mac(const u8 *mac);
+void econet_whnat_flush_vifs(void);
+
 #endif /* ECONET_751221_PPE_H */

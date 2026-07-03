@@ -18,6 +18,7 @@
  */
 
 #include <linux/dma-mapping.h>
+#include <linux/etherdevice.h>
 #include <linux/if_ether.h>
 #include <linux/platform_device.h>
 #include <linux/unaligned.h>
@@ -711,4 +712,95 @@ void econet_ppe_deinit(struct econet_eth *eth)
 
 	rhashtable_free_and_destroy(&eth->flow_table, econet_flow_table_free,
 				    NULL);
+}
+
+/* ---- WHNAT (WiFi HW-NAT half-offload) vif registry (F1) ---------------- */
+
+static struct net_device *econet_whnat_vif[ECONET_WHNAT_MAX_VIF];
+static DEFINE_SPINLOCK(econet_whnat_lock);
+
+/*
+ * mt76 calls this (via symbol_get() at wifi-up) to map each AP vif's netdev
+ * to its WHNAT index. A netdev reference is held while registered so the
+ * stored pointer stays valid for the RX (NAPI) reader.
+ */
+void econet_whnat_register_vif(struct net_device *dev, int idx)
+{
+	if (!dev || idx < 0 || idx >= ECONET_WHNAT_MAX_VIF)
+		return;
+
+	spin_lock_bh(&econet_whnat_lock);
+	if (!econet_whnat_vif[idx]) {
+		dev_hold(dev);
+		econet_whnat_vif[idx] = dev;
+	}
+	spin_unlock_bh(&econet_whnat_lock);
+}
+EXPORT_SYMBOL(econet_whnat_register_vif);
+
+void econet_whnat_unregister_vif(int idx)
+{
+	struct net_device *dev;
+
+	if (idx < 0 || idx >= ECONET_WHNAT_MAX_VIF)
+		return;
+
+	spin_lock_bh(&econet_whnat_lock);
+	dev = econet_whnat_vif[idx];
+	econet_whnat_vif[idx] = NULL;
+	spin_unlock_bh(&econet_whnat_lock);
+
+	if (dev)
+		dev_put(dev);
+}
+EXPORT_SYMBOL(econet_whnat_unregister_vif);
+
+/*
+ * F3 demux helper: returns the vif netdev with an extra hold; the caller
+ * dev_put()s it after dev_queue_xmit, closing the unregister-vs-xmit race.
+ */
+struct net_device *econet_whnat_vif_by_idx(int idx)
+{
+	struct net_device *dev = NULL;
+
+	if (idx < 0 || idx >= ECONET_WHNAT_MAX_VIF)
+		return NULL;
+
+	spin_lock_bh(&econet_whnat_lock);
+	dev = econet_whnat_vif[idx];
+	if (dev)
+		dev_hold(dev);
+	spin_unlock_bh(&econet_whnat_lock);
+
+	return dev;
+}
+
+/*
+ * F2 reverse lookup: an offloaded flow egressing a WiFi AP is spotted by its
+ * egress source MAC, which equals the AP vif's dev_addr.
+ */
+int econet_whnat_idx_by_mac(const u8 *mac)
+{
+	int i, idx = -1;
+
+	spin_lock_bh(&econet_whnat_lock);
+	for (i = 0; i < ECONET_WHNAT_MAX_VIF; i++) {
+		if (econet_whnat_vif[i] &&
+		    ether_addr_equal(econet_whnat_vif[i]->dev_addr, mac)) {
+			idx = i;
+			break;
+		}
+	}
+	spin_unlock_bh(&econet_whnat_lock);
+
+	return idx;
+}
+
+/* Drop all holds on module exit (no netdev leak if mt76 is still loaded). */
+void econet_whnat_flush_vifs(void)
+{
+	int i;
+
+	for (i = 0; i < ECONET_WHNAT_MAX_VIF; i++)
+		econet_whnat_unregister_vif(i);
 }

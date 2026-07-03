@@ -1676,6 +1676,9 @@ static void econet_remove(struct platform_device *pdev)
 	if (!eth)
 		return;
 
+	/* Drop WHNAT vif holds so mt76 (if still loaded) does not leak them. */
+	econet_whnat_flush_vifs();
+
 	econet_ppe_deinit(eth);
 
 	for (i = 0; i < ARRAY_SIZE(eth->qdma); i++)
