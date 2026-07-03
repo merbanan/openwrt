@@ -84,6 +84,32 @@
 		#reset-cells = <1>;
 	};
 
+	pinctrl_syscon: system-controller@1fbf0200 {
+		compatible = "syscon", "simple-mfd";
+		reg = <0x1fbf0200 0x100>;
+
+		en751221_pinctrl: pinctrl {
+			compatible = "econet,en751221-pinctrl";
+
+			interrupt-parent = <&intc>;
+			interrupts = <10>;
+
+			gpio-controller;
+			#gpio-cells = <2>;
+
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			gpio-ranges = <&en751221_pinctrl 0 13 29>;
+
+			i2c_pins: i2c-pins {
+				mux {
+					function = "pon_i2c";
+					groups = "pon_i2c";
+				};
+			};
+		};
+	};
+
 	gmac0: ethernet: ethernet@1fb50000 {
 		compatible = "econet,en751221-eth";
 		/*
@@ -379,5 +405,41 @@
 		interrupt-parent = <&intc>;
 		interrupts = <30>;
 		clocks = <&hpt_clock>;
+	};
+
+	i2cclock: i2cclock {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		/* 20 MHz */
+		clock-frequency = <20000000>;
+	};
+
+	i2c: i2c@1fbf8000 {
+		compatible = "mediatek,mt7621-i2c";
+		reg = <0x1fbf8000 0x100>;
+
+		clocks = <&i2cclock>;
+
+		/* 100 kHz */
+		clock-frequency = <100000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&i2c_pins>;
+
+		status = "okay";
+
+		/*
+		 * EN7570 xPON LDDLA (laser-diode driver + limiting amplifier).
+		 * Its control interface lives on this real MT7621-compatible
+		 * I2C bus; the driver additionally publishes the module's
+		 * SFF-8472 diagnostics as an emulated SFP (see the i2c-stub /
+		 * sfp wiring, driver-side).
+		 */
+		en7570: lddla@70 {
+			compatible = "airoha,en7570";
+			reg = <0x70>;
+		};
 	};
 };

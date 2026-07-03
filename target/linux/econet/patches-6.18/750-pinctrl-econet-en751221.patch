@@ -1,0 +1,42 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] pinctrl: mediatek: wire up the EN751221 pinctrl driver
+
+Enable the MediaTek pinctrl menu on ECONET and register the imported
+pinctrl-en751221.c (files/ overlay) in its Kconfig/Makefile.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+--- a/drivers/pinctrl/mediatek/Kconfig
++++ b/drivers/pinctrl/mediatek/Kconfig
+@@ -1,6 +1,6 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ menu "MediaTek pinctrl drivers"
+-	depends on ARCH_MEDIATEK || ARCH_AIROHA || RALINK || COMPILE_TEST
++	depends on ARCH_MEDIATEK || ARCH_AIROHA || RALINK || ECONET || COMPILE_TEST
+ 
+ config EINT_MTK
+ 	tristate "MediaTek External Interrupt Support"
+@@ -319,4 +319,17 @@
+ 	default MFD_MT6397
+ 	select PINCTRL_MTK
+ 
++
++config PINCTRL_ECONET
++	bool "Econet EN751221 pin control"
++	depends on SOC_ECONET_EN751221 || COMPILE_TEST
++	depends on ECONET
++	default SOC_ECONET_EN751221
++	select PINMUX
++	select GENERIC_PINCONF
++	select GENERIC_PINCTRL_GROUPS
++	select GENERIC_PINMUX_FUNCTIONS
++	select GPIOLIB
++	select GPIOLIB_IRQCHIP
++	select REGMAP_MMIO
+ endmenu
+--- a/drivers/pinctrl/mediatek/Makefile
++++ b/drivers/pinctrl/mediatek/Makefile
+@@ -42,3 +42,4 @@
+ obj-$(CONFIG_PINCTRL_MT8365)		+= pinctrl-mt8365.o
+ obj-$(CONFIG_PINCTRL_MT8516)		+= pinctrl-mt8516.o
+ obj-$(CONFIG_PINCTRL_MT6397)		+= pinctrl-mt6397.o
++obj-$(CONFIG_PINCTRL_ECONET)		+= pinctrl-en751221.o
