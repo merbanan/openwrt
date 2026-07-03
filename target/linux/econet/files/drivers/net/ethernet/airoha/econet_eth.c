@@ -1606,8 +1606,8 @@ static int econet_probe(struct platform_device *pdev)
 				     "failed to iomap fe regs\n");
 
 	eth->rsts[0].id = "fe";
-	eth->rsts[1].id = "pdma";
-	eth->rsts[2].id = "qdma";
+	eth->rsts[1].id = "qdma0";
+	eth->rsts[2].id = "qdma1";
 	err = devm_reset_control_bulk_get_exclusive(eth->dev,
 						    ARRAY_SIZE(eth->rsts),
 						    eth->rsts);
