@@ -434,12 +434,33 @@
 		 * EN7570 xPON LDDLA (laser-diode driver + limiting amplifier).
 		 * Its control interface lives on this real MT7621-compatible
 		 * I2C bus; the driver additionally publishes the module's
-		 * SFF-8472 diagnostics as an emulated SFP (see the i2c-stub /
-		 * sfp wiring, driver-side).
+		 * SFF-8472 diagnostics as an emulated SFP on its own exported
+		 * virtual i2c bus (the i2c-sfp child below).
 		 */
 		en7570: lddla@70 {
 			compatible = "airoha,en7570";
 			reg = <0x70>;
+
+			/*
+			 * Virtual SFP i2c bus exported by the LDDLA driver
+			 * (of_node). The emulated module answers ROM 0x50 /
+			 * DDM 0x51; another driver (e.g. the sfp node below)
+			 * can attach to this bus and those addresses.
+			 */
+			i2c_sfp: i2c-sfp {
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
 		};
+	};
+
+	/*
+	 * The emulated SFP module, read over the LDDLA driver's exported
+	 * virtual i2c bus, so phylink/ethtool see the soldered-down EN7570
+	 * optics as a standard SFP.
+	 */
+	sfp0: sfp {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c_sfp>;
 	};
 };

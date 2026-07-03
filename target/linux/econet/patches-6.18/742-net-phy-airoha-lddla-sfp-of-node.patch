@@ -1,0 +1,35 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: phy: airoha: lddla: give the virtual SFP bus an of_node
+
+Attach the LDDLA's emulated SFP i2c adapter to an "i2c-sfp" device-tree
+child of the en7570 node, so the bus (and its 0x50 ROM / 0x51 DDM
+slaves) is reachable by phandle - e.g. from an sff,sfp node.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+--- a/drivers/net/phy/airoha/airoha_lddla.c
++++ b/drivers/net/phy/airoha/airoha_lddla.c
+@@ -36,6 +36,7 @@
+ #include <linux/i2c.h>
+ #include <linux/jiffies.h>
+ #include <linux/module.h>
++#include <linux/of.h>
+ #include <linux/sched/signal.h>
+ #include <linux/seq_file.h>
+ #include <linux/slab.h>
+@@ -728,6 +729,8 @@
+ 	sfp->adapter.owner = THIS_MODULE;
+ 	sfp->adapter.algo = &airoha_sfp_algo;
+ 	sfp->adapter.dev.parent = lddla->dev;
++	sfp->adapter.dev.of_node =
++		of_get_child_by_name(lddla->dev->of_node, "i2c-sfp");
+ 	sfp->adapter.class = 0;
+ 	strscpy(sfp->adapter.name, "Airoha LDDLA virtual SFP",
+ 		sizeof(sfp->adapter.name));
+@@ -748,6 +751,7 @@
+ {
+ 	if (lddla->sfp) {
+ 		i2c_del_adapter(&lddla->sfp->adapter);
++		of_node_put(lddla->sfp->adapter.dev.of_node);
+ 		lddla->sfp = NULL;
+ 	}
+ }
