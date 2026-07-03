@@ -38,13 +38,19 @@ config NET_AIROHA_FLOW_STATS
 	help
 	  Enable Airoha flowtable statistic counters.
 
+endif #NET_VENDOR_AIROHA
+
+#
+# The EcoNet EN751221 driver lives in this directory but is independent of
+# the Airoha vendor driver above - it must build without NET_VENDOR_AIROHA
+# (see the matching descend rule in drivers/net/ethernet/Makefile).
+#
 config NET_ECONET
 	tristate "EcoNet EN751221 Gigabit Ethernet support"
+	depends on ECONET || COMPILE_TEST
 	depends on NET_DSA || !NET_DSA
 	select PAGE_POOL
 	select REGMAP_MMIO
 	help
 	  This driver supports the gigabit ethernet MAC, QDMA datapath and
 	  PPE hardware flow offload on the EcoNet EN751221 SoC.
-
-endif #NET_VENDOR_AIROHA

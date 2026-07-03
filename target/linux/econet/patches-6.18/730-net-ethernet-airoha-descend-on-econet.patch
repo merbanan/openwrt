@@ -1,0 +1,20 @@
+From: Benjamin Larsson <benjamin.larsson@genexis.eu>
+Subject: [PATCH] net: ethernet: descend into airoha/ for NET_ECONET
+
+The EcoNet EN751221 ethernet driver (econet-eth) lives in
+drivers/net/ethernet/airoha/ but is independent of the Airoha vendor
+driver. Descend into the directory when only NET_ECONET is enabled so the
+EcoNet driver builds without requiring NET_VENDOR_AIROHA. The guard avoids
+adding the subdirectory twice when both symbols are set.
+
+Signed-off-by: Benjamin Larsson <benjamin.larsson@genexis.eu>
+--- a/drivers/net/ethernet/Makefile
++++ b/drivers/net/ethernet/Makefile
+@@ -12,5 +12,8 @@ obj-$(CONFIG_NET_VENDOR_AGERE) += agere/
+ obj-$(CONFIG_NET_VENDOR_AIROHA) += airoha/
++ifndef CONFIG_NET_VENDOR_AIROHA
++obj-$(CONFIG_NET_ECONET) += airoha/
++endif
+ obj-$(CONFIG_NET_VENDOR_ALACRITECH) += alacritech/
+ obj-$(CONFIG_NET_VENDOR_ALLWINNER) += allwinner/
+ obj-$(CONFIG_NET_VENDOR_ALTEON) += alteon/
