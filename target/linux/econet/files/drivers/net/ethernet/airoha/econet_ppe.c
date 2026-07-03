@@ -271,9 +271,18 @@ static int econet_ppe_foe_entry_prepare(struct econet_eth *eth,
 	u32 qdata = FIELD_PREP(ECONET_FOE_SHAPER_ID, 0x7f), val;
 	int dsa_port = econet_get_dsa_port(&netdev);
 	struct econet_foe_mac_info_common *l2;
+	int wifi_idx;
 	u8 smac_id = 0xf;
 
 	memset(hwe, 0, sizeof(*hwe));
+
+	/*
+	 * WHNAT (F2): does this flow egress a registered WiFi AP vif? (spotted
+	 * by its egress source MAC == the vif dev_addr). If so, half-offload:
+	 * the PPE NATs then force-to-CPU with a magic tag, and F3 reinjects to
+	 * the radio - there is no DMA path from the PPE to the WiFi chip.
+	 */
+	wifi_idx = econet_whnat_idx_by_mac(data->eth.h_source);
 
 	val = FIELD_PREP(ECONET_FOE_IB1_BIND_STATE, ECONET_FOE_STATE_BIND) |
 	      FIELD_PREP(ECONET_FOE_IB1_BIND_PACKET_TYPE, type) |
@@ -285,7 +294,14 @@ static int econet_ppe_foe_entry_prepare(struct econet_eth *eth,
 	hwe->ib1 = val;
 
 	val = FIELD_PREP(ECONET_FOE_IB2_PORT_AG, 0x1f);
-	if (netdev) {
+	if (wifi_idx >= 0) {
+		/*
+		 * WHNAT half-offload egress: force the NAT'd frame to the CPU
+		 * (CDM1). NB: the egress netdev here is the mt76 vif, NOT a GDM
+		 * port, so we must NOT dereference it as an econet_gdm_port.
+		 */
+		val |= FIELD_PREP(ECONET_FOE_IB2_PSE_PORT, FE_PSE_PORT_CDM1);
+	} else if (netdev) {
 		struct econet_gdm_port *port = netdev_priv(netdev);
 		u8 pse_port, channel;
 
@@ -341,6 +357,20 @@ static int econet_ppe_foe_entry_prepare(struct econet_eth *eth,
 		l2->etype |= !data->vlan.num ? BIT(15) : 0;
 	} else if (data->pppoe.num) {
 		l2->etype = ETH_P_PPP_SES;
+	}
+
+	if (wifi_idx >= 0) {
+		/*
+		 * WHNAT magic tag: the PPE carries vlan1 = vif idx with a magic
+		 * etype to the CPU, where F3 (econet_qdma_rx_process) demuxes it
+		 * to the right BSS netdev and reinjects. This synthesises one
+		 * VLAN layer regardless of the original flow's tagging.
+		 * HW-empirical encoding - confirm the tag placement on silicon.
+		 */
+		l2->vlan1 = wifi_idx;
+		l2->etype = ECONET_WHNAT_MAGIC_ETYPE;
+		hwe->ib1 &= ~ECONET_FOE_IB1_BIND_VLAN_LAYER;
+		hwe->ib1 |= FIELD_PREP(ECONET_FOE_IB1_BIND_VLAN_LAYER, 1);
 	}
 
 	return 0;

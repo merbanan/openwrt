@@ -11,6 +11,7 @@
 
 #include <linux/of.h>
 #include <linux/of_net.h>
+#include <linux/unaligned.h>
 #include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
 #include <linux/tcp.h>
@@ -435,6 +436,51 @@ static int econet_qdma_rx_process(struct econet_queue *q, int budget)
 			if (reason == PPE_CPU_REASON_HIT_UNBIND_RATE_REACHED)
 				econet_ppe_check_skb(eth->ppe, q->skb,
 						     ppe_entry);
+		}
+
+		/*
+		 * WHNAT RX demux (F3): a frame the PPE NAT'd then force-fed to
+		 * the CPU (F2 half-offload) carries a magic tag
+		 * [magic_etype][vif_idx] where the VLAN header would be. Strip
+		 * it and reinject to the owning AP vif so mac80211 transmits it
+		 * to the client; there is no DMA path from the PPE to the WiFi
+		 * chip, hence this CPU bounce. HW-empirical: the inserted-tag
+		 * format must be confirmed on silicon together with the F2 FoE
+		 * fields (see econet_ppe_foe_entry_prepare).
+		 */
+		if (eth->ppe &&
+		    q->skb->protocol == htons(ECONET_WHNAT_MAGIC_ETYPE)) {
+			struct net_device *vif;
+			unsigned char *mac;
+			u16 idx, real_etype;
+
+			/* eth_type_trans() already pulled the 14B header incl.
+			 * the magic etype; the vif idx and the original etype
+			 * are the next four bytes. Rewind to the MAC header. */
+			skb_push(q->skb, ETH_HLEN);
+			mac = q->skb->data;
+			idx = get_unaligned_be16(mac + ETH_HLEN);
+			real_etype = get_unaligned_be16(mac + ETH_HLEN + 2);
+
+			vif = econet_whnat_vif_by_idx(idx);
+			if (!vif) {
+				dev_kfree_skb(q->skb);
+				q->skb = NULL;
+				continue;
+			}
+
+			/* drop the 4-byte magic tag: slide the MACs over it */
+			memmove(mac + 4, mac, 2 * ETH_ALEN);
+			skb_pull(q->skb, 4);
+			skb_reset_mac_header(q->skb);
+			q->skb->protocol = htons(real_etype);
+			q->skb->dev = vif;
+
+			done++;
+			dev_queue_xmit(q->skb);
+			dev_put(vif);
+			q->skb = NULL;
+			continue;
 		}
 
 		done++;
